@@ -1,0 +1,267 @@
+{
+  "generatedAt": "2026-10-02T10:24:05.082Z",
+  "scenario": "refine",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-v2",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Не включай.",
+      "reply": "По тегам каталога:\n«Dutch Delite Drum and Bass» — drum and bass, liquid dnb, neurofunk (The Netherlands).\n«Uturn Radio - Drum And Bass» — drum and bass (Canada).\n«Brokenbeats» — drum and bass, downtempo (Ukraine).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "name": "Dutch Delite Drum and Bass",
+          "country": "The Netherlands",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "drum 'n' bass",
+            "drum&bass",
+            "liquid dnb",
+            "neurofunk"
+          ]
+        },
+        {
+          "stationuuid": "e70083a3-133b-4b8f-9509-ae2d37fdbe7b",
+          "name": "Uturn Radio - Drum And Bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "actionId": "09bd8596-33a3-4089-8633-470944b04283:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 858
+        }
+      ],
+      "runtimeMs": 5240,
+      "usage": {
+        "prompt": 5000,
+        "completion": 190
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Больше jungle, меньше downtempo. Два варианта, не включай.",
+      "reply": "По тегам каталога:\n«Jungle Planet Radio» — drum and bass, jungle (Italy).\n«Australian Digital Radio Network - Jungle and Breakbeat (MP3)» — jungle (Australia).\nОбщее в тегах — jungle.",
+      "cards": [
+        {
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "name": "Jungle Planet Radio",
+          "country": "Italy",
+          "tags": [
+            "drum and bass",
+            "jungle",
+            "uk garage"
+          ]
+        },
+        {
+          "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+          "name": "Australian Digital Radio Network - Jungle and Breakbeat (MP3)",
+          "country": "Australia",
+          "tags": [
+            "breakbeat",
+            "jungle"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "actionId": "d74b5981-ac45-4df2-839b-22719c5ed0b1:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 87
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        }
+      ],
+      "runtimeMs": 1944,
+      "usage": {
+        "prompt": 2927,
+        "completion": 59
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Совсем другой стиль — фанк. Один вариант, не включай.",
+      "reply": "По тегам каталога:\n«FUNKY RADIO - Only Funk Music (60's 70's)» — 60s, 70s (The United States Of America).",
+      "cards": [
+        {
+          "stationuuid": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "name": "FUNKY RADIO - Only Funk Music (60's 70's)",
+          "country": "The United States Of America",
+          "tags": [
+            "disco",
+            "funk",
+            "r&b",
+            "rnb",
+            "soul",
+            "60s"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "actionId": "2ebd0681-ff57-474e-8d1c-b7b0077bd7d4:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 70
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        }
+      ],
+      "runtimeMs": 1612,
+      "usage": {
+        "prompt": 3042,
+        "completion": 56
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "fc9fc7fa-3c62-4b56-a8a8-a7fa2ecf3822",
+      "status": "settled",
+      "requestBytes": 10117,
+      "reserveUsd": 0.02272116,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростная музыка как Sonic → drum and bass\"\n}",
+      "actualUsd": 0.00300828,
+      "httpStatus": 200,
+      "promptTokens": 2066,
+      "completionTokens": 71
+    },
+    {
+      "reservationId": "dd4dca1e-333c-4761-927f-5c5bef784024",
+      "status": "settled",
+      "requestBytes": 14950,
+      "reserveUsd": 0.02910072,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"948dd047-1a0b-42c9-b769-19233dfadc7f\",\"tagKeys\":[\"t0\",\"t1\",\"t2\"]},{\"stationId\":\"e70083a3-133b-4b8f-9509-ae2d37fdbe7b\",\"tagKeys\":[\"t0\"]},{\"stationId\":\"96309e77-0601-11e8-ae97-52543be04c81\",\"tagKeys\":[\"t1\"]}]}",
+      "actualUsd": 0.00434412,
+      "httpStatus": 200,
+      "promptTokens": 2934,
+      "completionTokens": 119
+    },
+    {
+      "reservationId": "4a3bd9db-ae00-4c57-92e6-a899290188a8",
+      "status": "settled",
+      "requestBytes": 15311,
+      "reserveUsd": 0.02957724,
+      "responseContent": "                                                           ",
+      "actualUsd": 0.00409728,
+      "httpStatus": 200,
+      "promptTokens": 2927,
+      "completionTokens": 59
+    },
+    {
+      "reservationId": "ca22822d-e099-4c86-b751-4212ee8244fe",
+      "status": "settled",
+      "requestBytes": 15805,
+      "reserveUsd": 0.03022932,
+      "responseContent": "                                                        ",
+      "actualUsd": 0.0042372,
+      "httpStatus": 200,
+      "promptTokens": 3042,
+      "completionTokens": 56
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

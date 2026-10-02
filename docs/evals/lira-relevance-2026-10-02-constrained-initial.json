@@ -1,0 +1,173 @@
+{
+  "generatedAt": "2026-10-02T10:10:38.075Z",
+  "scenario": "constrained",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-evidence-final",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic, только из России, без новостей. Один вариант. Не включай.",
+      "reply": "По тегам каталога:\n«Radio Caprice - Drum 'n' Bass [2]» — drum bass (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "f52eadeb-38f7-47a0-a1d7-d5f24e7d9148:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 3219
+        }
+      ],
+      "runtimeMs": 6915,
+      "usage": {
+        "prompt": 4905,
+        "completion": 137
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "По тегам каталога:\n«DNB FM» — dnb, drum and bass, liquid (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "name": "DNB FM",
+          "country": "The Russian Federation",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "breaks",
+            "liquid"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "actionId": "76b04b38-7318-44f8-a725-9bd553cdab04:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 61
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 13
+        }
+      ],
+      "runtimeMs": 3993,
+      "usage": {
+        "prompt": 5241,
+        "completion": 105
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "15512819-31d8-4a44-8524-29de1cdfd11e",
+      "status": "settled",
+      "requestBytes": 10572,
+      "reserveUsd": 0.02332176,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 1\n  },\n  \"note\": \"Ищу скоростную станцию в России без новостей\"\n}",
+      "actualUsd": 0.00312708,
+      "httpStatus": 200,
+      "promptTokens": 2132,
+      "completionTokens": 79
+    },
+    {
+      "reservationId": "c67d6462-8ba2-47ea-82f6-b754688ea769",
+      "status": "settled",
+      "requestBytes": 14781,
+      "reserveUsd": 0.02887764,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00389004,
+      "httpStatus": 200,
+      "promptTokens": 2773,
+      "completionTokens": 58
+    },
+    {
+      "reservationId": "6a9fa9ce-4759-4aa9-95d3-8b2ba7354c1b",
+      "status": "settled",
+      "requestBytes": 10906,
+      "reserveUsd": 0.02376264,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"recommend\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Предложить одну российскую станцию в стиле скоростного Sonic без новостей\"\n}",
+      "actualUsd": 0.00310596,
+      "httpStatus": 200,
+      "promptTokens": 2194,
+      "completionTokens": 53
+    },
+    {
+      "reservationId": "cb06ce03-03b9-4454-86b0-926d0e950c71",
+      "status": "settled",
+      "requestBytes": 1079,
+      "reserveUsd": 0.010791,
+      "responseContent": "drum and bass",
+      "actualUsd": 0.0002772,
+      "httpStatus": 200,
+      "promptTokens": 198,
+      "completionTokens": 4
+    },
+    {
+      "reservationId": "f74698ce-53ff-4e62-8154-227ff4020340",
+      "status": "settled",
+      "requestBytes": 15282,
+      "reserveUsd": 0.02953896,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"6632bb70-8919-415d-9d09-6e304564543b\",\"tagKeys\":[\"t0\",\"t1\",\"t2\"]}]}",
+      "actualUsd": 0.00395076,
+      "httpStatus": 200,
+      "promptTokens": 2849,
+      "completionTokens": 48
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

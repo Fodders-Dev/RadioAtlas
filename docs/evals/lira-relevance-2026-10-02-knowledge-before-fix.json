@@ -1,0 +1,147 @@
+{
+  "generatedAt": "2026-10-02T10:30:48.471Z",
+  "scenario": "knowledge",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-v3",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Почему drum and bass ощущается быстрым? Не включай радио.",
+      "reply": "По тегам каталога:\n«Atmospheric dnb s0urce» — drum and bass, jungle (Romania).\n«Dutch Delite Drum and Bass» — drum and bass, liquid dnb (The Netherlands).\n«DNBRadio Main channel 192k» — drum and bass, neurofunk, dubstep (Germany).\n«Brokenbeats» — drum and bass, downtempo (Ukraine).\n«Uturn Radio - Drum And Bass» — drum and bass (Canada).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        },
+        {
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "name": "Dutch Delite Drum and Bass",
+          "country": "The Netherlands",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "drum 'n' bass",
+            "drum&bass",
+            "liquid dnb",
+            "neurofunk"
+          ]
+        },
+        {
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "name": "DNBRadio Main channel 192k",
+          "country": "Germany",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "dubstep",
+            "neurofunk",
+            "tech step"
+          ]
+        },
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "e70083a3-133b-4b8f-9509-ae2d37fdbe7b",
+          "name": "Uturn Radio - Drum And Bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "actionId": "07bde845-6df1-4228-8893-6cb50c7a45f6:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 505
+        }
+      ],
+      "runtimeMs": 6349,
+      "usage": {
+        "prompt": 5479,
+        "completion": 283
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "250107bc-4f1d-463c-9d8c-ce31f78d09c0",
+      "status": "settled",
+      "requestBytes": 10113,
+      "reserveUsd": 0.02271588,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"knowledge\",\n  \"tool\": \"\",\n  \"args\": {},\n  \"note\": \"Объясняю восприятие скорости в drum and bass\"\n}",
+      "actualUsd": 0.002904,
+      "httpStatus": 200,
+      "promptTokens": 2065,
+      "completionTokens": 45
+    },
+    {
+      "reservationId": "31d74120-c9c3-497d-be30-2f4792f204a1",
+      "status": "settled",
+      "requestBytes": 1013,
+      "reserveUsd": 0.01070388,
+      "responseContent": "drum and bass",
+      "actualUsd": 0.00026268,
+      "httpStatus": 200,
+      "promptTokens": 187,
+      "completionTokens": 4
+    },
+    {
+      "reservationId": "5c938aa3-0a50-4bc7-a704-1f4d038f17c2",
+      "status": "settled",
+      "requestBytes": 15873,
+      "reserveUsd": 0.03031908,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"c4eb7648-e867-4545-bdda-71b1368db779\",\n      \"tagKeys\": [\"t0\"]\n    },\n    {\n      \"stationId\": \"948dd047-1a0b-42c9-b769-19233dfadc7f\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"edaa4ad7-bdf3-11e8-aaf2-52543be04c81\",\n      \"tagKeys\": [\"t0\", \"t2\"]\n    },\n    {\n      \"stationId\": \"96309e77-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t1\"]\n    },\n    {\n      \"stationId\": \"e70083a3-133b-4b8f-9509-ae2d37fdbe7b\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00518628,
+      "httpStatus": 200,
+      "promptTokens": 3227,
+      "completionTokens": 234
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

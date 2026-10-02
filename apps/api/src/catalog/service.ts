@@ -729,8 +729,6 @@ const computeSearchRelevance = (station: CatalogStation, q: string, tag: string)
   }
   return score;
 };
-const RELEVANCE_WEIGHT = 3;
-
 // Does the query name the station's own place (state/region/city or country)?
 // Whole-word match on the location fields only — the name is not a location.
 export const placeMatchesQuery = (
@@ -819,23 +817,26 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const nextCursor =
     filters.cursor + filters.limit < filtered.length ? String(filters.cursor + filters.limit) : null;
 
-  // Typed search stays relevance/quality-first. Browse/filter-only search uses
-  // a per-session seeded order inside a large healthy-quality head pool, so the
-  // Search screen does not start with the same global leaders on every open.
-  // The AI/Лира path opts into genre-relevance ordering (see CatalogSearchFilters).
-  const ranked = filters.q
-    ? filters.relevance
-      ? filtered
-          .map((station) => ({
-            station,
-            order:
-              computeSearchRelevance(station, filters.q, filters.tag) * RELEVANCE_WEIGHT +
-              searchQualityOf(station)
-          }))
-          .sort((left, right) => right.order - left.order)
-          .map((entry) => entry.station)
-      : [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
-    : seededSearchBrowseOrder(filtered, filters.seed, filters.limit);
+  // Ordinary typed search remains quality-first. Browse/filter-only search uses
+  // a per-session seeded order inside a large healthy-quality head pool. The
+  // opt-in AI/Лира path ranks known relevance evidence first, then quality within
+  // that tier; a catalogue-confirmed failed stream always sinks below others.
+  // An empty opt-in browse still uses the seeded browse order.
+  const wantsRelevance = Boolean(filters.relevance && (filters.q || filters.tag));
+  const ranked = wantsRelevance
+    ? filtered
+        .map((station) => ({ station, relevance: computeSearchRelevance(station, filters.q, filters.tag) }))
+        .sort((left, right) => {
+          const leftFailed = left.station.lastcheckok === 0 ? 1 : 0;
+          const rightFailed = right.station.lastcheckok === 0 ? 1 : 0;
+          return leftFailed - rightFailed ||
+            right.relevance - left.relevance ||
+            searchQualityOf(right.station) - searchQualityOf(left.station);
+        })
+        .map((entry) => entry.station)
+    : filters.q
+      ? [...filtered].sort((left, right) => searchQualityOf(right) - searchQualityOf(left))
+      : seededSearchBrowseOrder(filtered, filters.seed, filters.limit);
 
   return {
     items: ranked.slice(filters.cursor, filters.cursor + filters.limit).map(toStationLite),

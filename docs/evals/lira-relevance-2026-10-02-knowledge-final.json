@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-10-02T10:34:19.131Z",
+  "scenario": "knowledge",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-final",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Почему drum and bass ощущается быстрым? Не включай радио.",
+      "reply": "Слушай, это же чистый обман восприятия — и я его обожаю. Темп у драм-н-бейса обычно в районе 170–180 ударов в минуту, но мозг цепляется не за бочку, а за хэты и снейр. Снейр лупит на вторую и четвёртую долю, как в хаусе, только вдвое быстрее, и из-за этого кажется, что трек несётся. А бочка с басом ещё и ломают рисунок — то проваливаются, то догоняют, и ты физически не можешь расслабиться. Плюс басовая линия часто играет не ровно, а с синкопами, как будто кто-то дёргает тебя за плечо из темноты. Вот и получается: ноги стоят, а внутри всё уже на скорости света.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "3798a176-66cc-4df1-a870-6cd4ac6890e2:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 4716,
+      "usage": {
+        "prompt": 2289,
+        "completion": 215
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "744dbb02-fc38-48b9-92c1-9a183280e25e",
+      "status": "settled",
+      "requestBytes": 12514,
+      "reserveUsd": 0.0258852,
+      "responseContent": "Слушай, это же чистый обман восприятия — и я его обожаю. Темп у драм-н-бейса обычно в районе 170–180 ударов в минуту, но мозг цепляется не за бочку, а за хэты и снейр. Снейр лупит на вторую и четвёртую долю, как в хаусе, только вдвое быстрее, и из-за этого кажется, что трек несётся. А бочка с басом ещё и ломают рисунок — то проваливаются, то догоняют, и ты физически не можешь расслабиться. Плюс басовая линия часто играет не ровно, а с синкопами, как будто кто-то дёргает тебя за плечо из темноты. Вот и получается: ноги стоят, а внутри всё уже на скорости света.",
+      "actualUsd": 0.00387288,
+      "httpStatus": 200,
+      "promptTokens": 2289,
+      "completionTokens": 215
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

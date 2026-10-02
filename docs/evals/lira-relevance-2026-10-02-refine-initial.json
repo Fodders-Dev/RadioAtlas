@@ -1,0 +1,261 @@
+{
+  "generatedAt": "2026-10-02T10:09:24.258Z",
+  "scenario": "refine",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-evidence-final",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Не включай.",
+      "reply": "По тегам каталога:\n«Uturn Radio - Drum And Bass» — drum and bass (Canada).\n«Dutch Delite Drum and Bass» — dnb, drum and bass, drum bass (The Netherlands).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "e70083a3-133b-4b8f-9509-ae2d37fdbe7b",
+          "name": "Uturn Radio - Drum And Bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "name": "Dutch Delite Drum and Bass",
+          "country": "The Netherlands",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "drum 'n' bass",
+            "drum&bass",
+            "liquid dnb",
+            "neurofunk"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "e70083a3-133b-4b8f-9509-ae2d37fdbe7b",
+          "actionId": "600a3619-04ed-455e-aec8-80a1ea2e8a00:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 549
+        }
+      ],
+      "runtimeMs": 4850,
+      "usage": {
+        "prompt": 4878,
+        "completion": 189
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Больше jungle, меньше downtempo. Два варианта, не включай.",
+      "reply": "По тегам каталога:\n«Jungle Planet Radio» — drum and bass, jungle (Italy).",
+      "cards": [
+        {
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "name": "Jungle Planet Radio",
+          "country": "Italy",
+          "tags": [
+            "drum and bass",
+            "jungle",
+            "uk garage"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "actionId": "b32266e2-bd84-475e-9452-aed7f9a46a70:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 62
+        }
+      ],
+      "runtimeMs": 5098,
+      "usage": {
+        "prompt": 7154,
+        "completion": 173
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Совсем другой стиль — фанк. Один вариант, не включай.",
+      "reply": "По тегам каталога:\n«Australian Digital Radio Network - Jungle and Breakbeat (MP3)» — jungle (Australia).",
+      "cards": [
+        {
+          "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+          "name": "Australian Digital Radio Network - Jungle and Breakbeat (MP3)",
+          "country": "Australia",
+          "tags": [
+            "breakbeat",
+            "jungle"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+          "actionId": "6c84755f-4d86-4fea-b885-c2dd59f75a89:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 83
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        }
+      ],
+      "runtimeMs": 4610,
+      "usage": {
+        "prompt": 5225,
+        "completion": 50
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "39613bfc-0665-47d7-8c87-f8acaee1de20",
+      "status": "settled",
+      "requestBytes": 10117,
+      "reserveUsd": 0.02272116,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростное как Sonic → быстрый электронный жанр drum and bass\"\n}",
+      "actualUsd": 0.003036,
+      "httpStatus": 200,
+      "promptTokens": 2066,
+      "completionTokens": 78
+    },
+    {
+      "reservationId": "57117a45-ca10-4267-aa4d-bcd982c90e45",
+      "status": "settled",
+      "requestBytes": 14558,
+      "reserveUsd": 0.02858328,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"e70083a3-133b-4b8f-9509-ae2d37fdbe7b\",\n      \"tagKeys\": [\"t0\"]\n    },\n    {\n      \"stationId\": \"948dd047-1a0b-42c9-b769-19233dfadc7f\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    }\n  ]\n}",
+      "actualUsd": 0.0041514,
+      "httpStatus": 200,
+      "promptTokens": 2812,
+      "completionTokens": 111
+    },
+    {
+      "reservationId": "427f5393-6a03-4c55-bcc3-b726ca634d6c",
+      "status": "settled",
+      "requestBytes": 10494,
+      "reserveUsd": 0.0232188,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"jungle\",\n    \"limit\": 2\n  },\n  \"note\": \"Ищу станции с тегом jungle\"\n}",
+      "actualUsd": 0.00308748,
+      "httpStatus": 200,
+      "promptTokens": 2144,
+      "completionTokens": 65
+    },
+    {
+      "reservationId": "77da19bf-4261-465d-8192-55eb34f74459",
+      "status": "settled",
+      "requestBytes": 10934,
+      "reserveUsd": 0.0237996,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"jungle\",\n    \"limit\": 2\n  },\n  \"note\": \"Ищу станции с тегом jungle\"\n}",
+      "actualUsd": 0.00324984,
+      "httpStatus": 200,
+      "promptTokens": 2267,
+      "completionTokens": 65
+    },
+    {
+      "reservationId": "d5554a7f-81ed-43c4-bef8-ac03d9672672",
+      "status": "settled",
+      "requestBytes": 14522,
+      "reserveUsd": 0.02853576,
+      "responseContent": "                                           ",
+      "actualUsd": 0.00379104,
+      "httpStatus": 200,
+      "promptTokens": 2743,
+      "completionTokens": 43
+    },
+    {
+      "reservationId": "cc413cf3-5e24-4a5e-8c17-12040e960ca0",
+      "status": "settled",
+      "requestBytes": 10746,
+      "reserveUsd": 0.02355144,
+      "responseContent": "                         ",
+      "actualUsd": 0.00299112,
+      "httpStatus": 200,
+      "promptTokens": 2191,
+      "completionTokens": 25
+    },
+    {
+      "reservationId": "9c82536a-07fd-43e2-b2b5-5d2151b620b1",
+      "status": "settled",
+      "requestBytes": 1108,
+      "reserveUsd": 0.01082928,
+      "responseContent": "jungle, drum and bass",
+      "actualUsd": 0.00029568,
+      "httpStatus": 200,
+      "promptTokens": 206,
+      "completionTokens": 6
+    },
+    {
+      "reservationId": "a01ec204-34de-49cf-a08e-9512b0b1fa16",
+      "status": "settled",
+      "requestBytes": 15131,
+      "reserveUsd": 0.02933964,
+      "responseContent": "                   ",
+      "actualUsd": 0.0038082,
+      "httpStatus": 200,
+      "promptTokens": 2828,
+      "completionTokens": 19
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

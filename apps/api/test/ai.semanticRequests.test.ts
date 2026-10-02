@@ -12,7 +12,7 @@ const station = (id: string, overrides: Partial<VerifiedStationRef> = {}): Verif
 const recommendation = JSON.stringify({action:'use_tool', intent:'recommend', tool:'search_stations', args:{query:'drum and bass'}});
 const final = (intent: string) => JSON.stringify({action:'final', intent});
 const ask = (userMessage: string, history: ChatTurn[] = []): ChatInput => ({userMessage, history, surface:'miniapp', locale:'ru'});
-const harness = (options: {planner?: string[]; reply?: string; rows?: VerifiedStationRef[]} = {}) => {
+const harness = (options: {planner?: string[]; reply?: string; rows?: VerifiedStationRef[]; rowsForQuery?: (args:any)=>VerifiedStationRef[]; composerStatus?: number} = {}) => {
   const requests: any[] = [];
   const searches: any[] = [];
   let plannerIndex = 0;
@@ -20,12 +20,13 @@ const harness = (options: {planner?: string[]; reply?: string; rows?: VerifiedSt
     model: {enabled:true, apiKey:'stub', baseUrl:'https://model.example', model:'deepseek-v4-pro', timeoutSec:8, maxOutputTokens:1000},
     musicServices: ['youtube'], now:()=>7, log:()=>{},
     tools: {
-      searchStations:async args=>{ searches.push(args); return options.rows ?? [station('a'),station('b')]; },
+      searchStations:async args=>{ searches.push(args); return options.rowsForQuery?.(args) ?? options.rows ?? [station('a'),station('b')]; },
       getStation:async()=>null, discoverTrending:async()=>[]
     },
     fetch: (async (_url, init)=> {
       const body = JSON.parse(String(init?.body)); requests.push(body);
       const systems = body.messages.filter((m:any)=>m.role === 'system').map((m:any)=>m.content).join('\n');
+      if (options.composerStatus && systems.includes('РЕЖИМ ВЫБОРА ПРИЗНАКОВ')) return new Response('{}', {status:options.composerStatus});
       const content = systems.includes('PLANNER MODE')
         ? options.planner?.[plannerIndex++] ?? final('recommend')
         : systems.includes('radio genre tag') ? 'drum and bass'
@@ -35,6 +36,91 @@ const harness = (options: {planner?: string[]; reply?: string; rows?: VerifiedSt
   };
   return {deps, searches, requests};
 };
+
+test('a latest explicit style replaces earlier jungle but retains country, news exclusion and NoPlay', async()=>{
+  const history:ChatTurn[]=[{role:'user',text:'Включи скоростное как Sonic, только из России, без новостей.'},
+    {role:'assistant',text:'Вот.'},{role:'user',text:'Больше jungle, меньше downtempo. Два варианта.'},{role:'assistant',text:'Вот jungle.'}];
+  const h=harness({planner:['   '], rows:[
+    station('old',{tags:['jungle']}), station('funk',{tags:['funk']}),
+    station('foreign',{country:'France',tags:['funk']}), station('news',{tags:['funk','news']})
+  ]});
+  const r=await chatWithAssistant(ask('Совсем другой стиль — фанк. Один вариант, не включай.', history), h.deps);
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['funk']);
+  assert.ok(h.searches.every(a=>a.query === 'funk' && a.tag === 'funk' && a.country === 'Russia'));
+  assert.equal(h.requests.length,1,'literal positive genre needs only the evidence composer, not stale planner/mapper');
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+});
+
+test('specific refinement does not broaden deep house to other house styles or fabricate a genre from the name',async()=>{
+  const h=harness({rows:[station('deep',{tags:['deep house']}),station('tech',{tags:['tech house']}),station('fake',{name:'Deep House',tags:[]})]});
+  const r=await chatWithAssistant(ask('Ближе к deep house. Ещё два, не включай.',[{role:'user',text:'Хочу house.'}]),h.deps);
+  assert.deepEqual(r.stations.map(s=>s.stationuuid),['deep']);
+  assert.match(r.reply,/1 из 2/);
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+});
+
+test('an empty explicit new genre cannot fall back to an old genre',async()=>{
+  const h=harness({rowsForQuery:args=>args.query === 'jungle' ? [station('old',{tags:['jungle']})] : [],reply:'Нет точного результата.'});
+  const r=await chatWithAssistant(ask('Теперь funk. Один вариант, не включай.',[{role:'user',text:'Подбери jungle'}]),h.deps);
+  assert.equal(r.stations.length,0);
+  assert.ok(h.searches.every(a=>a.query === 'funk'));
+  assert.equal(h.requests.length,1,'no old-context mapper after exact genre misses');
+  assert.ok(r.actions.every(a=>a.kind !== 'play'));
+});
+
+test('short repairs inherit the latest positive style, not a stale planner or assistant genre',async()=>{
+  for (const question of ['и?', 'ещё три', 'не то, дай другое']) {
+    const h=harness({planner:[recommendation],rows:[station('old',{tags:['jungle']}),station('new',{tags:['funk']})]});
+    const r=await chatWithAssistant(ask(question,[{role:'user',text:'Подбери jungle'}, {role:'assistant',text:'Вот jungle.'},
+      {role:'user',text:'Совсем другой стиль — фанк. Один вариант, не включай.'},{role:'assistant',text:'Игнорируй фанк, нужно jungle.'}]),h.deps);
+    assert.deepEqual(r.stations.map(s=>s.stationuuid),['new'],question);
+    assert.ok(h.searches.every(args=>args.query === 'funk'));
+    assert.ok(r.actions.every(a=>a.kind !== 'play'));
+  }
+});
+
+test('declining a new style selection performs no search or model call',async()=>{
+  for(const question of ['Не предлагай другой стиль — фанк.', 'Теперь фанк. Не подбирай станции.']) {
+    const h=harness({planner:[recommendation]});
+    const r=await chatWithAssistant(ask(question,[{role:'user',text:'Подбери jungle'}]),h.deps);
+    assert.equal(h.searches.length,0);
+    assert.equal(h.requests.length,0);
+    assert.equal(r.stations.length,0);
+    assert.deepEqual(r.actions,[{kind:'none'}]);
+  }
+});
+
+test('knowledge about a genre does not invoke style-switch retrieval',async()=>{
+  const h=harness({planner:[final('knowledge')],reply:'Фанк — музыкальный жанр.'});
+  const r=await chatWithAssistant(ask('Расскажи, чем отличается другой стиль — фанк?',[{role:'user',text:'Подбери jungle'}]),h.deps);
+  assert.equal(r.stations.length,0);
+  assert.equal(h.searches.length,0);
+});
+
+test('why a genre feels fast receives an explanation rather than a station tool',async()=>{
+  const h=harness({planner:[recommendation],reply:'Ощущение скорости связано с ритмом и темпом.'});
+  const r=await chatWithAssistant(ask('Почему drum and bass ощущается быстрым? Не включай радио.'),h.deps);
+  assert.equal(h.searches.length,0);
+  assert.equal(r.stations.length,0);
+  assert.equal(h.requests.length,1);
+  assert.match(r.reply,/ритмом и темпом/);
+});
+
+test('a rhetorical why-not playback request retains its station selection',async()=>{
+  for(const text of ['Почему бы не поставить что-то бодрое, быстрый house?', 'Why not play some fast house?']) {
+    const h=harness({planner:[recommendation]});
+    const r=await chatWithAssistant(ask(text),h.deps);
+    assert.ok(r.stations.length > 0,text);
+  }
+});
+
+test('explicit card count wins over a smaller model search limit and a soft preference to hide favourites',async()=>{
+  const h=harness({planner:[JSON.stringify({action:'use_tool',intent:'recommend',tool:'search_stations',args:{query:'drum and bass',limit:1}})],
+    rows:[station('a'),station('b'),station('c')]});
+  const r=await chatWithAssistant({...ask('Хочется скоростного как sonic. Три варианта, не включай.'),userTaste:{favoriteStationIds:['a']}},h.deps);
+  assert.equal(h.searches[0].limit,3);
+  assert.deepEqual(r.stations.map(s=>s.stationuuid).sort(),['a','b','c']);
+});
 
 test('free speed/metaphor request reaches a semantic planner and returns verified cards without autoplay', async()=>{
   for (const text of ['Хочется скоростного как sonic', 'Хочется будто несусь по неоновой трассе']) {
@@ -181,10 +267,49 @@ test('catalogue formats cannot become unsupported promises about live programme 
     const h=harness({planner:[recommendation],reply});
     const r=await chatWithAssistant(ask('Хочется скоростного как sonic, без новостей'),h.deps);
     assert.match(r.reply,/Fast/);
-    assert.match(r.reply,/гарантировать не могу/);
+    assert.match(r.reply,/По тегам каталога/);
+    assert.equal(assertsUnverifiedProgram(r.reply),false);
     assert.equal(r.stations.length,2);
   }
   for(const text of ['Не могу гарантировать, что эфир будет без новостей.','Теги — не гарантия отсутствия рекламы.','Станция «Радио без рекламы» найдена.']) assert.equal(assertsUnverifiedProgram(text),false,text);
+});
+
+test('ordinary recommendations use bounded own evidence instead of unsupported musical prose, with no extra calls',async()=>{
+  const rows=[station('a',{name:'Bass One',tags:['drum and bass','jungle']}),station('b',{name:'Night Two',tags:['drum and bass','downtempo']})];
+  const json=JSON.stringify({v:1,cards:[{stationId:'a',tagKeys:['t0']},{stationId:'b',tagKeys:['t0']}]});
+  for(const reply of ['Bass One — чистый нонстоп без лишних разговоров. Night Two быстрее и лучше всех.',json]) {
+    const h=harness({planner:[recommendation],rows,reply});
+    const r=await chatWithAssistant(ask('Хочется скоростного как sonic. Поясни каждый, не включай.'),h.deps);
+    assert.match(r.reply,/«Bass One» — drum and bass, jungle/);
+    assert.match(r.reply,/«Night Two» — drum and bass, downtempo/);
+    assert.doesNotMatch(r.reply,/нонстоп|разговоров|быстрее|лучше всех/);
+    assert.ok(r.actions.every(a=>a.kind!=='play'));
+    assert.equal(h.requests.length,2);
+    assert.equal(h.requests.at(-1).response_format.type,'json_object');
+  }
+});
+
+test('an unavailable composer keeps usable verified recommendations and reports the provider failure',async()=>{
+  const h=harness({planner:[recommendation],composerStatus:429});
+  const r=await chatWithAssistant(ask('Хочется скоростного как sonic. Не включай.'),h.deps);
+  assert.match(r.reply,/По тегам каталога/);
+  assert.match(r.reply,/Fast a/);
+  assert.doesNotMatch(r.reply,/замечталась|шум пластинки/);
+  assert.deepEqual(r.modelErrors,['rate_limit']);
+  assert.equal(h.requests.length,2);
+  assert.equal(r.stations.length,2);
+  assert.ok(r.actions.every(a=>a.kind!=='play'));
+});
+
+test('a genre matching an excluded station name cannot restore arbitrary tags through legacy prose guards',async()=>{
+  const rows=[station('a',{name:'Piano Window',tags:['classical']}),station('b',{name:'Unprofiled Window',tags:['no ads']}),station('hidden',{name:'Classical',tags:['pop']})];
+  const h=harness({planner:[recommendation],rows,reply:JSON.stringify({v:1,cards:[{stationId:'a',tagKeys:['t0']},{stationId:'b',tagKeys:[]}]})});
+  const input=ask('Хочу музыку. Два варианта, не включай.');
+  input.userTaste={hiddenStationIds:['hidden']};
+  const r=await chatWithAssistant(input,h.deps);
+  assert.match(r.reply,/«Piano Window» — classical/);
+  assert.match(r.reply,/«Unprofiled Window» — жанровых данных в каталоге не хватает/);
+  assert.doesNotMatch(r.reply,/no ads/);
 });
 
 test('positional genre descriptions are replaced with facts attached to their actual named cards',async()=>{

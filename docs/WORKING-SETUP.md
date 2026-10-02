@@ -4,6 +4,14 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
+**02.10 — релевантность/основания Лиры готовы к серверному выпуску.**
+784 API, оба typecheck/build, 21 offline contracts; ревью Astra.
+Закрытый $3 прогон: 28 реплик/57 calls, upper $0.19123368, reserved 0.
+Sonic→jungle→funk→«и?» даёт 3→2→1→1, house→deep house 2→2, без play.
+[Доказательства и ограничения](LIRA-RELEVANCE-2026-10-02.md).
+Следом same-SHA CI/deploy; затем семантика неоднозначных свободных просьб,
+не новая композиция. Lira Studio остаётся локальным и не входит в выпуск.
+
 **02.10 — текущий server-only участок: названные карточки и зеркала.**
 750 API tests, оба typecheck, API build, 21 offline contracts; ревью Astra.
 15 живых реплик/36 calls, upper $0.10856736 из $3, ledger закрыт/reserved 0.

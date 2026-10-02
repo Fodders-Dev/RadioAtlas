@@ -1,0 +1,318 @@
+{
+  "generatedAt": "2026-10-02T10:10:37.844Z",
+  "scenario": "named",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-evidence-final",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Поясни каждый, но не включай.",
+      "reply": "По тегам каталога:\n«Dutch Delite Drum and Bass» — dnb, drum and bass, drum bass (The Netherlands).\n«Uturn Radio - Drum And Bass» — drum and bass (Canada).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "name": "Dutch Delite Drum and Bass",
+          "country": "The Netherlands",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "drum 'n' bass",
+            "drum&bass",
+            "liquid dnb",
+            "neurofunk"
+          ]
+        },
+        {
+          "stationuuid": "e70083a3-133b-4b8f-9509-ae2d37fdbe7b",
+          "name": "Uturn Radio - Drum And Bass",
+          "country": "Canada",
+          "tags": [
+            "drum and bass"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "948dd047-1a0b-42c9-b769-19233dfadc7f",
+          "actionId": "0155c044-fd62-4914-b0fb-6ed5bafc93ac:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 92
+        }
+      ],
+      "runtimeMs": 3835,
+      "usage": {
+        "prompt": 4890,
+        "completion": 182
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "По тегам каталога:\n«Brokenbeats» — drum and bass, downtempo (Ukraine).\n«Atmospheric dnb s0urce» — drum and bass, jungle (Romania).\n«Radio Caprice - Drum 'n' Bass [2]» — drum bass (The Russian Federation).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "name": "Brokenbeats",
+          "country": "Ukraine",
+          "tags": [
+            "downtempo",
+            "drum and bass",
+            "atmospheric"
+          ]
+        },
+        {
+          "stationuuid": "c4eb7648-e867-4545-bdda-71b1368db779",
+          "name": "Atmospheric dnb s0urce",
+          "country": "Romania",
+          "tags": [
+            "drum and bass",
+            "jungle"
+          ]
+        },
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "96309e77-0601-11e8-ae97-52543be04c81",
+          "actionId": "cba585e8-6367-42e7-8a5e-7e08711cb484:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 59
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 10
+        }
+      ],
+      "runtimeMs": 3312,
+      "usage": {
+        "prompt": 5238,
+        "completion": 190
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "ещё три",
+      "reply": "По тегам каталога:\n«DNBRadio Main channel 192k» — drum bass, drum and bass (Germany).\n«DNB FM» — dnb, drum and bass (The Russian Federation).\n«dinamo.fm fluent» — drum and bass, liquid (Türkiye).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "name": "DNBRadio Main channel 192k",
+          "country": "Germany",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "dubstep",
+            "neurofunk",
+            "tech step"
+          ]
+        },
+        {
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "name": "DNB FM",
+          "country": "The Russian Federation",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "breaks",
+            "liquid"
+          ]
+        },
+        {
+          "stationuuid": "45bb5fc8-84df-4561-b282-935bb5dd7c86",
+          "name": "dinamo.fm fluent",
+          "country": "Türkiye",
+          "tags": [
+            "drum and bass",
+            "atmospheric",
+            "d&b",
+            "liquid"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "edaa4ad7-bdf3-11e8-aaf2-52543be04c81",
+          "actionId": "0bb3ccc6-5f29-4d48-9b4b-713119d1b735:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 73
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        }
+      ],
+      "runtimeMs": 4979,
+      "usage": {
+        "prompt": 5591,
+        "completion": 188
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "2802f9fa-d07d-4227-a6a7-96dd8ed703fc",
+      "status": "settled",
+      "requestBytes": 10149,
+      "reserveUsd": 0.0227634,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростная музыка как Sonic → drum and bass\"\n}",
+      "actualUsd": 0.0030162,
+      "httpStatus": 200,
+      "promptTokens": 2072,
+      "completionTokens": 71
+    },
+    {
+      "reservationId": "23638f10-c1c6-4db7-b647-54eb4d78ff43",
+      "status": "settled",
+      "requestBytes": 14590,
+      "reserveUsd": 0.02862552,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"948dd047-1a0b-42c9-b769-19233dfadc7f\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    },\n    {\n      \"stationId\": \"e70083a3-133b-4b8f-9509-ae2d37fdbe7b\",\n      \"tagKeys\": [\"t0\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00415932,
+      "httpStatus": 200,
+      "promptTokens": 2818,
+      "completionTokens": 111
+    },
+    {
+      "reservationId": "6f451c57-c6f5-44e8-824a-2aade47c6434",
+      "status": "settled",
+      "requestBytes": 10570,
+      "reserveUsd": 0.02331912,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"limit\": 3\n  },\n  \"note\": \"Продолжаю подбор скоростных станций под вайб Sonic: ищу drum and bass\"\n}",
+      "actualUsd": 0.0031746,
+      "httpStatus": 200,
+      "promptTokens": 2159,
+      "completionTokens": 82
+    },
+    {
+      "reservationId": "f7a70883-1109-463c-ae0e-db1fe13d54c8",
+      "status": "settled",
+      "requestBytes": 15763,
+      "reserveUsd": 0.03017388,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"96309e77-0601-11e8-ae97-52543be04c81\",\"tagKeys\":[\"t1\"]},{\"stationId\":\"c4eb7648-e867-4545-bdda-71b1368db779\",\"tagKeys\":[\"t0\"]},{\"stationId\":\"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\"tagKeys\":[\"t0\"]}]}",
+      "actualUsd": 0.00449196,
+      "httpStatus": 200,
+      "promptTokens": 3079,
+      "completionTokens": 108
+    },
+    {
+      "reservationId": "bbe54e93-d595-4657-9fb0-ecde669fc387",
+      "status": "settled",
+      "requestBytes": 10794,
+      "reserveUsd": 0.0236148,
+      "responseContent": "                   [1]» — drum bass (The Russian Federation).\n«Radio Caprice - Drum 'n' Bass [3]» — drum bass (The Russian Federation).\n«Radio Caprice - Drum 'n' Bass [4]» — drum bass (The Russian Federation).\nОбщее в тегах — drum and bass.",
+      "actualUsd": 0.003267,
+      "httpStatus": 200,
+      "promptTokens": 2220,
+      "completionTokens": 85
+    },
+    {
+      "reservationId": "47382af7-bc23-4867-8b3c-9721066d1d06",
+      "status": "settled",
+      "requestBytes": 1069,
+      "reserveUsd": 0.0107778,
+      "responseContent": "drum and bass, synthwave, eurodance",
+      "actualUsd": 0.00030624,
+      "httpStatus": 200,
+      "promptTokens": 199,
+      "completionTokens": 11
+    },
+    {
+      "reservationId": "ef445567-95ba-4fb9-8d9f-b175c4ccda9e",
+      "status": "settled",
+      "requestBytes": 16162,
+      "reserveUsd": 0.03070056,
+      "responseContent": "                                                                                            ",
+      "actualUsd": 0.00455136,
+      "httpStatus": 200,
+      "promptTokens": 3172,
+      "completionTokens": 92
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}

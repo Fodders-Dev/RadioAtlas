@@ -1,0 +1,347 @@
+{
+  "generatedAt": "2026-10-02T10:29:51.983Z",
+  "scenario": "refine",
+  "model": "deepseek-v4-pro",
+  "code": "relevance-steering-v3",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как sonic. Три варианта. Не включай.",
+      "reply": "По тегам каталога:\n«#TOP 200 DJ CHARTS - JUST MUSIC - DJ REMIX & CHARTS RADIO @ TikTok Charts, Electronic Music, EDM, House, Deep House, Dan» — electronic, dance, 00s (Germany).\n«electronic music club» — electronic, dance (Germany).\n«# TOP 100 DJ CHARTS - DJ REMIX & CHARTS RADIO @ TikTok Charts, Electronic Music, EDM, House, Deep House, Dance Music, Te» — dance music, electronic dance music, 90s (Germany).\nОбщее в тегах — electronic.",
+      "cards": [
+        {
+          "stationuuid": "02734cfa-5c5b-46f2-85c6-a5a654be7a24",
+          "name": "#TOP 200 DJ CHARTS - JUST MUSIC - DJ REMIX & CHARTS RADIO @ TikTok Charts, Electronic Music, EDM, House, Deep House, Dance Music, Techno & Hypertechno, Top40, Latin Charts, Reggaeton, Urban, HipHop, Club & Party Radio - & LIVE DJ SETS @ Festival Melodic House, Melodic Techno. Best 100 Lounge, Mixed Radio Station @ PartyHits / Schlager Remix Top 50",
+          "country": "Germany",
+          "tags": [
+            "chillout",
+            "dance",
+            "deep house",
+            "electronic",
+            "electronica",
+            "hiphop"
+          ]
+        },
+        {
+          "stationuuid": "9611cf11-0601-11e8-ae97-52543be04c81",
+          "name": "electronic music club",
+          "country": "Germany",
+          "tags": [
+            "dance",
+            "electronic"
+          ]
+        },
+        {
+          "stationuuid": "5bc44bcd-7481-40e1-b503-bb92b936f4cf",
+          "name": "# TOP 100 DJ CHARTS - DJ REMIX & CHARTS RADIO @ TikTok Charts, Electronic Music, EDM, House, Deep House, Dance Music, Techno & Hypertechno, Top40, Latin Charts, Reggaeton, Urban, HipHop, Club & Party Radio - & LIVE DJ SETS",
+          "country": "Germany",
+          "tags": [
+            "chillout",
+            "deep house",
+            "edm",
+            "house",
+            "pop",
+            "rnb"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "02734cfa-5c5b-46f2-85c6-a5a654be7a24",
+          "actionId": "9494ef1b-c229-4b2a-a845-543213556539:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1005
+        }
+      ],
+      "runtimeMs": 4849,
+      "usage": {
+        "prompt": 5446,
+        "completion": 237
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Больше jungle, меньше downtempo. Два варианта, не включай.",
+      "reply": "По тегам каталога:\n«Jungle Planet Radio» — jungle, drum and bass (Italy).\n«Australian Digital Radio Network - Jungle and Breakbeat (MP3)» — jungle (Australia).\nОбщее в тегах — jungle.",
+      "cards": [
+        {
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "name": "Jungle Planet Radio",
+          "country": "Italy",
+          "tags": [
+            "drum and bass",
+            "jungle",
+            "uk garage"
+          ]
+        },
+        {
+          "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+          "name": "Australian Digital Radio Network - Jungle and Breakbeat (MP3)",
+          "country": "Australia",
+          "tags": [
+            "breakbeat",
+            "jungle"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+          "actionId": "862027b6-977b-4c2e-9c4a-8a084eae821b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 50
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 4
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        }
+      ],
+      "runtimeMs": 1344,
+      "usage": {
+        "prompt": 2980,
+        "completion": 59
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Совсем другой стиль — фанк. Один вариант, не включай.",
+      "reply": "По тегам каталога:\n«FUNKY RADIO - Only Funk Music (60's 70's)» — funk, 60s, 70s (The United States Of America).",
+      "cards": [
+        {
+          "stationuuid": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "name": "FUNKY RADIO - Only Funk Music (60's 70's)",
+          "country": "The United States Of America",
+          "tags": [
+            "disco",
+            "funk",
+            "r&b",
+            "rnb",
+            "soul",
+            "60s"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c77c45c4-cf37-414c-ae34-868f7d9cd944",
+          "actionId": "9cd8eb63-4955-4c34-80dd-c2f8fb1854b6:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 92
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 9
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 11
+        }
+      ],
+      "runtimeMs": 1620,
+      "usage": {
+        "prompt": 3095,
+        "completion": 56
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    },
+    {
+      "question": "и?",
+      "reply": "По тегам каталога:\n«JFSR - Jazz Funk Soul Radio» — funk, jazz (The United Kingdom Of Great Britain And Northern Ireland).",
+      "cards": [
+        {
+          "stationuuid": "e392aeac-2fb8-4f34-9543-6f4c8209d3a7",
+          "name": "JFSR - Jazz Funk Soul Radio",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "funk",
+            "jazz",
+            "soul"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "e392aeac-2fb8-4f34-9543-6f4c8209d3a7",
+          "actionId": "95de7291-2595-4145-8f25-a51442bd8653:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 102
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 10
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        }
+      ],
+      "runtimeMs": 1662,
+      "usage": {
+        "prompt": 3038,
+        "completion": 43
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "a6cf14e5-7d73-4ca8-bacf-38241f93e844",
+      "status": "settled",
+      "requestBytes": 10117,
+      "reserveUsd": 0.02272116,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"electronic\",\n    \"limit\": 3\n  },\n  \"note\": \"Скоростная музыка как Sonic → быстрый электронный жанр\"\n}",
+      "actualUsd": 0.0030162,
+      "httpStatus": 200,
+      "promptTokens": 2066,
+      "completionTokens": 73
+    },
+    {
+      "reservationId": "75f9cc26-eaf3-4643-9e48-870ecf839d14",
+      "status": "settled",
+      "requestBytes": 16723,
+      "reserveUsd": 0.03144108,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"02734cfa-5c5b-46f2-85c6-a5a654be7a24\",\n      \"tagKeys\": [\"t5\", \"t7\", \"t4\"]\n    },\n    {\n      \"stationId\": \"9611cf11-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"5bc44bcd-7481-40e1-b503-bb92b936f4cf\",\n      \"tagKeys\": [\"t5\", \"t9\", \"t4\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00511104,
+      "httpStatus": 200,
+      "promptTokens": 3380,
+      "completionTokens": 164
+    },
+    {
+      "reservationId": "3a0b3ccd-a4f8-4d68-8460-a968697fe473",
+      "status": "settled",
+      "requestBytes": 15504,
+      "reserveUsd": 0.029832,
+      "responseContent": "                                                           ",
+      "actualUsd": 0.00416724,
+      "httpStatus": 200,
+      "promptTokens": 2980,
+      "completionTokens": 59
+    },
+    {
+      "reservationId": "11b20ea8-2f21-44ff-9cfa-6e8cc855c027",
+      "status": "settled",
+      "requestBytes": 15998,
+      "reserveUsd": 0.03048408,
+      "responseContent": "                                                        ",
+      "actualUsd": 0.00430716,
+      "httpStatus": 200,
+      "promptTokens": 3095,
+      "completionTokens": 56
+    },
+    {
+      "reservationId": "080b9c0e-53a6-414d-9f3e-7ab449db22df",
+      "status": "settled",
+      "requestBytes": 15881,
+      "reserveUsd": 0.03032964,
+      "responseContent": "                                           ",
+      "actualUsd": 0.00418044,
+      "httpStatus": 200,
+      "promptTokens": 3038,
+      "completionTokens": 43
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-relevance-20261002/ledger.json"
+}
