@@ -29,6 +29,17 @@ are not user consent. The bounded context stays internal and adds no model call.
 Cover changes through real brain message/tool/action fixtures; mocked prose does
 not establish provider quality.
 
+## Selection continuation
+
+The first accepted recommendation plan may resolve an internal continue/new
+choice against at most six actual USER turns. Freeze country/count/known explicit
+exclusions before any station tool and use that context through final filters
+and composer. A disconnected lexical refinement must pass the existing first
+planner before a direct genre route. Assistant suggestions and historical Play
+permission are never user consent. Malformed/ambiguous continuation must not
+silently fall back to global recommendations. Keep this context off the response
+allow-list; fixture plans establish execution contracts, not model interpretation.
+
 ## What may leave this process
 
 The API is the only process holding provider keys. The `/ai/chat` response body

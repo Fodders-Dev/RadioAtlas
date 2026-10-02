@@ -5,6 +5,7 @@
 
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
 import { parseSemanticSearch } from './semanticSearch.js';
+import { parseSelectionContinuity } from './selectionContext.js';
 import { buildServiceSearchLinks } from './musicLinks.js';
 import type {
   MusicService,
@@ -233,9 +234,10 @@ export const parsePlannerDecision = (text: string): PlannerDecision => {
   const semanticSearch = intent === 'recommend' &&
     (parsed.action === 'final' || parsed.action === 'use_tool' && parsed.tool === 'search_stations')
     ? parseSemanticSearch(parsed.semanticSearch) : undefined;
+  const continuity = intent === 'recommend' ? parseSelectionContinuity(parsed.continuity) : undefined;
   const withIntent = <T extends PlannerDecision>(decision: T): T | (T & { intent: PlannerIntent }) =>
     intent === undefined ? decision : { ...decision, intent,
-      ...(semanticSearch ? {semanticSearch} : {}) };
+      ...(semanticSearch ? {semanticSearch} : {}), ...(continuity ? { continuity } : {}) };
   const action = parsed.action === 'use_tool' ? 'use_tool' : 'final';
   if (action === 'final') return withIntent({ action: 'final', note: asOptionalString(parsed.note) });
   const tool = asString(parsed.tool);

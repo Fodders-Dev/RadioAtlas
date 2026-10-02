@@ -357,6 +357,7 @@ export type PlannerDecision = {
   args?: Record<string, unknown>;
   note?: string;
   intent?: PlannerIntent;
+  continuity?: import('./selectionContext.js').SelectionContinuity;
   semanticSearch?: import('./semanticSearch.js').SemanticSearch;
 };
 
