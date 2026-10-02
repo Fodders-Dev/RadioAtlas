@@ -1,0 +1,155 @@
+{
+  "generatedAt": "2026-10-02T16:33:04.890Z",
+  "scenario": "clarify",
+  "model": "deepseek-v4-pro",
+  "code": "ef0b829",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Подбери что-нибудь",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«SerrebiRadio» — chillout, house, edm (Canada).\n«MIBL Radio» — ambient, electronic (Australia).\n«Спокойное радио» — chillout, ambient, jazz (The Russian Federation).\n«SENSUAL LOUNGE RADIO» — chillout, ambient, jazz (Canada).\n«mr.chem fm» — chillout, downtempo, electronic (Serbia).",
+      "cards": [
+        {
+          "stationuuid": "9c4eb345-7fd5-4020-af13-97a5f82ebdb8",
+          "name": "SerrebiRadio",
+          "country": "Canada",
+          "tags": [
+            "chillout",
+            "dance",
+            "edm",
+            "house",
+            "trance",
+            "dubstep"
+          ]
+        },
+        {
+          "stationuuid": "89885017-3c53-46e3-af16-2a192ce61664",
+          "name": "MIBL Radio",
+          "country": "Australia",
+          "tags": [
+            "ambient",
+            "electronic",
+            "24/7",
+            "ai music",
+            "australia",
+            "persian"
+          ]
+        },
+        {
+          "stationuuid": "961799c0-0601-11e8-ae97-52543be04c81",
+          "name": "Спокойное радио",
+          "country": "The Russian Federation",
+          "tags": [
+            "ambient",
+            "chillout",
+            "jazz",
+            "easy listening",
+            "lounge",
+            "moscow"
+          ]
+        },
+        {
+          "stationuuid": "75db29d2-9abd-4b2b-b16c-a8decd86a587",
+          "name": "SENSUAL LOUNGE RADIO",
+          "country": "Canada",
+          "tags": [
+            "ambient",
+            "chillout",
+            "jazz",
+            "smooth jazz",
+            "ambient lounge",
+            "canada"
+          ]
+        },
+        {
+          "stationuuid": "535eea60-bbf7-4139-8057-1f1d69f0d41b",
+          "name": "mr.chem fm",
+          "country": "Serbia",
+          "tags": [
+            "chillout",
+            "downtempo",
+            "electronic",
+            "house",
+            "techno",
+            "electro"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "9c4eb345-7fd5-4020-af13-97a5f82ebdb8",
+          "actionId": "25672e6e-e2ed-451f-97a8-afbcfec15f38:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 322
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 64
+        }
+      ],
+      "runtimeMs": 4706,
+      "usage": {
+        "prompt": 6313,
+        "completion": 363
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "ed7e288c-2247-43d4-a3c9-325ad162cdd7",
+      "status": "settled",
+      "requestBytes": 14513,
+      "reserveUsd": 0.02852388,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"chillout\",\n    \"limit\": 5\n  },\n  \"note\": \"Подбираю станции под общий запрос\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"chillout\", \"ambient\"]\n  }\n}",
+      "actualUsd": 0.00401544,
+      "httpStatus": 200,
+      "promptTokens": 2748,
+      "completionTokens": 98
+    },
+    {
+      "reservationId": "5977dbb1-7e4c-4e53-a9d7-8f37bde49681",
+      "status": "settled",
+      "requestBytes": 17398,
+      "reserveUsd": 0.03233208,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"recommendation\",\"selection\":\"stations\"}. Рекомендуй только переданные станции и сохраняй их факты без изменений.",
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"9c4eb345-7fd5-4020-af13-97a5f82ebdb8\",\n      \"tagKeys\": [\"t0\", \"t4\", \"t3\"]\n    },\n    {\n      \"stationId\": \"89885017-3c53-46e3-af16-2a192ce61664\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"961799c0-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t3\"]\n    },\n    {\n      \"stationId\": \"75db29d2-9abd-4b2b-b16c-a8decd86a587\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t3\"]\n    },\n    {\n      \"stationId\": \"535eea60-bbf7-4139-8057-1f1d69f0d41b\",\n      \"tagKeys\": [\"t0\", \"t1\", \"t2\"]\n    }\n  ]\n}",
+      "actualUsd": 0.0057552,
+      "httpStatus": 200,
+      "promptTokens": 3565,
+      "completionTokens": 265
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-conversation-20261002/ledger.json"
+}

@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-10-02T16:37:55.533Z",
+  "scenario": "localchat",
+  "model": "deepseek-v4-pro",
+  "code": "abbd431",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Я в России, хочется вечером пиццы",
+      "reply": "Пицца вечером — это почти святое. А какая у тебя в голове: тонкая, с хрустящими краями, или сырная, чтобы тянулась до локтя?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "9052ef10-a230-4ceb-8961-f482bc1fe351:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3742,
+      "usage": {
+        "prompt": 5227,
+        "completion": 92
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну а что — «и»? Я ж не против. Вечер, пицца, может, ещё что-то тёплое под бок. Ты один собираешься или компания намечается?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "65458644-3f1a-4ae9-9748-52843481881c:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3206,
+      "usage": {
+        "prompt": 5324,
+        "completion": 98
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "1cdbabc0-1da7-47b5-8c23-1a577bfb588a",
+      "status": "settled",
+      "requestBytes": 15180,
+      "reserveUsd": 0.02940432,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь выражает желание поесть пиццу, это не запрос на музыку.\"\n}",
+      "actualUsd": 0.00393624,
+      "httpStatus": 200,
+      "promptTokens": 2850,
+      "completionTokens": 44
+    },
+    {
+      "reservationId": "4ba6837f-cdcc-4b3a-8c53-8fc6da3415e9",
+      "status": "settled",
+      "requestBytes": 13202,
+      "reserveUsd": 0.02679336,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Когда тема уже понятна, дай содержательное продолжение или полезный вариант, а не повторяй свой предыдущий вопрос и не упрекай за отсутствие ответа. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Пицца вечером — это почти святое. А какая у тебя в голове: тонкая, с хрустящими краями, или сырная, чтобы тянулась до локтя?",
+      "actualUsd": 0.00332772,
+      "httpStatus": 200,
+      "promptTokens": 2377,
+      "completionTokens": 48
+    },
+    {
+      "reservationId": "eaef576f-3ffe-4deb-bab2-d66af5114cc1",
+      "status": "settled",
+      "requestBytes": 15411,
+      "reserveUsd": 0.02970924,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь хочет пиццу, это не музыкальный запрос. Продолжаю разговор о пицце.\"\n}",
+      "actualUsd": 0.00401676,
+      "httpStatus": 200,
+      "promptTokens": 2893,
+      "completionTokens": 50
+    },
+    {
+      "reservationId": "8bc88fd1-51d2-4fbc-b3ff-fffc98c59f21",
+      "status": "settled",
+      "requestBytes": 13490,
+      "reserveUsd": 0.02717352,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Когда тема уже понятна, дай содержательное продолжение или полезный вариант, а не повторяй свой предыдущий вопрос и не упрекай за отсутствие ответа. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Ну а что — «и»? Я ж не против. Вечер, пицца, может, ещё что-то тёплое под бок. Ты один собираешься или компания намечается?",
+      "actualUsd": 0.003399,
+      "httpStatus": 200,
+      "promptTokens": 2431,
+      "completionTokens": 48
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-conversation-20261002/ledger.json"
+}

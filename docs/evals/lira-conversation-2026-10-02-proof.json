@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "stage": "lira-reply-context",
+  "state": "reviewed-server-only-release-candidate",
+  "implementationSha": "abbd431",
+  "productionBase": "35d53bf",
+  "sourceSha256": {
+    "apps/api/src/ai/brain.ts": "27baac4fef41cdf53a3ab85e68cf3f57d7bf95cee2ee81594b0d55f11662b120",
+    "apps/api/src/ai/persona.ts": "825883a20d7f7ee869eadfe555b3e05074c31a50ab283480cb35ab3d87b6df46",
+    "apps/api/src/ai/replyContext.ts": "28a5a988fba8ab014506f0a3581fe68f55e1648c9b956cb933b9cc95c9a668e1",
+    "apps/api/test/ai.replyContext.test.ts": "e5deb9537ae72df2ad2b54d8169f6d5913af74415d9adec9f744ac4088c9a784",
+    "apps/api/test/ai.replyContextIntegration.test.ts": "26d01f657a2f21d503027084a162cbe480a5c221f0c9cc85bfec24805e4076c0"
+  },
+  "reportSha256": {
+    "docs/evals/lira-conversation-clarify-2026-10-02T16-33-04-890Z.json": "ac1f90608aa0906aa598d43c1e6793911329a2456bb71e2180af1eff185db888",
+    "docs/evals/lira-conversation-conversation-2026-10-02T16-29-34-905Z.json": "64e71adeb79e84aebacc156690f6d16bc60088716e8f6f69059f1530957f57e2",
+    "docs/evals/lira-conversation-everyday-2026-10-02T16-33-05-084Z.json": "6920badbadc50079e706b7ed01093866d4767db8efbf5e178f2f2116f7a67b1e",
+    "docs/evals/lira-conversation-everyday-2026-10-02T16-35-50-668Z.json": "4ee3a4d937bcbed1217614ed22f22e50cb4632c8cc91de8dad4b0555d31368c9",
+    "docs/evals/lira-conversation-everyday-2026-10-02T16-37-55-463Z.json": "36cf8aac0dae2845cc412db8164eb16ab69ba46f9e7e6b47cee4b7e01cc1ccee",
+    "docs/evals/lira-conversation-knowledge-2026-10-02T16-32-11-509Z.json": "d941f81083bca3e78939c0d05b989646fad562372b5aa88e2a1ef40255bf9689",
+    "docs/evals/lira-conversation-localchat-2026-10-02T16-32-11-598Z.json": "a4cc3c1dff35df2822bdbe1b4116deffade9a5143d48dab6c24fc940978c69b8",
+    "docs/evals/lira-conversation-localchat-2026-10-02T16-35-50-657Z.json": "b6d70363d4e67caa91f77192165128b748820e409e9333bfff5c8a7656d025f7",
+    "docs/evals/lira-conversation-localchat-2026-10-02T16-37-55-532Z.json": "0a8ad91a79fb5fb42d208c136541dbe83d6a1622ab9709b039ab6d4a30a81636",
+    "docs/evals/lira-conversation-transitions-2026-10-02T16-29-35-020Z.json": "59c9f7a23a7d5d4f88e284194c3097f078714e54d46c394567f3e63e82a1eaa8"
+  },
+  "checks": [
+    {
+      "command": "npm run typecheck",
+      "scope": "all workspaces",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck:test",
+      "scope": "all workspaces",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:api",
+      "exitCode": 0,
+      "passed": 824,
+      "failed": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run eval:lira:offline",
+      "exitCode": 0,
+      "passed": 21,
+      "modelCalls": 0
+    },
+    {
+      "command": "reply context unit/integration",
+      "exitCode": 0,
+      "passed": 12
+    }
+  ],
+  "paid": {
+    "budgetUsd": 3,
+    "calls": 36,
+    "userTurns": 23,
+    "upperUsd": 0.136587,
+    "reservedUsd": 0,
+    "closed": true,
+    "closedAt": "2026-10-02T16:39:47.659Z",
+    "ledgerSha256": "78be5174e827a22ac429c0db656e4bcdf4b25a96c1e54d07bc7dd22a509a710b",
+    "priceSource": "https://api-docs.deepseek.com/quick_start/pricing/"
+  },
+  "review": {
+    "reviewer": "gpt-6-astra",
+    "verdict": "narrow improvement; no release blocker; final pizza prose limitation remains"
+  },
+  "limits": [
+    "No uniform quality pass rate: final pizza repair still snippy and asks another question.",
+    "Only two repaired scenarios rerun on final head; explicit music transitions checked on initial implementation with unchanged routing.",
+    "Musical factual prose was not exhaustively fact checked.",
+    "Long-tail station formats such as post-hardcore can lack approved explanation labels despite own catalogue tags.",
+    "A conversational topic switch ends prior recommendation constraints; a later new request does not automatically inherit earlier Russia.",
+    "Previous-card mirror lookups can exhaust tool budget before second direction.",
+    "Live runner uses bounded loopback public catalogue shadow retrieval, not full production/profile/browser parity.",
+    "No physical device/audio or new UI composition verification."
+  ]
+}

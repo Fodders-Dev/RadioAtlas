@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-10-02T16:35:50.658Z",
+  "scenario": "localchat",
+  "model": "deepseek-v4-pro",
+  "code": "f1772f7",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Я в России, хочется вечером пиццы",
+      "reply": "Пицца вечером — это почти священный ритуал, особенно когда за окном темнеет и хочется чего-то тёплого и простого. Ты какую любишь — классическую маргариту или что-нибудь посытнее, с мясом и грибами?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "ca54b2f6-defc-4878-b877-10dd36f8e755:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3114,
+      "usage": {
+        "prompt": 5180,
+        "completion": 110
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Ну и что, что в России — пицца везде хороша, если с душой. Я бы, наверное, взяла что-нибудь с пепперони и тянущимся сыром, под вечер самое то. А ты уже решил, откуда закажешь, или пока в раздумьях?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "8aaa4e4c-414d-4e98-a5c3-d5e28a973613:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [],
+      "runtimeMs": 3375,
+      "usage": {
+        "prompt": 5325,
+        "completion": 131
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "28d30339-77db-4e6e-a589-fb26a7a428e6",
+      "status": "settled",
+      "requestBytes": 15180,
+      "reserveUsd": 0.02940432,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь хочет пиццу, это не музыкальный запрос\"\n}",
+      "actualUsd": 0.00391248,
+      "httpStatus": 200,
+      "promptTokens": 2850,
+      "completionTokens": 38
+    },
+    {
+      "reservationId": "f81f19fb-5733-4a04-a5c0-836941721111",
+      "status": "settled",
+      "requestBytes": 12889,
+      "reserveUsd": 0.0263802,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Пицца вечером — это почти священный ритуал, особенно когда за окном темнеет и хочется чего-то тёплого и простого. Ты какую любишь — классическую маргариту или что-нибудь посытнее, с мясом и грибами?",
+      "actualUsd": 0.00336072,
+      "httpStatus": 200,
+      "promptTokens": 2330,
+      "completionTokens": 72
+    },
+    {
+      "reservationId": "86a2fb44-1964-471b-b0df-d8c9c20c4877",
+      "status": "settled",
+      "requestBytes": 15551,
+      "reserveUsd": 0.02989404,
+      "responseContent": "{\n  \"action\": \"final\",\n  \"intent\": \"chat\",\n  \"note\": \"Пользователь хочет пиццу, это не запрос на музыку. Продолжаю разговор о пицце.\"\n}",
+      "actualUsd": 0.0040524,
+      "httpStatus": 200,
+      "promptTokens": 2917,
+      "completionTokens": 51
+    },
+    {
+      "reservationId": "88bc9548-e0a7-464d-b6cc-f0669cb8b1dd",
+      "status": "settled",
+      "requestBytes": 13317,
+      "reserveUsd": 0.02694516,
+      "replyContext": "REPLY CONTEXT {\"intent\":\"conversation\"}. Сейчас обычная беседа: отвечай на тему пользователя. Не предлагай подбор, саундтрек или запуск музыки по своей инициативе, даже в конце ответа. Прежнее предложение ассистента не означает согласия; «и?» продолжает тему человека. Не объясняй отсутствие станций, которых он не просил.",
+      "responseContent": "Ну и что, что в России — пицца везде хороша, если с душой. Я бы, наверное, взяла что-нибудь с пепперони и тянущимся сыром, под вечер самое то. А ты уже решил, откуда закажешь, или пока в раздумьях?",
+      "actualUsd": 0.00349536,
+      "httpStatus": 200,
+      "promptTokens": 2408,
+      "completionTokens": 80
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-conversation-20261002/ledger.json"
+}
