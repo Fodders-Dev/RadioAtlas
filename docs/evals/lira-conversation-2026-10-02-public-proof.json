@@ -1,0 +1,74 @@
+{
+  "atUtc": "2026-10-02T17:06:46.986Z",
+  "expectedSha": "ce0c4d1",
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-BUYrAXwN.js",
+  "state": "radio-state-BuMdu4fW.js",
+  "publicBuildVerified": true,
+  "modelCalls": 0,
+  "modelCallsEvidence": "Exact requests use closed deterministic two-genre and cancellation branches; no actions executed.",
+  "probes": [
+    {
+      "message": "Одна фанк и одна эмбиент. Не включай.",
+      "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "cards": [
+        {
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "name": "BBC Radio 6 Music",
+          "tags": [
+            "blues",
+            "dance",
+            "electronic",
+            "funk",
+            "hip hop",
+            "house"
+          ]
+        },
+        {
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "actionId": "4216b4b6-9af3-4e43-aa00-ce4f55b52d21:1",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "runId": "4216b4b6-9af3-4e43-aa00-ce4f55b52d21",
+        "status": "completed",
+        "route": "music_worker"
+      }
+    },
+    {
+      "message": "Не предлагай другой стиль — фанк",
+      "reply": "Хорошо, новую подборку станций не делаю.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "94271e34-0f27-4b10-8eb6-79a4af56eb3b:1",
+          "permission": "read"
+        }
+      ],
+      "run": {
+        "runId": "94271e34-0f27-4b10-8eb6-79a4af56eb3b",
+        "status": "completed",
+        "route": "music_worker"
+      }
+    }
+  ]
+}

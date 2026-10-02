@@ -1,6 +1,6 @@
 # Лира: назначение ответа отдельно от результата поиска
 
-02.10.2026. Серверный кандидат поверх опубликованного 35d53bf; same-SHA CI/deploy ещё не подтверждены. Исходники abbd431. Новой композиции и долговременной памяти вкуса нет.
+02.10.2026. Серверный выпуск `ce0c4d1` опубликован поверх 35d53bf; same-SHA CI/deploy подтверждены. Исходники abbd431. Новой композиции и долговременной памяти вкуса нет.
 
 ## Изменение
 
@@ -26,6 +26,12 @@
 Изолированный release checkout: API 824/824, оба typecheck всех workspaces, полный build — exit 0; offline 21/21, model calls 0. Контракт/integration 12/12: режимы ответа, явные переходы, география, actual empty/error/not-attempted, числа вызовов, отсутствие Play. Это проверка контракта сообщений, не оценка настоящей прозы. Astra независимо проверила код и реальные ответы; нового блокера нет, ограничения записаны.
 
 [Proof с SHA256 исходников и ответов](evals/lira-conversation-2026-10-02-proof.json). [Закрытый ledger](evals/lira-conversation-2026-10-02-ledger.json). Runner использует bounded публичный loopback-каталог и shadow retrieval без production-профиля; это не browser /api/ai/chat и не гарантия полной parity.
+
+## Подтверждение публикации
+
+Same-SHA CI `37036244673` и deploy `37036244607` завершились успешно. RU symlink и SHA публичной сборки подтверждены. Health 200; две бесплатные проверки public chat: жанровая пара без Play и отмена подбора. Это подтверждает публичный транспорт и deterministic branches, а не повторный прогон качества настоящей модели. [Public proof](evals/lira-conversation-2026-10-02-public-proof.json).
+
+Pixel job: 13 passed / 5 прежних failures (четыре расхождения эталонов и Search capture error). Все 12 PNG по SHA256 совпадают с предыдущим CI, визуальные эталоны не менялись. [Сравнение](evals/lira-conversation-2026-10-02-pixel-proof.json).
 
 ## Следующий участок
 
