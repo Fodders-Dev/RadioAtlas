@@ -133,6 +133,111 @@ test('free speed/metaphor request reaches a semantic planner and returns verifie
   }
 });
 
+const searchBrief = (tags:string[], action='use_tool') => JSON.stringify({action,intent:'recommend',tool:'search_stations',
+  args:{query:'electronic',limit:1},semanticSearch:{kind:'hypothesis',tags}});
+
+test('a semantic hypothesis replaces stale broad args and both directions survive a two-card cap',async()=>{
+  const h=harness({planner:[searchBrief(['drum and bass','breakbeat'])],rowsForQuery:args=>[
+    station(`${args.tag}-a`,{tags:[args.tag]}),station(`${args.tag}-b`,{tags:[args.tag]}),
+    station('fake',{name:`${args.tag} Radio`,tags:['electronic']}),station('substring',{tags:[`${args.tag} mix`]})
+  ]});
+  const r=await chatWithAssistant(ask('Хочется будто несусь по неоновой трассе. Два варианта, не включай.'),h.deps);
+  assert.deepEqual(h.searches.map(args=>[args.query,args.tag,args.limit]),[['drum and bass','drum and bass',8],['breakbeat','breakbeat',8]]);
+  assert.deepEqual(r.stations.map(row=>row.tags[0]),['drum and bass','breakbeat']);
+  assert.equal(h.requests.length,2,'one planner plus evidence selection, no new mapper or final planner');
+  assert.ok(r.actions.every(action=>action.kind !== 'play'));
+  assert.match(r.reply,/жанровые направления/);
+});
+
+test('recommend+final with a valid brief uses its bounded directions without another model mapping',async()=>{
+  const h=harness({planner:[searchBrief(['future garage'],'final')],rows:[station('new',{tags:['future garage']})]});
+  const r=await chatWithAssistant(ask('Подбери хрупкий ночной ритм, не включай.'),h.deps);
+  assert.deepEqual(h.searches.map(args=>args.query),['future garage']);
+  assert.deepEqual(r.stations.map(row=>row.stationuuid),['new']);
+  assert.equal(h.requests.length,2);
+});
+
+test('empty exact-tag hypotheses do not fall back to broad names or an earlier goal',async()=>{
+  const h=harness({planner:[searchBrief(['breakcore']),recommendation],rows:[
+    station('old',{tags:['jungle']}),station('broad',{tags:['electronic']}),station('fake',{name:'Breakcore Radio',tags:['breakcore mix']})]});
+  const r=await chatWithAssistant(ask('Нужен рваный механический ритм. Страну сохрани. Не включай.',[
+    {role:'user',text:'Подбери jungle из России, без новостей. Один вариант.'}]),h.deps);
+  assert.deepEqual(h.searches.map(args=>args.query),['breakcore']);
+  assert.equal(r.stations.length,0);
+  assert.equal(h.requests.length,2,'one planner and reply; no second planner or old-context mapper');
+  assert.ok(r.serviceLinks.every(link=>!link.url.includes('jungle')));
+});
+
+test('a later accepted brief retires earlier broad candidates even when the new search is empty',async()=>{
+  const h=harness({planner:[JSON.stringify({action:'use_tool',intent:'recommend',tool:'search_stations',args:{query:'electronic'}}),
+    searchBrief(['breakcore'],'final')],rowsForQuery:args=>args.query === 'electronic' ? [station('broad',{tags:['electronic']})] : []});
+  const r=await chatWithAssistant(ask('меланхоличная электроника 90х'),h.deps);
+  assert.deepEqual(h.searches.map(args=>args.query),['electronic','breakcore']);
+  assert.equal(r.stations.length,0);
+  assert.ok(r.serviceLinks.every(link=>link.url.includes('breakcore')));
+});
+
+test('a free sound correction and its repair retain country and exclusions but supersede old positive genre',async()=>{
+  const correction='Нужен рваный механический ритм без мягкой атмосферы. Страну сохрани.';
+  for(const repair of [false,true]) {
+    const history:ChatTurn[]=[{role:'user',text:'Подбери jungle из России, без новостей. Один вариант. Не включай.'},{role:'assistant',text:'Только jungle.'}];
+    if(repair) history.push({role:'user',text:correction},{role:'assistant',text:'На самом деле вам подходит jungle.'});
+    const h=harness({planner:[searchBrief(['industrial'])],rows:[
+      station('correct',{tags:['industrial']}),station('foreign',{tags:['industrial'],country:'France'}),
+      station('news',{tags:['industrial','news']}),station('stale',{tags:['jungle']})]});
+    const r=await chatWithAssistant(ask(repair?'и?':correction,history),h.deps);
+    assert.deepEqual(r.stations.map(row=>row.stationuuid),['correct']);
+    assert.ok(h.searches.every(args=>args.query === 'industrial' && args.country === 'Russia'));
+    const planner=h.requests[0].messages.find((message:any)=>message.content.startsWith('USER REQUEST RECORD'));
+    assert.ok(planner.content.includes(JSON.stringify(correction)),'latest user goal is recorded separately');
+    assert.ok(r.actions.every(action=>action.kind !== 'play'));
+  }
+});
+
+test('latest explicit country change is preserved by the next short repair',async()=>{
+  const history:ChatTurn[]=[{role:'user',text:'Подбери быстрые станции из России.'},{role:'assistant',text:'Вот.'},
+    {role:'user',text:'Теперь из Франции, страну сохрани. Не включай.'},{role:'assistant',text:'Вот.'}];
+  const h=harness({planner:[searchBrief(['house'])],rows:[station('fr',{tags:['house'],country:'France'}),station('ru',{tags:['house']})]});
+  const r=await chatWithAssistant(ask('и?',history),h.deps);
+  assert.ok(h.searches.every(args=>args.country === 'France'));
+  assert.deepEqual(r.stations.map(row=>row.stationuuid),['fr']);
+});
+
+test('an ambiguous latest country selection does not silently revive an older country',async()=>{
+  for(const repair of [false,true]) {
+    const correction='Ещё два из Франции или Японии. Не включай.';
+    const history:ChatTurn[]=[{role:'user',text:'Подбери быстрые станции из России.'},{role:'assistant',text:'Вот.'}];
+    if(repair) history.push({role:'user',text:correction},{role:'assistant',text:'Вот.'});
+    const h=harness({planner:[searchBrief(['industrial'])],rows:[station('fr',{country:'France',tags:['industrial']})]});
+    await chatWithAssistant(ask(repair?'и?':correction,history),h.deps);
+    assert.ok(h.searches.every(args=>args.country !== 'Russia'));
+  }
+});
+
+test('a multiline USER goal remains one goal with count and NoPlay rather than a last-line command',async()=>{
+  const text='Хочется будто несусь по неоновой трассе\nДва варианта\nНе включай.';
+  const h=harness({planner:[searchBrief(['drum and bass'])]});
+  await chatWithAssistant(ask(text),h.deps);
+  const record=h.requests[0].messages.find((message:any)=>message.content.startsWith('USER REQUEST RECORD'));
+  assert.ok(record.content.includes(`"latestGoal":${JSON.stringify(text)}`));
+  assert.ok(record.content.includes('"earlierUserRequests":[]'));
+});
+
+test('an explicitly rejected style does not become a positive hypothesis',async()=>{
+  const h=harness({planner:[searchBrief(['drum and bass'])],rows:[station('bad')]});
+  const r=await chatWithAssistant(ask('Не надо DnB, подбери другой ритм. Не включай.'),h.deps);
+  assert.equal(r.stations.length,0);
+  assert.ok(r.actions.every(action=>action.kind !== 'play'));
+});
+
+test('a contradictory final recommendation brief cannot bypass a previously classified nonmusic intent',async()=>{
+  const h=harness({planner:[JSON.stringify({action:'use_tool',intent:'chat',tool:'web_search_factual',args:{query:'pizza'}}),
+    JSON.stringify({action:'final',intent:'recommend',semanticSearch:{kind:'hypothesis',tags:['jazz']}})]});
+  const r=await chatWithAssistant(ask('Хочется пиццы'),h.deps);
+  assert.equal(h.searches.length,0);
+  assert.equal(r.stations.length,0);
+});
+
 test('recommend+final still searches instead of returning an unperformed promise',async()=>{
   const h=harness({planner:[final('recommend')],reply:'Сейчас гляну, что у меня есть под такое настроение.'});
   const r=await chatWithAssistant(ask('Хочется скоростного как sonic'),h.deps);

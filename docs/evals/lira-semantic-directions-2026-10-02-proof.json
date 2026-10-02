@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "stage": "lira-semantic-directions",
+  "date": "2026-10-02",
+  "state": "local-candidate-not-published",
+  "checkout": "RadioAtlas-codex",
+  "branch": "codex/calm-home",
+  "baseHead": "3eb4f1dd3f7604b1ed2cb9e0ad6bb8936ef2e9fc",
+  "checks": [
+    {
+      "scope": "all workspaces",
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "scope": "all workspaces",
+      "command": "npm run typecheck:test",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:api",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 803
+    },
+    {
+      "modelCalls": 0,
+      "command": "npm run eval:lira:offline",
+      "exitCode": 0,
+      "passed": 21
+    },
+    {
+      "command": "npm --workspace apps/api run build",
+      "exitCode": 0
+    },
+    {
+      "command": "focused semantic and intent fixtures",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 59
+    },
+    {
+      "command": "independent Astra targeted regression fixtures",
+      "exitCode": 0,
+      "failed": 0,
+      "passed": 3
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0
+    }
+  ],
+  "paidModelCalls": 0,
+  "newBudgetState": "requested-no-answer-yet",
+  "previousPaidCampaign": "closed-not-reused",
+  "publication": {
+    "reason": "live musical-quality evaluation still required",
+    "performed": false
+  },
+  "review": {
+    "closedFindings": [
+      "ambiguous new country reviving old country",
+      "multiline USER turn split",
+      "genre spelling lost by real retrieval",
+      "empty new hypothesis returning old cards",
+      "final semantic brief bypassing sticky nonmusic intent gate"
+    ],
+    "reviewer": "gpt-6-astra"
+  },
+  "limits": [
+    "Fixture contracts do not prove musical hypothesis quality.",
+    "Only catalogue tags are verified; current audio, BPM and speech are not.",
+    "Invalid or omitted semantic brief preserves the compatible legacy path.",
+    "Constraint inheritance outside recognised continuation markers is not guaranteed.",
+    "Ambiguous geography does not implement a multi-country query.",
+    "No new browser/model dialogue, physical audio or iPhone verification.",
+    "Local Lira Studio composition is excluded from the intended server-only release."
+  ],
+  "sourceSha256": {
+    "apps/api/src/ai/brain.ts": "e87711160603a093170e493ba719186b28fa948994b40b651848bc38de60f906",
+    "apps/api/src/ai/catalogToolProvider.ts": "a86498a106d69464bc1cc4955c50d3b731859291c4251c3b5eb1dd830f4e3361",
+    "apps/api/src/ai/requestedCountry.ts": "39c80c05584a3e7733cb0d230d258d1d005c316e2d1c9c3a613d3464125ac597",
+    "apps/api/src/ai/semanticSearch.ts": "a760bcdcd30e9186a1cbc79c943c27f058da70f2f7314b7bcc32c87f4423f7a1",
+    "apps/api/src/ai/tools.ts": "4bf61a9c00ea05d627471240c22a3427f6818573c28958591da40734318ae8d9",
+    "apps/api/src/ai/types.ts": "34c956d258a2963ac58e27c90f55d77eb3650b68ed9296bef7968e06add1af3c",
+    "apps/api/src/catalog/service.ts": "15f81ad500852127bd3aab205fe312b460023d6b847b04414999651c6906e11f",
+    "apps/api/test/ai.plannerIntent.test.ts": "57f83589981435462d2a95fb47d00ff436535ab5a5cc1c38af27fa15bd4fd581",
+    "apps/api/test/ai.semanticRequests.test.ts": "42948bf877046297f24b6662861af7c3e14b37694a29548fe7fb3652a9cc2a25",
+    "apps/api/test/ai.semanticSearch.test.ts": "8e3ed472cac728a80716ccb0313ce9c1e53eb26e89c491a2bd3ddf601626674b",
+    "apps/api/test/catalogToolProvider.semanticSearch.test.ts": "fa56c71e548c1db89b358aeed78819191e329bf6aaffc7feac6482c8f8e9a328"
+  }
+}

@@ -72,6 +72,8 @@ type CatalogSpotlight = {
 
 type CatalogSearchFilters = {
   tagExact?: boolean;
+  // Internal opt-in exact spelling alternatives; never read from public query.
+  tagAliases?: readonly string[];
   mood?: string;
   q: string;
   country: string;
@@ -773,6 +775,7 @@ export const attachSearchIndex = (stations: CatalogStation[]): CatalogStation[] 
 
 export const buildSearchResponse = (stations: CatalogStation[], filters: CatalogSearchFilters) => {
   const mood = filters.mood ? MOOD_DEFINITIONS.find(item => item.id === filters.mood) : undefined;
+  const tagTerms = filters.tagAliases?.slice(0,8).map(tag=>tag.trim().toLowerCase()).filter(Boolean);
   const filtered = stations.filter((station) => {
     if (filters.mood && (!mood || !mood.tags.some(tag => stationTagSet(station).has(tag)))) return false;
     // q-haystack stays gated behind the && — a no-q browse never touches it.
@@ -781,7 +784,8 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
       return false;
     }
     if (filters.language && searchLanguageOf(station) !== filters.language) return false;
-    if (filters.tag && !(filters.tagExact ? searchTagsOf(station).includes(filters.tag) : searchTagTextOf(station).includes(filters.tag))) return false;
+    if (tagTerms?.length ? !tagTerms.some(tag=>searchTagsOf(station).includes(tag))
+      : filters.tag && !(filters.tagExact ? searchTagsOf(station).includes(filters.tag) : searchTagTextOf(station).includes(filters.tag))) return false;
     if (filters.continent && searchContinentOf(station) !== filters.continent) return false;
     return true;
   });
@@ -825,7 +829,9 @@ export const buildSearchResponse = (stations: CatalogStation[], filters: Catalog
   const wantsRelevance = Boolean(filters.relevance && (filters.q || filters.tag));
   const ranked = wantsRelevance
     ? filtered
-        .map((station) => ({ station, relevance: computeSearchRelevance(station, filters.q, filters.tag) }))
+        .map((station) => ({ station, relevance: tagTerms?.length
+          ? Math.max(...tagTerms.map(tag=>computeSearchRelevance(station,filters.q,tag)))
+          : computeSearchRelevance(station, filters.q, filters.tag) }))
         .sort((left, right) => {
           const leftFailed = left.station.lastcheckok === 0 ? 1 : 0;
           const rightFailed = right.station.lastcheckok === 0 ? 1 : 0;

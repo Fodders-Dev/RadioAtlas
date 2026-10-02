@@ -4,6 +4,7 @@
 // deterministic music-link builder, and NEVER throws into the loop.
 
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
+import { parseSemanticSearch } from './semanticSearch.js';
 import { buildServiceSearchLinks } from './musicLinks.js';
 import type {
   MusicService,
@@ -108,6 +109,7 @@ export const runTool = async (
      * never overridden.
      */
     languageScope?: string;
+    semanticGenre?: string;
   }
 ): Promise<ToolObservation> => {
   const base = { tool, args };
@@ -125,6 +127,7 @@ export const runTool = async (
           country,
           language: language || scoped,
           tag: asOptionalString(args.tag),
+          semanticGenre: ctx.semanticGenre,
           limit: asLimit(args.limit)
         });
         return { ...base, found: stations.length > 0, stations };
@@ -225,8 +228,12 @@ export const parsePlannerDecision = (text: string): PlannerDecision => {
     parsed.intent === 'recommend' || parsed.intent === 'chat' || parsed.intent === 'knowledge' || parsed.intent === 'clarify'
       ? parsed.intent
       : undefined;
+  const semanticSearch = intent === 'recommend' &&
+    (parsed.action === 'final' || parsed.action === 'use_tool' && parsed.tool === 'search_stations')
+    ? parseSemanticSearch(parsed.semanticSearch) : undefined;
   const withIntent = <T extends PlannerDecision>(decision: T): T | (T & { intent: PlannerIntent }) =>
-    intent === undefined ? decision : { ...decision, intent };
+    intent === undefined ? decision : { ...decision, intent,
+      ...(semanticSearch ? {semanticSearch} : {}) };
   const action = parsed.action === 'use_tool' ? 'use_tool' : 'final';
   if (action === 'final') return withIntent({ action: 'final', note: asOptionalString(parsed.note) });
   const tool = asString(parsed.tool);
