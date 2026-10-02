@@ -1,0 +1,110 @@
+{
+  "generatedAt": "2026-10-02T13:08:41.529Z",
+  "scenario": "finalcontrast",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Подбери два разных направления: одно как восьмибитная игра, другое как ночной механический рейв. Не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Chiptune» — chiptune (The Russian Federation).\n«technoszene.com Radio» — industrial techno, ebm, deep house (Germany).",
+      "cards": [
+        {
+          "stationuuid": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+          "name": "Radio Caprice - Chiptune",
+          "country": "The Russian Federation",
+          "tags": [
+            "chiptune"
+          ]
+        },
+        {
+          "stationuuid": "214dcd23-0eb9-11e9-a80b-52543be04c81",
+          "name": "technoszene.com Radio",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "edm",
+            "house",
+            "tech house",
+            "techno",
+            "ebm"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+          "actionId": "8ee5f36f-8f23-4475-b170-00cac587e77b:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 249
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1492
+        }
+      ],
+      "runtimeMs": 6294,
+      "usage": {
+        "prompt": 5672,
+        "completion": 189
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "700c07fa-f8f3-4116-bfe1-2bdd95823fad",
+      "status": "settled",
+      "requestBytes": 15005,
+      "reserveUsd": 0.02917332,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"chiptune\",\n    \"limit\": 5\n  },\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"chiptune\", \"industrial techno\"]\n  },\n  \"note\": \"Два направления: восьмибитная игра → chiptune; ночной механический рейв → industrial techno.\"\n}",
+      "actualUsd": 0.004158,
+      "httpStatus": 200,
+      "promptTokens": 2814,
+      "completionTokens": 112
+    },
+    {
+      "reservationId": "12f36e35-ff91-477e-b495-0c316a337285",
+      "status": "settled",
+      "requestBytes": 14898,
+      "reserveUsd": 0.02903208,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"d59bbb09-d855-46b7-bf21-ddb203dfff71\",\"tagKeys\":[\"t0\"]},{\"stationId\":\"214dcd23-0eb9-11e9-a80b-52543be04c81\",\"tagKeys\":[\"t1\",\"t4\"]}]}",
+      "actualUsd": 0.00407748,
+      "httpStatus": 200,
+      "promptTokens": 2858,
+      "completionTokens": 77
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

@@ -1,0 +1,175 @@
+{
+  "generatedAt": "2026-10-02T13:06:15.479Z",
+  "scenario": "styles",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочу house. Два варианта с объяснением различий, не включай.",
+      "reply": "По тегам каталога:\n«Chillhouse Live» — house, deep house, chill (Germany).\n«Exotica Radio» — house, disco (The Philippines).\nОбщее в тегах — house, lounge.",
+      "cards": [
+        {
+          "stationuuid": "a4493475-cd2d-4053-8645-56bc9ea07312",
+          "name": "Chillhouse Live",
+          "country": "Germany",
+          "tags": [
+            "chillout",
+            "deep house",
+            "downtempo",
+            "house",
+            "24/7",
+            "background music"
+          ]
+        },
+        {
+          "stationuuid": "a18c1d9c-df4e-467a-b06a-e4beb410148e",
+          "name": "Exotica Radio",
+          "country": "The Philippines",
+          "tags": [
+            "disco",
+            "funk",
+            "house",
+            "world",
+            "lounge"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "a4493475-cd2d-4053-8645-56bc9ea07312",
+          "actionId": "489ca2c4-8292-4965-820d-2af1ab25cd96:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 132
+        }
+      ],
+      "runtimeMs": 4053,
+      "usage": {
+        "prompt": 5727,
+        "completion": 198
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Ближе к deep house. Ещё два, не включай.",
+      "reply": "По тегам каталога:\n«DEEP HOUSE ENERGY» — deep house (Romania).\n«1.FM - Deep House Radio» — deep house, techno (Switzerland).\nОбщее в тегах — house.",
+      "cards": [
+        {
+          "stationuuid": "2f5a5628-1b99-49e9-bb5c-b58b6d1dc2ff",
+          "name": "DEEP HOUSE ENERGY",
+          "country": "Romania",
+          "tags": [
+            "deep house"
+          ]
+        },
+        {
+          "stationuuid": "962a748b-0601-11e8-ae97-52543be04c81",
+          "name": "1.FM - Deep House Radio",
+          "country": "Switzerland",
+          "tags": [
+            "deep house",
+            "techno"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "2f5a5628-1b99-49e9-bb5c-b58b6d1dc2ff",
+          "actionId": "f2603d18-047f-44f3-aec8-0dc70bcd7f08:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 84
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 8
+        }
+      ],
+      "runtimeMs": 1825,
+      "usage": {
+        "prompt": 2883,
+        "completion": 108
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "a54bd84a-b58e-48f5-98d7-7c9e551ba7f4",
+      "status": "settled",
+      "requestBytes": 14723,
+      "reserveUsd": 0.02880108,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"house\",\n    \"limit\": 2\n  },\n  \"semanticSearch\": {\n    \"kind\": \"genre\",\n    \"tags\": [\"house\"]\n  },\n  \"note\": \"Ищу две house-станции для сравнения\"\n}",
+      "actualUsd": 0.00402336,
+      "httpStatus": 200,
+      "promptTokens": 2781,
+      "completionTokens": 89
+    },
+    {
+      "reservationId": "d9f0f284-c85e-457f-8fa2-0a98c8dae611",
+      "status": "settled",
+      "requestBytes": 15134,
+      "reserveUsd": 0.0293436,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"a4493475-cd2d-4053-8645-56bc9ea07312\",\n      \"tagKeys\": [\"t2\", \"t6\", \"t4\"]\n    },\n    {\n      \"stationId\": \"a18c1d9c-df4e-467a-b06a-e4beb410148e\",\n      \"tagKeys\": [\"t2\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00432036,
+      "httpStatus": 200,
+      "promptTokens": 2946,
+      "completionTokens": 109
+    },
+    {
+      "reservationId": "c6de89b5-ff87-4a7a-8387-7983a038dd55",
+      "status": "settled",
+      "requestBytes": 15099,
+      "reserveUsd": 0.0292974,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"2f5a5628-1b99-49e9-bb5c-b58b6d1dc2ff\",\n      \"tagKeys\": [\"t0\"]\n    },\n    {\n      \"stationId\": \"962a748b-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00423324,
+      "httpStatus": 200,
+      "promptTokens": 2883,
+      "completionTokens": 108
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

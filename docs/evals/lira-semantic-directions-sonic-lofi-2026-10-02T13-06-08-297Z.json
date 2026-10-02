@@ -1,0 +1,117 @@
+{
+  "generatedAt": "2026-10-02T13:06:08.297Z",
+  "scenario": "lofi",
+  "model": "deepseek-v4-pro",
+  "code": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочу lo-fi для работы. Три варианта, не включай.",
+      "reply": "По тегам каталога:\n«Radio Caprice - Lo-Fi [2]» — lo fi, lofi, electronic (The Russian Federation).\n«ISEKOI Radio | Chill Zone» — lofi, chill (France).\n«REYFM -#LOFI» — lofi, chill (Germany).\nОбщее в тегах — lofi.",
+      "cards": [
+        {
+          "stationuuid": "e0107e6a-f00a-4a6c-8ce2-ed3c448060d3",
+          "name": "Radio Caprice - Lo-Fi [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "lo-fi",
+            "lofi",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "9467b580-dd8b-44d6-b99a-6ac688a50786",
+          "name": "ISEKOI Radio | Chill Zone",
+          "country": "France",
+          "tags": [
+            "chillout",
+            "electronic",
+            "house",
+            "lofi",
+            "chill",
+            "intelligent drum and bass"
+          ]
+        },
+        {
+          "stationuuid": "4e681355-3ebb-4b6c-a79a-d7cc81a0afd5",
+          "name": "REYFM -#LOFI",
+          "country": "Germany",
+          "tags": [
+            "lofi",
+            "chill"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "e0107e6a-f00a-4a6c-8ce2-ed3c448060d3",
+          "actionId": "29d59ba4-8619-4310-a462-4f8d53219af3:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 714
+        }
+      ],
+      "runtimeMs": 5252,
+      "usage": {
+        "prompt": 5770,
+        "completion": 218
+      },
+      "status": "completed",
+      "warnings": []
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "59403876-455f-4e89-92e8-d530cf03542e",
+      "status": "settled",
+      "requestBytes": 14654,
+      "reserveUsd": 0.02871,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"lo-fi\",\n    \"limit\": 3\n  },\n  \"semanticSearch\": {\n    \"kind\": \"genre\",\n    \"tags\": [\"lo-fi\"]\n  },\n  \"note\": \"Поиск lo-fi станций для работы, три варианта\"\n}",
+      "actualUsd": 0.00403128,
+      "httpStatus": 200,
+      "promptTokens": 2772,
+      "completionTokens": 94
+    },
+    {
+      "reservationId": "d00cb484-4088-461f-a2d4-a19fa180cde7",
+      "status": "settled",
+      "requestBytes": 15210,
+      "reserveUsd": 0.02944392,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"e0107e6a-f00a-4a6c-8ce2-ed3c448060d3\",\"tagKeys\":[\"t1\",\"t2\"]},{\"stationId\":\"9467b580-dd8b-44d6-b99a-6ac688a50786\",\"tagKeys\":[\"t5\",\"t0\"]},{\"stationId\":\"4e681355-3ebb-4b6c-a79a-d7cc81a0afd5\",\"tagKeys\":[\"t1\",\"t0\"]}]}",
+      "actualUsd": 0.0044484,
+      "httpStatus": 200,
+      "promptTokens": 2998,
+      "completionTokens": 124
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

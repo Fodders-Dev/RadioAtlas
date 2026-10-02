@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "stage": "lira-semantic-directions-live",
+  "date": "2026-10-02",
+  "state": "reviewed-server-only-release-candidate",
+  "implementationSha": "2f4e175f90a628619cda0718a36f43b6e30a33ec",
+  "productionBase": "c8146a4f5c60a4c0152758d6ee53fd89da59ea91",
+  "sourceSha256": {
+    "apps/api/src/ai/brain.ts": "18e2179fbe4e865a6d2bd75d6a22b339558ea21072925d5ac9758bd6da59826e",
+    "apps/api/src/ai/catalogToolProvider.ts": "bb10323bd0bf6e41560378640405a5e9fc82ba16af1f62876661e091016aef3c",
+    "apps/api/src/ai/requestedCountry.ts": "39c80c05584a3e7733cb0d230d258d1d005c316e2d1c9c3a613d3464125ac597",
+    "apps/api/src/ai/semanticSearch.ts": "2c172f0220e14d53b742eb3e26ec508efe2fd9664eac060f2dfffaccec5936ab",
+    "apps/api/src/ai/tools.ts": "74982578358ec3019d45e799ff98ad9fcc390316621df1f254a783abc372035a",
+    "apps/api/src/ai/types.ts": "8fdaead609922c07d83591db105c7c07466694eaccd244f51076ea4923cf034a",
+    "apps/api/src/catalog/service.ts": "15f81ad500852127bd3aab205fe312b460023d6b847b04414999651c6906e11f",
+    "apps/api/test/ai.plannerIntent.test.ts": "57f83589981435462d2a95fb47d00ff436535ab5a5cc1c38af27fa15bd4fd581",
+    "apps/api/test/ai.semanticRequests.test.ts": "b1036b830afd1d2482c9dc6e9713bed5f9029342a1cd8e863dabc5be3a821ded",
+    "apps/api/test/ai.semanticSearch.test.ts": "6ca8fb8c0e80d6f3b24fd1b2d6bb884006efd25602f5837f52dfe577e7068df8",
+    "apps/api/test/catalogToolProvider.semanticSearch.test.ts": "070c83d17f4a27fb51c6b3c400a4a222ab830bca4df65081878ca8c1258369b2",
+    "apps/api/src/ai/recommendationEvidence.ts": "4078575ec94cfef8971c8c0ff018ec6f89217e5f7e277b82355309da39d4f44a",
+    "apps/api/test/ai.recommendationEvidence.test.ts": "aba06771d02ed8102895b1eca2b6d313d47406365b806b32ec9394f7b5d708cb"
+  },
+  "reportSha256": {
+    "docs/evals/lira-semantic-directions-sonic-contrast-2026-10-02T12-47-11-503Z.json": "ec5cc316a28d71a6f100c5cfea63f2b78a71ad42915b8ebd963c7295da819a8c",
+    "docs/evals/lira-semantic-directions-sonic-contrast-2026-10-02T12-55-58-190Z.json": "65a212cbca14a5ba3616cb151bd408c077b52fb5dcb3a36623c01b457972d334",
+    "docs/evals/lira-semantic-directions-sonic-contrast-2026-10-02T13-00-59-474Z.json": "4ee69388e8fa5ceb22be867ce69c425f3f7145ef4b914ee1dbfcde8c4e3cc05c",
+    "docs/evals/lira-semantic-directions-sonic-correction-2026-10-02T12-47-11-574Z.json": "90bbed4110c08fb69a757a7fca0ab909c61e3ff3b685df77808ce87025d215a2",
+    "docs/evals/lira-semantic-directions-sonic-correction-2026-10-02T12-55-58-433Z.json": "311dddd94ef7540ab4c64b7206682fcf0845b9396faaf969102138cfbc4b1334",
+    "docs/evals/lira-semantic-directions-sonic-correction-2026-10-02T13-00-59-715Z.json": "dcfe9e92c5d2eeb738e8367db35936692dfc6ad5d2a235f8d0cf92c4e878bc47",
+    "docs/evals/lira-semantic-directions-sonic-exact-2026-10-02T13-05-12-062Z.json": "6a98d78a7e479b77abb51476ee4e44b9d43c5032f93bba497c1b1fd511fc111d",
+    "docs/evals/lira-semantic-directions-sonic-finalcontrast-2026-10-02T13-08-41-528Z.json": "836f57157d559d02c596b293f2c982ca6a6240f96ba402222872a112772ec7b3",
+    "docs/evals/lira-semantic-directions-sonic-finalmechanical-2026-10-02T13-08-41-716Z.json": "24b2518801309f9c79030aefc0a03c07b3bf14686be469ff1f89f6a521c6f029",
+    "docs/evals/lira-semantic-directions-sonic-knowledge-2026-10-02T13-06-08-256Z.json": "edbba3f85e4c84906301a81602f5c9eac1dfe1142bfa6afab1a18e20f8c98a61",
+    "docs/evals/lira-semantic-directions-sonic-lofi-2026-10-02T13-06-08-297Z.json": "e8c3ea42dd23afd82f4f04c360be5d3a408499b8481207fad9a3a6b445e348c6",
+    "docs/evals/lira-semantic-directions-sonic-nonmusic-2026-10-02T13-06-15-668Z.json": "00ed208dab09191fe63862416c589016bcda5acbf92207b1156119084e85ca5e",
+    "docs/evals/lira-semantic-directions-sonic-styles-2026-10-02T13-06-15-478Z.json": "5fc1c171e096b5de58b3180bf146b86acbcb49949dc4fdff1a3c67d4184dad15",
+    "docs/evals/lira-semantic-directions-sonic-unknown-2026-10-02T13-05-12-126Z.json": "2023d4530903a4aa7b3e7698ec9522e564512882ebaea02b2e21328c51f7ab77"
+  },
+  "checks": [
+    {
+      "command": "npm run typecheck",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run typecheck:test",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run test:api",
+      "exitCode": 0,
+      "passed": 812,
+      "failed": 0
+    },
+    {
+      "command": "npm run eval:lira:offline",
+      "exitCode": 0,
+      "passed": 21,
+      "modelCalls": 0
+    },
+    {
+      "command": "npm run build",
+      "exitCode": 0
+    },
+    {
+      "command": "focused main semantic regressions",
+      "exitCode": 0,
+      "passed": 78
+    }
+  ],
+  "paid": {
+    "budgetUsd": 3,
+    "calls": 59,
+    "userTurns": 31,
+    "upperUsd": 0.24623148,
+    "reservedUsd": 0,
+    "closed": true,
+    "closedAt": "2026-10-02T13:14:35.496Z",
+    "ledgerSha256": "fc6603fd9adc8abcc9f1579e489c054fc103a11b86d818fdfa39815d4aed42e7",
+    "priceSource": "https://api-docs.deepseek.com/quick_start/pricing/"
+  },
+  "review": {
+    "reviewer": "gpt-6-astra",
+    "verdict": "narrow demonstrated improvement; no new release blocker; not all cases pass"
+  },
+  "limits": [
+    "Loopback public catalogue shadow retrieval, up to 100 candidates per query/spelling; not full production catalogue/profile parity or browser chat.",
+    "Malformed/whitespace composer responses still require safe deterministic fallback.",
+    "Nonmusic prose still invents musical intent; next stage must address it without changing tool safety.",
+    "Five-card repairs can consume six tool slots resolving previous stations, preventing a second planned direction search.",
+    "Own tags do not guarantee current audio, BPM or exact fit to a metaphor.",
+    "Genre negative matching uses catalogue token phrases, not a complete genre taxonomy.",
+    "No physical audio/iPhone verification. Local Lira Studio is excluded."
+  ]
+}

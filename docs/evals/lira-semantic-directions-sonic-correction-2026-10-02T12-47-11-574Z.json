@@ -1,0 +1,300 @@
+{
+  "generatedAt": "2026-10-02T12:47:11.574Z",
+  "scenario": "correction",
+  "model": "deepseek-v4-pro",
+  "code": "d1df6a6775b69b3224d0f75e3645419d55e9f24c",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Хочется скоростного как Sonic, только из России, без новостей. Два варианта, не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Drum 'n' Bass [2]» — drum and bass, electronic (The Russian Federation).\n«Atm.Fm» — жанровых данных в каталоге не хватает (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "name": "Radio Caprice - Drum 'n' Bass [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "drum 'n' bass",
+            "radcap"
+          ]
+        },
+        {
+          "stationuuid": "96453752-0601-11e8-ae97-52543be04c81",
+          "name": "Atm.Fm",
+          "country": "The Russian Federation",
+          "tags": [
+            "atmospheric",
+            "breakbeat",
+            "breaks",
+            "multilingual",
+            "progressive"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "14b0fe6c-eddf-411a-8cee-3c100da950fc",
+          "actionId": "9c84f974-036a-4c6c-a929-16d0d29c879c:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 5598
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 169
+        }
+      ],
+      "runtimeMs": 10140,
+      "usage": {
+        "prompt": 5354,
+        "completion": 217
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Нужен рваный механический ритм без мягкой атмосферы. Страну сохрани. Не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice Industrial/Dark/Ritual Ambient» — ambient, drone (The Russian Federation).\n«Radio Caprice - Industrial Music [2]» — electronic (The Russian Federation).",
+      "cards": [
+        {
+          "stationuuid": "c4ad50e6-da4d-49f2-abeb-8bbcb1ebfbdf",
+          "name": "Radio Caprice Industrial/Dark/Ritual Ambient",
+          "country": "The Russian Federation",
+          "tags": [
+            "ambient",
+            "drone",
+            "industrial"
+          ]
+        },
+        {
+          "stationuuid": "c678fd49-688e-4a7f-acb2-559ba99a793f",
+          "name": "Radio Caprice - Industrial Music [2]",
+          "country": "The Russian Federation",
+          "tags": [
+            "electronic",
+            "industrial",
+            "industrial music",
+            "radcap"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "c4ad50e6-da4d-49f2-abeb-8bbcb1ebfbdf",
+          "actionId": "b0c5e6fc-b4f6-4544-8c9a-6acdbc1a60bf:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 182
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 16
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 231
+        }
+      ],
+      "runtimeMs": 4435,
+      "usage": {
+        "prompt": 5666,
+        "completion": 150
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«(( RES ))» — drum and bass, electronic (The Russian Federation).\n«DNB FM» — drum and bass, liquid (The Russian Federation).\nОбщее в тегах — drum and bass.",
+      "cards": [
+        {
+          "stationuuid": "a6240fc3-cdfb-4eca-8781-9380666f816c",
+          "name": "(( RES ))",
+          "country": "The Russian Federation",
+          "tags": [
+            "drum & bass",
+            "drum and bass",
+            "electronic",
+            "jungle",
+            "liquid dnb",
+            "liquid funk"
+          ]
+        },
+        {
+          "stationuuid": "6632bb70-8919-415d-9d09-6e304564543b",
+          "name": "DNB FM",
+          "country": "The Russian Federation",
+          "tags": [
+            "dnb",
+            "drum and bass",
+            "breaks",
+            "liquid"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "a6240fc3-cdfb-4eca-8781-9380666f816c",
+          "actionId": "61fedc1d-f1e9-40c4-a38f-eff9d2930f34:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 880
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 13
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 165
+        }
+      ],
+      "runtimeMs": 5156,
+      "usage": {
+        "prompt": 5921,
+        "completion": 175
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 5,
+    "rowsRead": 500,
+    "truncated": true
+  },
+  "providerCalls": [
+    {
+      "reservationId": "5b515dfa-13db-4a0c-9d9e-ddbe6965fb49",
+      "status": "settled",
+      "requestBytes": 13137,
+      "reserveUsd": 0.02670756,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"note\": \"Скоростной Sonic-вайб → drum and bass, Россия, без новостей\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"breakbeat\"]\n  }\n}",
+      "actualUsd": 0.0037884,
+      "httpStatus": 200,
+      "promptTokens": 2516,
+      "completionTokens": 118
+    },
+    {
+      "reservationId": "2c47060d-a2f4-498f-980c-9834a723586f",
+      "status": "settled",
+      "requestBytes": 14986,
+      "reserveUsd": 0.02914824,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"14b0fe6c-eddf-411a-8cee-3c100da950fc\",\n      \"tagKeys\": [\"t0\", \"t1\"]\n    },\n    {\n      \"stationId\": \"96453752-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": []\n    }\n  ]\n}",
+      "actualUsd": 0.0041382,
+      "httpStatus": 200,
+      "promptTokens": 2838,
+      "completionTokens": 99
+    },
+    {
+      "reservationId": "61479b65-48ad-4f0c-9010-1410da1bdada",
+      "status": "settled",
+      "requestBytes": 13877,
+      "reserveUsd": 0.02768436,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"industrial\",\n    \"country\": \"Russia\",\n    \"limit\": 5\n  },\n  \"note\": \"Рваный механический ритм без мягкой атмосферы → industrial\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"industrial\", \"ebm\"]\n  }\n}",
+      "actualUsd": 0.00392568,
+      "httpStatus": 200,
+      "promptTokens": 2653,
+      "completionTokens": 107
+    },
+    {
+      "reservationId": "2fc14c6b-33f0-4cea-bfcc-5fd710b351a2",
+      "status": "settled",
+      "requestBytes": 16020,
+      "reserveUsd": 0.03051312,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"c678fd49-688e-4a7f-acb2-559ba99a793f\",\"tagKeys\":[\"t0\"]}]}",
+      "actualUsd": 0.00414744,
+      "httpStatus": 200,
+      "promptTokens": 3013,
+      "completionTokens": 43
+    },
+    {
+      "reservationId": "40166bd1-9f57-419b-981d-9f2402eee91c",
+      "status": "settled",
+      "requestBytes": 14461,
+      "reserveUsd": 0.02845524,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"drum and bass\",\n    \"country\": \"Russia\",\n    \"limit\": 2\n  },\n  \"note\": \"Продолжаю цель: рваный механический ритм, Россия, без включения.\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"drum and bass\", \"industrial\"]\n  }\n}",
+      "actualUsd": 0.00410124,
+      "httpStatus": 200,
+      "promptTokens": 2756,
+      "completionTokens": 117
+    },
+    {
+      "reservationId": "7c9b2c8e-a2ba-46d5-98c6-28f7d6c95e30",
+      "status": "settled",
+      "requestBytes": 16704,
+      "reserveUsd": 0.031416,
+      "responseContent": "                   [2]» — drum and bass, electronic (The Russian Federation).\n«Atm.Fm» — жанровых данных в каталоге не хватает (The Russian Federation).",
+      "actualUsd": 0.00440748,
+      "httpStatus": 200,
+      "promptTokens": 3165,
+      "completionTokens": 58
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}

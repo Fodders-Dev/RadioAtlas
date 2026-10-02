@@ -1,0 +1,285 @@
+{
+  "generatedAt": "2026-10-02T12:47:11.503Z",
+  "scenario": "contrast",
+  "model": "deepseek-v4-pro",
+  "code": "d1df6a6775b69b3224d0f75e3645419d55e9f24c",
+  "apiKeyConfigured": true,
+  "modelTimeoutSec": 8,
+  "agentRuntimeLimitMs": 18000,
+  "maxOutputTokens": 1000,
+  "priceCeilingUsdPerMillion": {
+    "input": 1.32,
+    "output": 3.96
+  },
+  "offlinePreflight": {
+    "mode": "offline-contract",
+    "total": 21,
+    "passCount": 21,
+    "modelCalls": 0
+  },
+  "turns": [
+    {
+      "question": "Подбери два разных направления: одно как восьмибитная игра, другое как ночной механический рейв. Не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«Radio Caprice - Chiptune» — chiptune (The Russian Federation).\n«CGM UK DemoScene» — chiptune.\nОбщее в тегах — chiptune.\nПо этим тегам различие в звучании подтвердить не могу.",
+      "cards": [
+        {
+          "stationuuid": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+          "name": "Radio Caprice - Chiptune",
+          "country": "The Russian Federation",
+          "tags": [
+            "chiptune"
+          ]
+        },
+        {
+          "stationuuid": "e2d0b790-de9c-11e8-a9cc-52543be04c81",
+          "name": "CGM UK DemoScene",
+          "country": "",
+          "tags": [
+            "8 bit",
+            "8bit",
+            "chiptune",
+            "demoscene"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+          "actionId": "bcd28ce8-7b69-474b-94b8-badb86a877cf:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1502
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 1804
+        }
+      ],
+      "runtimeMs": 7905,
+      "usage": {
+        "prompt": 5215,
+        "completion": 175
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "Не надо игровых мелодий, больше ломаного ритма. Два варианта, не включай.",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«674FM» — drum and bass, alternative (Germany).\n«dinamo.fm smog» — idm, dub (Türkiye).\nОбщее в тегах — electronic.",
+      "cards": [
+        {
+          "stationuuid": "9623284b-0601-11e8-ae97-52543be04c81",
+          "name": "674FM",
+          "country": "Germany",
+          "tags": [
+            "deep house",
+            "disco",
+            "drum and bass",
+            "electronica",
+            "funk",
+            "hiphop"
+          ]
+        },
+        {
+          "stationuuid": "ce11fd33-2cbf-11e8-91bf-52543be04c81",
+          "name": "dinamo.fm smog",
+          "country": "Türkiye",
+          "tags": [
+            "electronica",
+            "deep",
+            "dub",
+            "idm"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "9623284b-0601-11e8-ae97-52543be04c81",
+          "actionId": "c5e46962-dbb9-456a-bd73-a3eab8f5b3b8:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 49
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 44
+        }
+      ],
+      "runtimeMs": 4124,
+      "usage": {
+        "prompt": 5656,
+        "completion": 205
+      },
+      "status": "completed",
+      "warnings": []
+    },
+    {
+      "question": "и?",
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«UPFront Radio» — drum and bass, house (The United Kingdom Of Great Britain And Northern Ireland).\n«Nightride FM - Datawave» — idm (Germany).",
+      "cards": [
+        {
+          "stationuuid": "0d864825-dd0d-4dff-9fcc-7662fd9de1f3",
+          "name": "UPFront Radio",
+          "country": "The United Kingdom Of Great Britain And Northern Ireland",
+          "tags": [
+            "drum and bass",
+            "house",
+            "breakbeat",
+            "music"
+          ]
+        },
+        {
+          "stationuuid": "65479d00-dd6e-494e-93b0-a8607b846d12",
+          "name": "Nightride FM - Datawave",
+          "country": "Germany",
+          "tags": [
+            "glitchy synthwave",
+            "idm",
+            "retro computing"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "0d864825-dd0d-4dff-9fcc-7662fd9de1f3",
+          "actionId": "8bc880ae-a6ab-4df9-a10f-251d1ddc8fd2:1",
+          "permission": "read"
+        }
+      ],
+      "toolCalls": [
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 100
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 5
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 13
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 7
+        },
+        {
+          "name": "get_station",
+          "status": "completed",
+          "durationMs": 6
+        },
+        {
+          "name": "search_stations",
+          "status": "completed",
+          "durationMs": 78
+        }
+      ],
+      "runtimeMs": 4523,
+      "usage": {
+        "prompt": 5696,
+        "completion": 155
+      },
+      "status": "completed",
+      "warnings": [
+        "max_tool_calls_reached"
+      ]
+    }
+  ],
+  "catalogueFetch": {
+    "route": "/catalog/search",
+    "pageSize": 100,
+    "maxPages": 5,
+    "pagesRead": 0,
+    "rowsRead": 0,
+    "truncated": false
+  },
+  "providerCalls": [
+    {
+      "reservationId": "92efe6ed-7809-49b1-85ff-65aa58c51bd9",
+      "status": "settled",
+      "requestBytes": 12865,
+      "reserveUsd": 0.02634852,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"chiptune\",\n    \"limit\": 5\n  },\n  \"note\": \"Первое направление: восьмибитная игра → chiptune\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"chiptune\", \"8-bit\"]\n  }\n}",
+      "actualUsd": 0.00365112,
+      "httpStatus": 200,
+      "promptTokens": 2466,
+      "completionTokens": 100
+    },
+    {
+      "reservationId": "8b357f85-b94f-4c5e-8eee-27710b88b420",
+      "status": "settled",
+      "requestBytes": 14441,
+      "reserveUsd": 0.02842884,
+      "responseContent": "{\"v\":1,\"cards\":[{\"stationId\":\"d59bbb09-d855-46b7-bf21-ddb203dfff71\",\"tagKeys\":[\"t0\"]},{\"stationId\":\"e2d0b790-de9c-11e8-a9cc-52543be04c81\",\"tagKeys\":[\"t0\"]}]}",
+      "actualUsd": 0.00392568,
+      "httpStatus": 200,
+      "promptTokens": 2749,
+      "completionTokens": 75
+    },
+    {
+      "reservationId": "5f5c44d8-06d2-4e44-aa2f-ca754ffd9c3a",
+      "status": "settled",
+      "requestBytes": 13353,
+      "reserveUsd": 0.02699268,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"breakbeat\",\n    \"limit\": 2\n  },\n  \"note\": \"Ищу станции с ломаным ритмом, без игровых мелодий\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"breakbeat\", \"idm\"]\n  }\n}",
+      "actualUsd": 0.00381744,
+      "httpStatus": 200,
+      "promptTokens": 2574,
+      "completionTokens": 106
+    },
+    {
+      "reservationId": "2865c8e1-310c-4007-828a-6e725803b592",
+      "status": "settled",
+      "requestBytes": 15896,
+      "reserveUsd": 0.03034944,
+      "responseContent": "{\n  \"v\": 1,\n  \"cards\": [\n    {\n      \"stationId\": \"9623284b-0601-11e8-ae97-52543be04c81\",\n      \"tagKeys\": [\"t3\"]\n    },\n    {\n      \"stationId\": \"ce11fd33-2cbf-11e8-91bf-52543be04c81\",\n      \"tagKeys\": [\"t2\"]\n    }\n  ]\n}",
+      "actualUsd": 0.00446028,
+      "httpStatus": 200,
+      "promptTokens": 3082,
+      "completionTokens": 99
+    },
+    {
+      "reservationId": "20b3575c-79c9-43dc-acfa-cefc3caf2fce",
+      "status": "settled",
+      "requestBytes": 13743,
+      "reserveUsd": 0.02750748,
+      "responseContent": "{\n  \"action\": \"use_tool\",\n  \"intent\": \"recommend\",\n  \"tool\": \"search_stations\",\n  \"args\": {\n    \"query\": \"breakbeat\",\n    \"limit\": 2\n  },\n  \"note\": \"Ищу станции с ломаным ритмом, без игровых мелодий\",\n  \"semanticSearch\": {\n    \"kind\": \"hypothesis\",\n    \"tags\": [\"breakbeat\", \"idm\"]\n  }\n}",
+      "actualUsd": 0.0039204,
+      "httpStatus": 200,
+      "promptTokens": 2652,
+      "completionTokens": 106
+    },
+    {
+      "reservationId": "702b1d5a-6328-47f1-8d81-7f0ad0c4fe66",
+      "status": "settled",
+      "requestBytes": 16014,
+      "reserveUsd": 0.0305052,
+      "responseContent": "                                                 ",
+      "actualUsd": 0.00421212,
+      "httpStatus": 200,
+      "promptTokens": 3044,
+      "completionTokens": 49
+    }
+  ],
+  "status": "completed",
+  "ledgerPath": "/tmp/radioatlas-lira-semantics-20261002/ledger.json"
+}
