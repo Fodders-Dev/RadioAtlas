@@ -97,7 +97,7 @@ test('a flush never leaves the store missing or half written', async () => {
         assert.doesNotThrow(() => JSON.parse(raw), `torn read on iteration ${index}`);
       }
     }
-    await settle();
+    await mod.flushObservabilityStore();
     const raw = JSON.parse(readFileSync(store, 'utf8'));
     assert.equal(raw.counters.durability_probe, 40);
     assert.deepEqual(

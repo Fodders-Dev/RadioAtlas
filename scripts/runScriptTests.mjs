@@ -29,6 +29,7 @@ const result = spawnSync(process.execPath, ['--test',
   'scripts/updateCatalog.test.mjs',
   'deploy/server/s3put.test.mjs',
   'deploy/server/deployScripts.test.mjs',
+  'deploy/server/tavily-relay.test.mjs',
   '.claude/hooks/guard-bash.test.mjs',
   '.claude/hooks/guard-paths.test.mjs'
 ], { cwd: root, env, stdio: 'inherit', windowsHide: true });

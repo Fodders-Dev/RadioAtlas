@@ -1,5 +1,51 @@
 # RUNBOOK
 
+## 2026-10-03 — optional Tavily fallback through the Telegram relay
+
+When a direct Tavily search returns 403, the API makes one fallback request to
+`http://127.0.0.1:8399/tavily/search` through the existing RadioAtlas Telegram
+relay, when the API's existing `TELEGRAM_API_ROOT` points at that loopback. The
+direct attempt and fallback share the same absolute eight-second API deadline;
+a successful relay response can mark relay egress preferred for later searches
+in that API process. The relay has its own eight-second upstream deadline and
+forwards to the fixed `https://api.tavily.com/search` endpoint. Other
+`/tavily...` paths are rejected locally and are never sent to Telegram.
+
+The Tavily key remains configured only in the API environment. On the Russian
+host, its bearer header travels in process memory over the existing loopback
+connection and SSH tunnel to the NL relay, then over TLS to Tavily. The relay
+holds it only in memory for that request: it neither loads an API key from its
+environment nor stores or logs the key or request path. This adds no service,
+environment variable or tunnel; it reuses `TELEGRAM_API_ROOT` and the existing
+port-8399 tunnel. `AI_WEB_SEARCH_ENABLED` and `TAVILY_API_KEY` remain the API's
+existing feature toggle and credential.
+
+The NL relay entry and helper must be installed beside each other because the
+entry imports the helper relatively:
+
+- `/opt/RadioAtlas/shared/telegram-relay.mjs`
+- `/opt/RadioAtlas/shared/tavily-relay.mjs`
+
+Before this change, the entry was saved at
+`/opt/RadioAtlas/hotfixes/lira-tavily-20261003/original-telegram-relay.mjs`.
+To roll back, restore that entry and restart only the existing relay service:
+
+```bash
+cp /opt/RadioAtlas/hotfixes/lira-tavily-20261003/original-telegram-relay.mjs /opt/RadioAtlas/shared/telegram-relay.mjs
+systemctl restart radioatlas-telegram-relay.service
+systemctl --no-pager --full status radioatlas-telegram-relay.service
+```
+
+The old entry does not import the helper, so the helper can remain in place.
+Do not restart the API, bot, tunnel or other services for this rollback.
+
+Secret handling for this slice: the owner explicitly authorized server-only
+environment reads needed for the agreed $3 music campaign and egress diagnosis.
+The launcher loads existing API credentials into its child process; key values
+are never printed, persisted by the runner or copied off the server. The normal
+restriction still applies when no such owner authorization exists.
+
+
 ## 2026-10-01 — NL radio upstream sockets exhausted TCP memory
 
 On NL (`rodnya-vps`), the RadioAtlas API still ran release `2096836`.
@@ -138,7 +184,7 @@ sequence.
 - `INTERNAL_WEBHOOK_TOKEN`: shared secret required on `POST /billing/telegram/webhook`. Requests without `X-Internal-Token` or with a mismatched value get 401. If the env is empty the route rejects every call (fail-closed). Must match the bot's `INTERNAL_WEBHOOK_TOKEN` exactly.
 - `AI_ENABLED` + provider key: enable the Mini App `/ai/chat` and internal `/internal/bot/ai-chat` endpoints. `AI_PROVIDER=deepseek` (default) reads `DEEPSEEK_API_KEY`; `AI_PROVIDER=openai` reads `OPENAI_API_KEY`. A missing selected key leaves AI disabled.
 - `DEEPSEEK_BASE_URL`, `DEEPSEEK_MODEL`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `AI_REASONING_EFFORT`, `AI_MAX_OUTPUT_TOKENS`, `AI_TIMEOUT_SEC`: optional model tuning. OpenAI defaults to `gpt-5.6-luna` through the Responses API. Keep DeepSeek as production default until the same representative Lira prompt set passes quality, latency, action-success, and token-cost comparison.
-- `AI_WEB_SEARCH_ENABLED` + `TAVILY_API_KEY`: optional grounded web search for factual questions; required for sourced song-creation context, documented author intent, and resolving a direct lyrics page. Without it Lira still offers a safe external lyrics search link and may interpret supplied text/metadata, but must not invent factual history.
+- `AI_WEB_SEARCH_ENABLED` + `TAVILY_API_KEY`: optional grounded web search for factual questions; required for sourced song-creation context, documented author intent, and resolving a direct lyrics page. A direct Tavily 403 can use the optional fallback through the existing loopback Telegram relay on port 8399; see the dated relay note above. Without it Lira still offers a safe external lyrics search link and may interpret supplied text/metadata, but must not invent factual history.
 - `BILLING_RECONCILE_ENABLED`: T0.2c reconcile sweep toggle. Defaults to enabled. Set to `0` in tests/CI (or for emergency stop) to keep the in-process `setInterval` from firing real `getStarTransactions` calls; the `/test/billing/trigger-reconcile` fixture endpoint stays available regardless and runs a single sweep cycle synchronously. Sweep needs `TELEGRAM_BOT_TOKEN`/`BOT_TOKEN` (already used by the invoice flow) — boot logs a warning and skips the sweep if the env is missing. Assumes single API instance; PM2 cluster mode would need a DB-side lease (see `billingReconciliation.ts` header). The sweep emits these structured stderr log events: `billing_reconcile_dead_letter` (`{purchaseId, attempts, lastError}` — fires once per row when `reconcile_attempts` crosses 4→5), `billing_reconcile_telegram_fetch_failed` (Telegram API outage, this tick skipped, no row state mutated), `billing_reconcile_grant_failed` (in-process `confirmBillingPurchase` threw — rare, row still attempts++ on next tick), `billing_reconcile_tick_crashed` (defensive catch around the whole tick — should never fire, indicates a bug).
 - `ALLOWED_ORIGINS`: comma-separated allow-list of origins permitted to read the API cross-origin (exact match, case-insensitive on scheme+host). Required in production - the API process exits non-zero on boot if `NODE_ENV=production` and this is empty. In dev (any other `NODE_ENV`) it falls back to `http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174`. The production value at the time of writing is:
   ```

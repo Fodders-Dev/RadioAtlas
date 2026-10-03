@@ -51,6 +51,13 @@ one client do not become instructions to invent equivalent tools in another.
 - Run full functional browser suites serially across worktrees on this machine:
   the current Playwright config fixes the API port at 4311. Different Vite ports
   alone do not isolate that suite. Dev ports (5184/4341) do not collide with it.
+- Run the actual serial functional lane directly from the webapp workspace in
+  PowerShell:
+  ```powershell
+  $env:PLAYWRIGHT_SKIP_PIXELS='1'; npm --workspace apps/webapp run test:e2e:ci
+  ```
+  That script supplies `--workers=1`; do not append the worker flag to the root
+  `npm run test:webapp` wrapper, which drops it before Playwright.
 - Handoff states: commit/branch, user-visible result, checks actually performed,
   known limitations and the single next action. A clean commit beats a long
   narrative; an incomplete slice must be labelled incomplete.

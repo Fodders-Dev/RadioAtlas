@@ -644,6 +644,7 @@ const aiRuntime = AI_ACTIVE
       webSearch: AI_WEB_SEARCH_ACTIVE
         ? createTavilyWebSearch({
             apiKey: TAVILY_API_KEY,
+            relayBase: process.env.TELEGRAM_API_ROOT,
             dailyCap: AI_WEB_SEARCH_DAILY_CAP,
             fetch: globalThis.fetch.bind(globalThis),
             now: () => Date.now()

@@ -42,8 +42,13 @@ allow-list; fixture plans establish execution contracts, not model interpretatio
 
 ## What may leave this process
 
-The API is the only process holding provider keys. The `/ai/chat` response body
-is an **explicit allow-list** (`reply`, `stations`, `serviceLinks`, `sources`,
+The API alone loads and configures long-lived provider keys. The optional
+Tavily fallback is a narrow transport exception: after a direct Tavily 403, the
+API may send the bearer key in memory through the existing loopback/SSH hop to
+the NL Telegram relay, which forwards the fixed `/tavily/search` request over
+HTTPS to Tavily. The relay does not configure, persist or log the key; it accepts
+only that route and a bounded field allow-list. The `/ai/chat` response body is
+an **explicit allow-list** (`reply`, `stations`, `serviceLinks`, `sources`,
 `actions`, a bounded `run`). Adding a field to `ChatResult` does not expose it —
 adding it to that literal does. Operator-only signals (`modelErrors`,
 `cardGate`, `constraintFilter`, `webSearchStatuses`) must stay server-side.

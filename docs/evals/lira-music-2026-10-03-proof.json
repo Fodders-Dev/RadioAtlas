@@ -1,0 +1,777 @@
+{
+  "purpose": "Manually inspected source-grounded sample, not a model intelligence pass rate",
+  "budgetUsd": 3,
+  "ledgerClosed": false,
+  "limitations": [
+    "Earlier blocked/readiness runs are diagnosis, not model-quality results.",
+    "No deterministic prose-fact validator.",
+    "No physical audio or headset validation.",
+    "Raw snippets and provider bodies omitted."
+  ],
+  "reports": [
+    {
+      "file": "lira-music-selection-live.json",
+      "generatedAt": "2026-10-03T16:51:42.159Z",
+      "code": "selection-candidate-20261003",
+      "status": "completed",
+      "turns": [
+        {
+          "question": "Хочется скоростного как Sonic. Два варианта, не включай.",
+          "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПо тегам каталога:\n«(( RES ))» — drum and bass, jungle, liquid dnb (The Russian Federation).\n«__HAPPY HARDCORE__ by rautemusik (rm.fm)» — hits (Germany).",
+          "cards": [
+            {
+              "stationuuid": "a6240fc3-cdfb-4eca-8781-9380666f816c",
+              "name": "(( RES ))",
+              "country": "The Russian Federation",
+              "tags": [
+                "drum & bass",
+                "drum and bass",
+                "electronic",
+                "jungle",
+                "liquid dnb",
+                "liquid funk"
+              ]
+            },
+            {
+              "stationuuid": "b9fad3b3-f66e-4ede-84e5-0d4641aabb66",
+              "name": "__HAPPY HARDCORE__ by rautemusik (rm.fm)",
+              "country": "Germany",
+              "tags": [
+                "hardcore",
+                "hardstyle",
+                "hits",
+                "hot",
+                "hot hits",
+                "speedcore"
+              ]
+            }
+          ],
+          "actions": [
+            "open-station"
+          ],
+          "sources": [],
+          "runtimeMs": 4634,
+          "usage": {
+            "prompt": 6211,
+            "completion": 192
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Больше jungle, меньше downtempo. Ещё два, не включай.",
+          "reply": "По тегам каталога:\n«Jungle Planet Radio» — jungle, drum and bass (Italy).\n«Australian Digital Radio Network - Jungle and Breakbeat (MP3)» — jungle, breakbeat (Australia).\nОбщее в тегах — jungle.",
+          "cards": [
+            {
+              "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+              "name": "Jungle Planet Radio",
+              "country": "Italy",
+              "tags": [
+                "drum and bass",
+                "jungle",
+                "uk garage"
+              ]
+            },
+            {
+              "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+              "name": "Australian Digital Radio Network - Jungle and Breakbeat (MP3)",
+              "country": "Australia",
+              "tags": [
+                "breakbeat",
+                "jungle"
+              ]
+            }
+          ],
+          "actions": [
+            "open-station"
+          ],
+          "sources": [],
+          "runtimeMs": 4426,
+          "usage": {
+            "prompt": 3053,
+            "completion": 77
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Чем эти две станции отличаются? Не включай.",
+          "reply": "«Jungle Planet Radio» (Italy) — drum and bass.\n«Australian Digital Radio Network - Jungle and Breakbeat (MP3)» (Australia) — недостаточно данных о жанре.\nВ каталоге недостаточно жанровых данных для сравнения. Сравниваю формат по каталогу, а не музыку в эфире.",
+          "cards": [
+            {
+              "stationuuid": "3dff0ca7-e8d7-4966-a37f-2d754819af6b",
+              "name": "Jungle Planet Radio",
+              "country": "Italy",
+              "tags": [
+                "drum and bass",
+                "jungle",
+                "uk garage"
+              ]
+            },
+            {
+              "stationuuid": "ad90b0ca-d168-469d-af63-b1deb8bce273",
+              "name": "Australian Digital Radio Network - Jungle and Breakbeat (MP3)",
+              "country": "Australia",
+              "tags": [
+                "breakbeat",
+                "jungle"
+              ]
+            }
+          ],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 16,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [],
+      "modelCalls": 3
+    },
+    {
+      "file": "lira-music-nl-live.json",
+      "generatedAt": "2026-10-03T16:59:12.443Z",
+      "code": "music-nl-egress-candidate-20261003",
+      "status": "completed",
+      "turns": [
+        {
+          "question": "Когда вышел этот трек и на каком альбоме?",
+          "reply": "По последним данным, «Get Lucky» вышел 19 апреля 2013 года как ведущий сингл с альбома Random Access Memories. Сам альбом появился чуть позже — 17 мая 2013 года.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "2013 Daft Punk – Get Lucky (US:#2 UK:#1) | Sessiondays",
+              "url": "https://sessiondays.com/2024/08/15/2013-daft-punk-get-lucky-us2-uk1"
+            },
+            {
+              "title": "Get Lucky",
+              "url": "https://ru.wikipedia.org/wiki/Get_Lucky"
+            }
+          ],
+          "runtimeMs": 4810,
+          "usage": {
+            "prompt": 3048,
+            "completion": 51
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Какой здесь стиль? Что в нём характерного?",
+          "reply": "По жанру это, по сути, диско с элементами фанка — и это очень осознанный ход Daft Punk. Характерного тут много: живой грув, мягкий бас, лёгкая гитара Найла Роджерса и вокал Фаррелла, который звучит почти как непринуждённый разговор. Вместо холодной электроники — тёплый, почти аналоговый саунд, будто запись из конца семидесятых, но с современным лоском. Отсюда и это ощущение вечного лета, хотя по факту трек вышел весной 2013-го.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Daft Punk 'Get Lucky' still shapes how summer anthems ...",
+              "url": "https://www.facebook.com/weraveyou/posts/daft-punk-get-lucky-still-shapes-how-summer-anthems-sound-13-years-later-full-st/986606507036901"
+            },
+            {
+              "title": "Я всегда думал, что Daft Punk написали \"Get Lucky ...",
+              "url": "https://www.reddit.com/r/Music/comments/5l1w3l/ive_always_felt_that_daft_punk_wrote_get_lucky?tl=ru"
+            }
+          ],
+          "runtimeMs": 4992,
+          "usage": {
+            "prompt": 3005,
+            "completion": 155
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Расскажи об исполнителе этой песни",
+          "reply": "Daft Punk — французский электронный дуэт, который стоял за этим треком. В «Get Lucky» к ним присоединились Фаррелл Уильямс и Найл Роджерс: Фаррелл — вокал, Найл — та самая характерная гитара.\n\nПо последним данным, дуэт прошёл через несколько заметных альбомов: Homework, Discovery, Human After All, а также концертные записи Alive 1997 и Alive 2007. «Get Lucky» вышла уже на Random Access Memories — но в найденной справке этот альбом прямо не упомянут, так что тут я опираюсь на то, что мы обсуждали раньше.\n\nСам дуэт Daft Punk завершил совместную деятельность в 2021 году, но их звук — особенно вот это диско-фанковое настроение — до сих пор легко узнать с первых секунд.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Daft Punk - Get Lucky (Official Audio) ft. Pharrell Williams, Nile Rodgers",
+              "url": "https://www.youtube.com/watch?v=5NV6Rdv1a3I"
+            },
+            {
+              "title": "Get Lucky (feat. Pharrell Williams and Nile Rodgers) - song and lyrics by Daft Punk, Pharrell Williams, Nile Rodgers",
+              "url": "https://open.spotify.com/track/2y3YaENSFtgYAlZ5ZC66xS"
+            }
+          ],
+          "runtimeMs": 5909,
+          "usage": {
+            "prompt": 3553,
+            "completion": 220
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Расскажи про Radiohead — Creep: когда вышел трек?",
+          "reply": "По последним данным, «Creep» вышел как дебютный сингл Radiohead 21 сентября 1992 года. В найденной справке упомянуто, что трек был включён вторым в какой-то альбом, но его название в этих данных не названо — так что утверждать его я не буду.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Creep — Википедия",
+              "url": "https://ru.wikipedia.org/wiki/Creep"
+            },
+            {
+              "title": "The Fascinating Music History of Radiohead’s ‘Creep’",
+              "url": "https://medium.com/counterarts/the-fascinating-music-history-of-radioheads-creep-acdff9fe91cb"
+            }
+          ],
+          "runtimeMs": 4422,
+          "usage": {
+            "prompt": 3555,
+            "completion": 80
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Посоветуй две похожие песни на Radiohead — Creep. Радио не надо.",
+          "reply": "Из того, что реально нашлось и звучит в ту же сторону, я бы назвала две:\n\nMuse — Uno: ранняя Muse, нервная, с тихим началом и взрывным припевом, очень похожая по эмоциональной дуге на «Creep».\n\nThe Smashing Pumpkins — Rocket: тоже девяностые, тоже гранжевый надрыв, но чуть более шумная и светлая.\n\nОбе — про ту самую смесь уязвимости и громкой гитары, только каждая по-своему.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "[IIL] Songs like \"Creep\" from radiohead, basically the same ...",
+              "url": "https://www.reddit.com/r/ifyoulikeblank/comments/bfatpp/iil_songs_like_creep_from_radiohead_basically_the"
+            },
+            {
+              "title": "Songs Similar to Creep by Radiohead",
+              "url": "https://www.albumoftheyear.org/album/51163-radiohead-creep/similar"
+            }
+          ],
+          "runtimeMs": 4142,
+          "usage": {
+            "prompt": 3543,
+            "completion": 127
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Найди песни, похожие на Numb",
+          "reply": "Из того, что подтверждено, могу назвать три трека, которые часто всплывают рядом с «Numb»:\n\nLimp Bizkit — My Way\nLimp Bizkit — Eat You Alive\nJay-Z — Otis\n\nПервые два — тот же нервный ню-метал с личной, почти исповедальной интонацией. «Otis» уже другой по настроению, но его часто ставят в подборки к «Numb/Encore» — это уже про совместный трек Jay-Z и Linkin Park.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Songs similar to Numb/Encore by Jay-Z and Linkin Park",
+              "url": "https://spotalike.com/en/songs-similar-to/jay-z-and-linkin-park-numbencore/3642233"
+            },
+            {
+              "title": "Songs Similar to Numb by Linkin Park",
+              "url": "https://www.albumoftheyear.org/album/162079-linkin-park-numb/similar"
+            }
+          ],
+          "runtimeMs": 4975,
+          "usage": {
+            "prompt": 3685,
+            "completion": 118
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Кто он?",
+          "reply": "Ты имеешь в виду песню из предыдущего сообщения или ту, что играет сейчас? Напиши исполнителя и название, чтобы я не перепутала.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 1,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Хочу больше jungle и меньше downtempo. Два эфира, не включай.",
+          "reply": "По тегам каталога:\n«Jungle Planet Radio» — jungle, breakcore, drum and bass (Italy).\n«Energy 1058» — jungle, breakbeat, 90s (The United Kingdom Of Great Britain And Northern Ireland).\nОбщее в тегах — drum and bass, jungle.",
+          "cards": [
+            {
+              "stationuuid": "663eaa00-8c75-488d-b64f-612533ab41bf",
+              "name": "Jungle Planet Radio",
+              "country": "Italy",
+              "tags": [
+                "breakcore",
+                "drum 'n' bass",
+                "jungle",
+                "liquid dnb",
+                "ragga jungle",
+                "uk bass"
+              ]
+            },
+            {
+              "stationuuid": "b200fa87-76ec-4afc-9eef-6a609ef9d4b8",
+              "name": "Energy 1058",
+              "country": "The United Kingdom Of Great Britain And Northern Ireland",
+              "tags": [
+                "drum and bass",
+                "house",
+                "90s",
+                "acid",
+                "breakbeat",
+                "dj sets"
+              ]
+            }
+          ],
+          "actions": [
+            "open-station"
+          ],
+          "sources": [],
+          "runtimeMs": 6855,
+          "usage": {
+            "prompt": 7769,
+            "completion": 209
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Daft Punk — Get Lucky Когда вышел этот трек и на каком альбоме? music source",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky Какой здесь стиль? Что в нём характерного? music source",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky Расскажи об исполнителе этой песни music source",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — Creep Расскажи про Radiohead — Creep: когда вышел трек? music source",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Radiohead — Creep",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Numb",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 8
+    },
+    {
+      "file": "lira-music-permanent-relay-live.json",
+      "generatedAt": "2026-10-03T17:19:16.191Z",
+      "code": "music-fixed-query-permanent-relay-20261003",
+      "status": "completed",
+      "turns": [
+        {
+          "question": "Когда вышел этот трек и на каком альбоме?",
+          "reply": "Поиск сведений о музыке сейчас недоступен. Не могу проверить ответ — попробуй ещё раз позже.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 655,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Какой здесь стиль? Что в нём характерного?",
+          "reply": "Поиск сведений о музыке сейчас недоступен. Не могу проверить ответ — попробуй ещё раз позже.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 209,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Расскажи об исполнителе этой песни",
+          "reply": "Поиск сведений о музыке сейчас недоступен. Не могу проверить ответ — попробуй ещё раз позже.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 200,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Расскажи про Radiohead — Creep: когда вышел трек?",
+          "reply": "Поиск сведений о музыке сейчас недоступен. Не могу проверить ответ — попробуй ещё раз позже.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 215,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Посоветуй две похожие песни на Radiohead — Creep. Радио не надо.",
+          "reply": "Поиск сведений о музыке сейчас недоступен. Не могу проверить ответ — попробуй ещё раз позже.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 222,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Найди песни, похожие на Numb",
+          "reply": "Уточни исполнителя «Numb» — одинаковое название бывает у разных песен.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 2,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Кто он?",
+          "reply": "Ты имеешь в виду песню из предыдущего сообщения или ту, что играет сейчас? Напиши исполнителя и название, чтобы я не перепутала.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 1,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Хочу больше jungle и меньше downtempo. Два эфира, не включай.",
+          "reply": "По тегам каталога:\n«Jungle Planet Radio» — jungle, drum and bass, breakcore (Italy).\n«Energy 1058» — jungle, drum and bass, 90s (The United Kingdom Of Great Britain And Northern Ireland).\nОбщее в тегах — drum and bass, jungle.",
+          "cards": [
+            {
+              "stationuuid": "663eaa00-8c75-488d-b64f-612533ab41bf",
+              "name": "Jungle Planet Radio",
+              "country": "Italy",
+              "tags": [
+                "breakcore",
+                "drum 'n' bass",
+                "jungle",
+                "liquid dnb",
+                "ragga jungle",
+                "uk bass"
+              ]
+            },
+            {
+              "stationuuid": "b200fa87-76ec-4afc-9eef-6a609ef9d4b8",
+              "name": "Energy 1058",
+              "country": "The United Kingdom Of Great Britain And Northern Ireland",
+              "tags": [
+                "drum and bass",
+                "house",
+                "90s",
+                "acid",
+                "breakbeat",
+                "dj sets"
+              ]
+            }
+          ],
+          "actions": [
+            "open-station"
+          ],
+          "sources": [],
+          "runtimeMs": 4977,
+          "usage": {
+            "prompt": 6899,
+            "completion": 195
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Daft Punk — Get Lucky song release date album",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky song release date album",
+          "status": null,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky song musical genre style instrumentation",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky song musical genre style instrumentation",
+          "status": null,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk artist biography career history",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk artist biography career history",
+          "status": null,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": null,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Radiohead — Creep",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Radiohead — Creep",
+          "status": null,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 2
+    },
+    {
+      "file": "lira-music-quality-final.json",
+      "generatedAt": "2026-10-03T17:27:27.221Z",
+      "code": "permanent-relay-quality-20261003",
+      "status": "completed",
+      "turns": [
+        {
+          "question": "Какой здесь стиль? Что в нём характерного?",
+          "reply": "Это диско-фанк с поп-блеском и лёгким хаус-пульсом — критики так и описывают: house-inspired disco, funk и pop. Характернее всего тут живой найл-роджерсовский грув гитары, тёплый бас, хлопки и очень «человеческий» ритм при электронной аккуратности.\n\nПо последним данным, трек в фа-диез миноре, идёт в дорийском ладу с прогрессией Bm7–D–F♯m7–E, темп 116 BPM — то есть не клубная гонка, а упругое, лениво качающее диско. Вокал Фаррелла поверх вокодеров Daft Punk — как раз та самая смесь живого фанка и роботизированной нежности.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Get Lucky (Daft Punk song) - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Get_Lucky_(Daft_Punk_song)"
+            },
+            {
+              "title": "Get Lucky - Daft Punk | Puremix",
+              "url": "https://www.puremix.com/blog/get-lucky-daft-punk"
+            }
+          ],
+          "runtimeMs": 8520,
+          "usage": {
+            "prompt": 3231,
+            "completion": 202
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Расскажи об исполнителе этой песни",
+          "reply": "Daft Punk — французский электронный дуэт, за ним стояли Тома Бангальтер и Ги-Мануэль де Омем-Кристо. По последним данным, они почти тридцать лет двигали электронную музыку, а в 2021-м объявили о распаде.\n\nИх фирменный почерк — смесь хауса, фанка, диско и синт-попа, часто с вокодером и роботизированными образами. Кстати, в 2024-м анонсировали биографическую книгу After Daft про их влияние на культуру XXI века — с материалами более чем шестидесяти авторов.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Daft Punk's Biography And Facts' | Popnable",
+              "url": "https://popnable.com/france/artists/10706-daft-punk/biography-and-facts"
+            },
+            {
+              "title": "After Daft biography about Daft Punk announced for 2024 | Hotpress",
+              "url": "https://www.hotpress.com/music/after-daft-biography-about-daft-punk-announced-for-2024-22958699"
+            }
+          ],
+          "runtimeMs": 7665,
+          "usage": {
+            "prompt": 3504,
+            "completion": 163
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Посоветуй две похожие песни на Radiohead — Creep. Радио не надо.",
+          "reply": "Из того, что реально нашлось в подборках, ближе всего по настроению две вещи: Muse — Uno и The Killers — Mr. Brightside. Обе с той же нервозной, громкой уязвимостью и гитарным накалом, как у Creep.\n\nЕсли захочешь чуть меланхоличнее — можно глянуть в сторону Radiohead — Karma Police, но это уже их собственная орбита.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "[IIL] Songs like \"Creep\" from radiohead, basically the same ...",
+              "url": "https://www.reddit.com/r/ifyoulikeblank/comments/bfatpp/iil_songs_like_creep_from_radiohead_basically_the"
+            },
+            {
+              "title": "Songs like Creep - playlist by 🦂",
+              "url": "https://open.spotify.com/playlist/3QdmOxD1F2ulDpLtQxiSvO"
+            }
+          ],
+          "runtimeMs": 4236,
+          "usage": {
+            "prompt": 3664,
+            "completion": 104
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Найди песни, похожие на Numb",
+          "reply": "Уточни исполнителя «Numb» — одинаковое название бывает у разных песен.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 1,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Daft Punk — Get Lucky song musical genre style instrumentation",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky song musical genre style instrumentation",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk artist biography career history",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Radiohead — Creep",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 3
+    },
+    {
+      "file": "lira-music-prompt-final.json",
+      "generatedAt": "2026-10-03T17:37:09.037Z",
+      "code": "permanent-relay-prompt-final-20261003",
+      "status": "completed",
+      "turns": [
+        {
+          "question": "Расскажи об исполнителе этой песни",
+          "reply": "Это Daft Punk — французский электронный дуэт, который с начала девяностых здорово двигал электронику в мейнстрим. Они во многом заложили фундамент современных EDM-шоу и повлияли на несколько поколений артистов. Узнаваемый стиль, загадочный имидж и редкие, но очень весомые релизы — их фишка на всю карьеру.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "In Depth History - THE DAFT PUNK HISTORIAN",
+              "url": "https://thedaftpunkhistorian.weebly.com/in-depth-history.html"
+            },
+            {
+              "title": "Daft Punk - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Daft_Punk"
+            }
+          ],
+          "runtimeMs": 4809,
+          "usage": {
+            "prompt": 3364,
+            "completion": 95
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Посоветуй две похожие песни на Radiohead — Creep. Радио не надо.",
+          "reply": "Если хочется той же смеси уязвимости, нарастающего напряжения и красивого надрыва — возьми Muse — Uno и The Killers — Mr. Brightside. Первая ближе по гитарной тревожности и голосу на изломе, вторая — по мелодии, которую хочется орать в машине.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "[IIL] Songs like \"Creep\" from radiohead, basically the same ...",
+              "url": "https://www.reddit.com/r/ifyoulikeblank/comments/bfatpp/iil_songs_like_creep_from_radiohead_basically_the"
+            },
+            {
+              "title": "Songs like Creep - playlist by 🦂",
+              "url": "https://open.spotify.com/playlist/3QdmOxD1F2ulDpLtQxiSvO"
+            }
+          ],
+          "runtimeMs": 3318,
+          "usage": {
+            "prompt": 3439,
+            "completion": 80
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Daft Punk artist biography career history",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk artist biography career history",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Radiohead — Creep",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 2
+    }
+  ]
+}

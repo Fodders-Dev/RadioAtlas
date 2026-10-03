@@ -3,7 +3,8 @@
 // raw-content mode for song-text analysis; no direct scrapers or LLM query
 // planner). Built on the injected
 // fetch + a bounded AbortController, like the shared model client. The Tavily key lives only
-// in the api process (like model-provider keys) and never reaches a client bundle.
+// in API configuration; an optional bounded server relay transits it in RAM.
+// It never reaches a client bundle or the chat response.
 //
 // Guards baked in (the brief's forks): a freshness-aware cache (3 min for
 // life/death/news, 1 h otherwise), a score quality floor (drop < 0.5), and a
@@ -19,6 +20,18 @@ const STALE_TTL_MS = 60 * 60 * 1000; // everything else
 const MAX_RESULTS = 5;
 const MAX_SOURCE_CONTENT_CHARS = 12_000;
 const DAY_MS = 86_400_000;
+
+// Only an explicit literal loopback endpoint may receive server credentials.
+// The production hop to NL is carried by the existing encrypted SSH tunnel.
+export const resolveTavilyRelayUrl = (base?: string): string | null => {
+  if (!base) return null;
+  try {
+    const url = new URL(base);
+    if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || !url.port ||
+      url.username || url.password || url.search || url.hash || url.pathname !== '/') return null;
+    return `${url.origin}/tavily/search`;
+  } catch { return null; }
+};
 
 type CacheEntry = { at: number; outcome: WebSearchOutcome };
 
@@ -48,10 +61,13 @@ export const createTavilyWebSearch = (config: {
   dailyCap: number;
   fetch: typeof fetch;
   now: () => number;
+  relayBase?: string;
 }): WebSearchProvider => {
   const cache = new Map<string, CacheEntry>();
   let day = -1;
   let dayCount = 0;
+  const relayUrl = resolveTavilyRelayUrl(config.relayBase);
+  let preferRelay = false;
 
   const search = async (
     query: string,
@@ -81,19 +97,29 @@ export const createTavilyWebSearch = (config: {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
-      const response = await config.fetch(TAVILY_URL, {
+      const request: RequestInit = {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
         body: JSON.stringify({
-          api_key: config.apiKey,
           query: trimmed,
           search_depth: 'basic',
           include_raw_content: includeContent ? 'text' : false,
           include_answer: false,
           max_results: MAX_RESULTS
         }),
-        signal: controller.signal
-      });
+        signal: controller.signal,
+        redirect: 'error'
+      };
+      const startedViaRelay = preferRelay && Boolean(relayUrl);
+      let response = await config.fetch(startedViaRelay ? relayUrl! : TAVILY_URL, request);
+      if (response.status === 403 && relayUrl && !startedViaRelay) {
+        // Dispose of the refused body before the one permitted fallback. Keep
+        // the original deadline and logical daily cap; a refused 403 search
+        // does not return results. Future searches use the confirmed egress.
+        try { await response.body?.cancel(); } catch { /* already closed */ }
+        response = await config.fetch(relayUrl, request);
+        if (response.ok) preferRelay = true;
+      }
       if (!response.ok) return { status: 'error', sources: [] };
       const body = (await response.json()) as { results?: RawResult[] } | null;
       const sources = (Array.isArray(body?.results) ? body!.results! : [])
