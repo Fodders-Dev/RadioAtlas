@@ -4,6 +4,12 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
+**03.10 — музыкальное продолжение готово к API-only выпуску.**
+890 API, source/test types, API build, offline24, independent Astra review.
+17 реальных реплик; upper$0.22187816/new$3, журнал ещё открыт для public probe.
+Новые композиции не публикуются. [Результат](LIRA-MUSIC-CONTINUATION-2026-10-03.md).
+Следом после выпуска — saved finding как явный предмет музыкального диалога.
+
 **03.10 — музыкальная справка и egress опубликованы: `59ca17e`.**
 Перед следующим участком: 885 API,
 оба typecheck/build, relay9, offline24. Отдельный API-only выпуск successful;
