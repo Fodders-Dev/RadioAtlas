@@ -1,7 +1,7 @@
 {
   "purpose": "Manually inspected source-grounded sample, not a model intelligence pass rate",
   "budgetUsd": 3,
-  "ledgerClosed": false,
+  "ledgerClosed": true,
   "limitations": [
     "Earlier blocked/readiness runs are diagnosis, not model-quality results.",
     "No deterministic prose-fact validator.",
@@ -773,5 +773,120 @@
       ],
       "modelCalls": 2
     }
-  ]
+  ],
+  "ledgerSummary": {
+    "closed": true,
+    "calls": 66,
+    "upperUsd": 0.9299156,
+    "reservedUsd": 0,
+    "note": "63 measured provider attempts plus up to 3 conservatively accounted public probe slots. Public provider usage is private: $0.50 upper precharged, not claimed actual cost."
+  },
+  "production": {
+    "sha": "59ca17edc62ab3c7675e8c0775fb185f61549634",
+    "ci": 37141385806,
+    "deploy": 37141385802,
+    "serverRelease": "/opt/RadioAtlas/releases/59ca17edc62ab3c7675e8c0775fb185f61549634",
+    "free": {
+      "atUtc": "2026-10-03T17:56:36.078Z",
+      "expectedSha": "59ca17edc62ab3c7675e8c0775fb185f61549634",
+      "health": {
+        "ok": true
+      },
+      "entry": "/assets/index-C6jAiQ5A.js",
+      "state": "radio-state--59P285Z.js",
+      "publicBuildVerified": true,
+      "modelCalls": 0,
+      "modelCallsEvidence": "Closed deterministic selection and decline branches; no action executed.",
+      "limits": [
+        "No live provider-semantic validation or physical audio."
+      ],
+      "probes": [
+        {
+          "message": "Одна фанк и одна эмбиент. Не включай.",
+          "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+          "cards": [
+            {
+              "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+              "name": "BBC Radio 6 Music",
+              "tags": [
+                "blues",
+                "dance",
+                "electronic",
+                "funk",
+                "hip hop",
+                "house"
+              ],
+              "country": "The United Kingdom Of Great Britain And Northern Ireland"
+            },
+            {
+              "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+              "name": "SomaFM Groove Salad (128k MP3)",
+              "tags": [
+                "ambient",
+                "chillout",
+                "downtempo",
+                "groove",
+                "lounge",
+                "sleep"
+              ],
+              "country": "The United States Of America"
+            }
+          ],
+          "actions": [
+            "open-station"
+          ],
+          "status": "completed",
+          "elapsedMs": 558
+        },
+        {
+          "message": "Страну сохрани. Не подбирай радио.",
+          "reply": "Хорошо, новую подборку станций не делаю.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "status": "completed",
+          "elapsedMs": 38
+        }
+      ]
+    },
+    "paid": {
+      "atUtc": "2026-10-03T17:56:58.966Z",
+      "expectedSha": "59ca17edc62ab3c7675e8c0775fb185f61549634",
+      "httpStatus": 200,
+      "question": "Расскажи про Daft Punk — Get Lucky: когда вышел трек и на каком альбоме?",
+      "reply": "Это вещь, от которой до сих пор ноги сами в пляс идут. «Get Lucky» — сингл Daft Punk при участии Фаррелла Уильямса и Найла Роджерса, вышел 19 апреля 2013 года. Это лид-сингл с их четвёртого и последнего студийного альбома Random Access Memories, который появился чуть позже — 17 мая 2013-го.",
+      "stations": [],
+      "sources": [
+        {
+          "title": "Get Lucky (Daft Punk song) - Wikipedia",
+          "url": "https://en.wikipedia.org/wiki/Get_Lucky_(Daft_Punk_song)"
+        },
+        {
+          "title": "2013 Daft Punk – Get Lucky (US:#2 UK:#1) | Sessiondays",
+          "url": "https://sessiondays.com/2024/08/15/2013-daft-punk-get-lucky-us2-uk1"
+        }
+      ],
+      "actions": [
+        "none"
+      ],
+      "run": {
+        "runId": "223084ae-8e08-4918-84b3-5470b66869dd",
+        "status": "completed",
+        "route": "music_worker"
+      },
+      "elapsedMs": 7810,
+      "upperUsd": 0.5,
+      "limits": [
+        "No private provider usage or physical audio; no action executed."
+      ]
+    },
+    "pixel": {
+      "passed": 13,
+      "failed": 5,
+      "pngs": 12,
+      "identicalToPrevious": 12,
+      "baselineUpdates": 0
+    }
+  }
 }
