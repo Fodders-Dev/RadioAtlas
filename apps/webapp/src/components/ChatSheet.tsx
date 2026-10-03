@@ -302,7 +302,11 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       setFeedLaunchError(message.id);
       return;
     }
-    const sourceId = `lira-selection:${message.id}:${generation}`;
+    // A persisted reply can be launched again after ChatSheet remounts, when
+    // its generation counter starts over. Keep each transport handoff unique
+    // so the queue observer cannot mistake the old queue for this launch.
+    const entropy = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const sourceId = `lira-selection:${message.id}:${generation}:${entropy}`;
     setFeedLaunchSource(sourceId);
     try {
       const outcome = await playStationQueue(valid, { sourceId, sourceLabel: t('chat.feedSelection') });

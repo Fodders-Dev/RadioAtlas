@@ -41,6 +41,67 @@ for (const {width, theme} of [{width:390,theme:'journal'}, {width:834,theme:'jou
   });
 }
 
+test('reopening the same Lira reply gives its Feed handoff a fresh queue identity', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page);
+  await installMediaMocks(page);
+  await seedRadioState(page, { activeSection: 'feed', queue: [stations[0]], queueCurrentIndex: 0, stationCache: stations });
+  await page.addInitScript(() => localStorage.setItem('radio:theme-current:v1', JSON.stringify('journal')));
+  await page.route('**/catalog/stations/**', async route => {
+    const id = decodeURIComponent(route.request().url().split('/').pop() || '');
+    const item = stations.find(station => station.stationuuid === id);
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ item }) });
+  });
+  const offered = stations.slice(1, 3);
+  let chatRequests = 0;
+  await page.route('**/ai/chat**', route => {
+    chatRequests += 1;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      reply: 'Два направления для пробы', stations: offered.map(station => ({ ...station, tags: station.tags.split(',') })), actions: [{ kind: 'none' }]
+    }) });
+  });
+
+  await page.goto('/?calm=1');
+  await page.getByRole('button', { name: 'Лира', exact: true }).click();
+  let chat = page.locator('[data-chat-sheet]');
+  await chat.getByRole('textbox').fill('Подбери два направления. Не включай.');
+  await chat.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await expect(chat.getByText('Два направления для пробы', { exact: true })).toBeVisible();
+  const firstReplyId = await page.evaluate(() => {
+    const messages = JSON.parse(localStorage.getItem('radio:lira-thread:v1') || '[]');
+    return messages.find((message: { role?: string; text?: string }) => message.role === 'assistant' && message.text === 'Два направления для пробы')?.id;
+  });
+  expect(firstReplyId).toBeTruthy();
+
+  const queue = () => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+  await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
+  await expect(chat).toHaveCount(0);
+  await expect.poll(async () => (await queue()).items.map((station: { stationuuid: string }) => station.stationuuid))
+    .toEqual(offered.map(station => station.stationuuid));
+  const firstSourceId = (await queue()).sourceId;
+  await page.locator('.station-feed-card-content[data-focus="true"]')
+    .getByRole('button', { name: 'Следующий эфир', exact: true }).click();
+  await expect.poll(async () => (await queue()).currentIndex).toBe(1);
+
+  await page.getByRole('button', { name: 'Лира', exact: true }).click();
+  chat = page.locator('[data-chat-sheet]');
+  await expect(chat.getByText('Два направления для пробы', { exact: true })).toBeVisible();
+  const reopenedReplyId = await page.evaluate(() => {
+    const messages = JSON.parse(localStorage.getItem('radio:lira-thread:v1') || '[]');
+    return messages.find((message: { role?: string; text?: string }) => message.role === 'assistant' && message.text === 'Два направления для пробы')?.id;
+  });
+  expect(reopenedReplyId).toBe(firstReplyId);
+  expect(chatRequests).toBe(1);
+
+  await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
+  await expect(chat).toHaveCount(0);
+  await expect.poll(async () => (await queue()).currentIndex).toBe(0);
+  expect((await queue()).sourceId).not.toBe(firstSourceId);
+  expect((await queue()).items.map((station: { stationuuid: string }) => station.stationuuid))
+    .toEqual(offered.map(station => station.stationuuid));
+  await expect(page.locator('.station-feed-card-content[data-focus="true"]')).toContainText(offered[0].name);
+});
+
 test('an unavailable Lira selection leaves the existing queue and sound intact', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockStations(page, { summaryHandler: route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ catalogPool: [stations[0]], freshSignals: [], searchLaunch: [], sponsored: [], counts: { stations: 1, countries: 1, languages: 1, genres: 1 } }) }) });
