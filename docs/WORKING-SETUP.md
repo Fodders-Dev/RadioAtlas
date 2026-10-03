@@ -4,9 +4,13 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
-**03.10 — музыкальное продолжение готово к API-only выпуску.**
+**03.10 — музыкальное продолжение опубликовано API-only: `c8d545d`.**
 890 API, source/test types, API build, offline24, independent Astra review.
-17 реальных реплик; upper$0.22187816/new$3, журнал ещё открыт для public probe.
+17 реальных реплик; public Numb→LinkinPark→Meteora при смене live metadata.
+Новый $3 журнал закрыт: upper$1.22187816, reserved0 (в т.ч.$1 public upper,
+не фактическая стоимость). CI37144986521/deploy37144986403 green,
+functional432/7, publicSHA/health/free clarification/RU symlink подтверждены.
+Pixel13/5: все12PNG совпали с предыдущим CI, эталоны не обновлялись.
 Новые композиции не публикуются. [Результат](LIRA-MUSIC-CONTINUATION-2026-10-03.md).
 Следом после выпуска — saved finding как явный предмет музыкального диалога.
 

@@ -59,14 +59,18 @@
 
 ## Next: быстрый перебор живых эфиров (14.09.2026, направление DISCOVERY-DIRECTION)
 
-**03.10 — музыкальное продолжение готово к отдельному API-выпуску.**
+**03.10 — музыкальное продолжение опубликовано: `c8d545d`.**
 Numb → Linkin Park → альбом, «у них ещё», смена песни и исправление названия
 сохраняют предмет при смене live метаданных. <=6 доступных USER turns, никакого
 Play по истории; неизвестный старый трек/artist-only альбом уточняются бесплатно.
 Нерелевантный генераторный виджет в музыкальном поиске исключается до composer.
 890 API / оба typecheck / build / offline24 / independent Astra review.
-17 настоящих реплик (включая controlled composer replay), upper$0.22187816
-из нового согласованного $3, журнал открыт; публикация ещё не подтверждена.
+17 настоящих реплик (включая controlled composer replay), public Numb→Linkin Park
+→Meteora при смене live трека. Новый $3 журнал закрыт: upper$1.22187816,
+reserved0, включая $1 conservative public upper без раскрытого usage.
+Same-SHA CI37144986521/deploy37144986403 green; functional432/7, publicSHA,
+health/три бесплатных clarification cases/RU symlink подтверждены. Pixel13/5:
+все12 PNG совпали с предыдущим CI; клиент не изменялся, Studio не принят.
 [Результат](docs/LIRA-MUSIC-CONTINUATION-2026-10-03.md). Следом — saved finding
 как явный музыкальный предмет, без новой сущности; Studio остаётся локально.
 

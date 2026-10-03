@@ -1,7 +1,7 @@
 {
   "purpose": "Manually inspected coherent musical dialogues with changing live metadata; not an intelligence score",
   "budgetUsd": 3,
-  "ledgerClosed": false,
+  "ledgerClosed": true,
   "limitations": [
     "Search-backed prose is not independently fact validated.",
     "No audio recognition or physical headset checks.",
@@ -737,5 +737,155 @@
       "searchCalls": [],
       "modelCalls": 1
     }
-  ]
+  ],
+  "ledgerSummary": {
+    "closed": true,
+    "calls": 40,
+    "upperUsd": 1.22187816,
+    "reservedUsd": 0,
+    "note": "34 measured provider attempts plus 6 conservatively precharged public probe slots. $1 public upper includes two music turns with private usage; not claimed actual charge."
+  },
+  "production": {
+    "sha": "c8d545d66d3f854fdb461a246408bf52f9146d83",
+    "ci": 37144986521,
+    "deploy": 37144986403,
+    "serverRelease": "/opt/RadioAtlas/releases/c8d545d66d3f854fdb461a246408bf52f9146d83",
+    "free": {
+      "atUtc": "2026-10-03T18:55:12.334Z",
+      "expectedSha": "c8d545d66d3f854fdb461a246408bf52f9146d83",
+      "publicBuildVerified": true,
+      "health": {
+        "ok": true
+      },
+      "entry": "/assets/index-DNCB3Vg6.js",
+      "state": "radio-state-5VHkpT8a.js",
+      "modelCalls": 0,
+      "modelCallsEvidence": "Closed music clarification branches verified through real runner tests",
+      "probes": [
+        {
+          "message": "Найди две похожие песни на Numb. Радио не надо.",
+          "history": [],
+          "reply": "Уточни исполнителя «Numb» — одинаковое название бывает у разных песен.",
+          "status": "completed",
+          "stations": [],
+          "sources": [],
+          "actions": [
+            "none"
+          ]
+        },
+        {
+          "message": "А на каком альбоме?",
+          "history": [
+            {
+              "role": "user",
+              "text": "Расскажи об исполнителе Земфира"
+            }
+          ],
+          "reply": "Напиши исполнителя и название песни или уточни, что имеешь в виду текущий трек.",
+          "status": "completed",
+          "stations": [],
+          "sources": [],
+          "actions": [
+            "none"
+          ]
+        },
+        {
+          "message": "А на каком альбоме?",
+          "history": [
+            {
+              "role": "user",
+              "text": "Какой здесь стиль?"
+            }
+          ],
+          "reply": "Напиши исполнителя и название песни или уточни, что имеешь в виду текущий трек.",
+          "status": "completed",
+          "stations": [],
+          "sources": [],
+          "actions": [
+            "none"
+          ]
+        }
+      ]
+    },
+    "paid": {
+      "atUtc": "2026-10-03T18:55:32.233Z",
+      "expectedSha": "c8d545d66d3f854fdb461a246408bf52f9146d83",
+      "turns": [
+        {
+          "httpStatus": 200,
+          "question": "Найди две песни, похожие на Numb. Радио не надо.",
+          "reply": "Уточни исполнителя «Numb» — одинаковое название бывает у разных песен.",
+          "sources": [],
+          "stations": [],
+          "actions": [
+            "none"
+          ],
+          "run": {
+            "runId": "feecf113-e2d5-4f35-8488-8d7d04e98408",
+            "status": "completed",
+            "route": "music_worker"
+          },
+          "elapsedMs": 235
+        },
+        {
+          "httpStatus": 200,
+          "question": "Linkin Park",
+          "reply": "Из того, что реально подтвердилось, могу назвать две: Feel Nothing — The Plot in You и Pushing Me Away — Linkin Park. Обе близки по мрачноватой энергии и внутреннему напряжению, но звучат каждая по-своему.",
+          "sources": [
+            {
+              "title": "Songs similar to Numb by Linkin Park",
+              "url": "https://spotalike.com/en/songs-similar-to/linkin-park-numb/3668425"
+            },
+            {
+              "title": "Songs Similar to Numb by Linkin Park",
+              "url": "https://www.chosic.com/similar-songs/numb-by-linkin-park"
+            }
+          ],
+          "stations": [],
+          "actions": [
+            "none"
+          ],
+          "run": {
+            "runId": "eb32c965-bc87-47fe-861b-2ec82e948df9",
+            "status": "completed",
+            "route": "music_worker"
+          },
+          "elapsedMs": 4221
+        },
+        {
+          "httpStatus": 200,
+          "question": "А на каком альбоме?",
+          "reply": "Numb — с альбома Meteora, это тринадцатый и финальный трек. Сингл вышел 8 сентября 2003 года.",
+          "sources": [
+            {
+              "title": "Numb - Linkinpedia",
+              "url": "https://linkinpedia.com/wiki/Numb"
+            },
+            {
+              "title": "Numb (Linkin Park song) - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Numb_(Linkin_Park_song)"
+            }
+          ],
+          "stations": [],
+          "actions": [
+            "none"
+          ],
+          "run": {
+            "runId": "b68e752f-36ff-4d73-81fa-c6b9c28515c5",
+            "status": "completed",
+            "route": "music_worker"
+          },
+          "elapsedMs": 2779
+        }
+      ],
+      "upperUsd": 1
+    },
+    "pixel": {
+      "pngs": 12,
+      "identicalToPrevious": 12,
+      "baselineUpdates": 0,
+      "conclusion": "failure",
+      "reason": "All received PNGs are byte-identical to previous release; client source unchanged"
+    }
+  }
 }
