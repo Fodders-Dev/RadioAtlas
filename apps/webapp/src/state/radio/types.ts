@@ -115,6 +115,14 @@ export type StoredPlayerState = {
   layout: StoredWinampLayout;
 };
 
+export type SavedFindingChatContext = {
+  track: string;
+  stationName: string;
+  timestamp: number;
+  trustedTrack: string | null;
+  focusFirstAction?: boolean;
+};
+
 /** One transient visit to the Feed, kept only while this provider instance lives. */
 export type FeedBrowseVisit = {
   generation: number;
@@ -305,8 +313,8 @@ export type ShellContextValue = {
   // A screen asking Лира something on the listener's behalf («расскажи об
   // источнике X»). The shell opens the chat and sends the text as the user's
   // own turn — the answer is the real assistant's, never a scripted reply.
-  chatRequest: { text: string; id: number; station?: StationLite } | null;
-  requestChat: (text?: string, station?: StationLite) => void;
+  chatRequest: { text: string; id: number; station?: StationLite; savedFinding?: SavedFindingChatContext } | null;
+  requestChat: (text?: string, station?: StationLite, savedFinding?: SavedFindingChatContext) => void;
   clearChatRequest: () => void;
   notify: (message: string) => void;
   skinLabOpen: boolean;

@@ -8,6 +8,9 @@ import { useDialog } from '../lib/useDialog';
 import { useLocale } from '../state/LocaleContext';
 import { useCatalog } from '../state/CatalogContext';
 import { usePlayback } from '../state/RadioContext';
+import { useShell } from '../state/RadioContext';
+import { isAiAssistantEnabled } from '../lib/aiChat';
+import { savedFindingChatContext } from '../lib/findingChat';
 import type { StationLite } from '../types';
 import type { TrackHistoryItem } from '../state/radio/types';
 
@@ -115,6 +118,7 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
   const moreTrigger = useRef<HTMLButtonElement | null>(null);
   const { getStationById, fetchStationById } = useCatalog();
   const { queue, player, playStation } = usePlayback();
+  const { requestChat } = useShell();
 
   useEffect(() => () => { lookupSequence.current += 1; }, []);
   useEffect(() => {
@@ -411,6 +415,20 @@ export const FindsList = ({ finds, onRemove }: FindsListProps) => {
           onClose={closeFindMenu}
         >
           <div className="finds-overlay-list">
+            {isAiAssistantEnabled() ? (
+              <button
+                className="finds-overlay-item"
+                type="button"
+                data-find-ask-lira
+                onClick={(event) => {
+                  const finding = { ...savedFindingChatContext(menuFor), focusFirstAction: event.detail === 0 };
+                  closeFindMenu();
+                  requestChat('', undefined, finding);
+                }}
+              >
+                {t('finds.askLira')}
+              </button>
+            ) : null}
             {menuFor.stationId ? (
               <>
                 <button

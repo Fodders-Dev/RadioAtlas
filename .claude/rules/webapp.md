@@ -10,6 +10,13 @@ covers interaction, space, hierarchy and placement, not only blur and rounded
 corners. Preserve rich discovery and theme support; do not infer acceptance
 from the current preview or passing functional tests.
 
+Saved-finding entry to Lira opens with empty prompt text and an explicit separate
+finding context. Opening must not call chat/catalogue, autoplay or replace the
+queue. The first freeform/selected question uses the same visible saved-song
+frame sent to the API; never replace real nowPlaying with saved metadata.
+Consume the first-send anchor synchronously, isolate a newer opening from old
+responses, and retry the captured wire turn without duplicate USER history.
+
 ## The cold start is a contract
 
 This runs inside a Telegram WebView on a phone, often on mobile data. Home's

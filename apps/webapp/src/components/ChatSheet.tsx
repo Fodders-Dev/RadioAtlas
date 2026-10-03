@@ -34,6 +34,8 @@ import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { CALM_PREVIEW } from '../lib/calmPreview';
 import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
+import { frameSavedFindingQuestion } from '../lib/findingChat';
+import type { SavedFindingChatContext } from '../state/radio/types';
 import { LiraMark } from './LiraMark';
 import { CalmLiraFace } from './CalmLiraFace';
 import { LiraStudio } from './LiraStudio';
@@ -58,7 +60,7 @@ type ChatSheetProps = {
   onClose: () => void;
   // Source entry points open with empty text and a station for suggestions.
   // Only an explicitly supplied question is submitted, once per request id.
-  prompt?: { text: string; id: number; station?: StationLite } | null;
+  prompt?: { text: string; id: number; station?: StationLite; savedFinding?: SavedFindingChatContext } | null;
 };
 
 import { pickChatPrompts, type ChatPromptSpec } from '../lib/chatPrompts';
@@ -227,7 +229,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { fetchStationById, summary } = useCatalog();
   const { player, queue, nowPlaying, nowPlayingStatus, playStation, playStationQueue } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
-  const { setGlobeFocusStationId, setActiveSection, rerollFeedSeed, setFeedEntryStation } = useShell();
+  const { setGlobeFocusStationId, setActiveSection, rerollFeedSeed, setFeedEntryStation, requestChat } = useShell();
   // «Показать на глобусе» from a recommended source: the calm Globe lands on
   // its dot when the catalogue has coordinates, on its country otherwise.
   const showOnGlobe = (stationuuid: string) => {
@@ -247,6 +249,13 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   // chips that reshuffle under a finger are worse than chips that repeat.
   const promptSeedRef = useRef(0);
   const welcomeVisible = open && messages.length === 0;
+  const savedFinding = prompt?.savedFinding ?? null;
+  const findingAnchorRef = useRef<{ requestId: number; context: SavedFindingChatContext; armed: boolean } | null>(null);
+  if (findingAnchorRef.current?.requestId !== prompt?.id) {
+    findingAnchorRef.current = savedFinding
+      ? { requestId: prompt?.id ?? -1, context: savedFinding, armed: true }
+      : null;
+  }
   const contextStation = prompt?.station ?? player.current ?? player.pending;
   const contextTrack = contextStation?.stationuuid === player.current?.stationuuid
     ? resolveNowPlayingTrust({ station: player.current, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track
@@ -330,7 +339,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   // names only genres supported by tags; a selection is not proof of playback.
   const onAirStation = contextStation ?? null;
   const openingCards = useMemo(() => {
-    if (!CALM_PREVIEW) return [];
+    if (!CALM_PREVIEW || savedFinding) return [];
     const pool = [...(summary?.catalogPool || []), ...(summary?.topVoted || [])];
     return liraOpeningStations(onAirStation, pool).map(station => ({
       station,
@@ -338,7 +347,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         ? t(player.isPlaying && station.stationuuid === player.current?.stationuuid ? 'journal.liraOnAir' : 'mapExplorer.selected')
         : t('journal.liraPicks')
     }));
-  }, [onAirStation, player.current?.stationuuid, player.isPlaying, summary, t]);
+  }, [onAirStation, player.current?.stationuuid, player.isPlaying, savedFinding, summary, t]);
   // One send control, placed inside the capsule under calm (the mock's
   // composer) and beside it in the classic window.
   const sendButton = (
@@ -439,28 +448,44 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     }
   };
 
-  const send = async (override?: string) => {
-    const text = (override ?? input).trim();
+  const send = async (
+    override?: string,
+    findingAnchor: 'first' | 'force' | 'none' = 'first',
+    retryBaseMessages?: ChatMessage[]
+  ) => {
+    let text = (override ?? input).trim();
     if (!text || sending) return;
+    const anchor = findingAnchorRef.current;
+    if (anchor && anchor.requestId === prompt?.id) {
+      if (findingAnchor === 'force' || (findingAnchor === 'first' && anchor.armed)) {
+        // Even rejected metadata stays explicit in the visible turn so the API
+        // can ask for clarification instead of silently substituting live audio.
+        text = frameSavedFindingQuestion(anchor.context.trustedTrack ?? 'Unknown', text, locale);
+        // Consume at acceptance time. An older async response cannot re-arm or
+        // change the anchor belonging to a newer opening.
+        anchor.armed = false;
+      }
+    }
     // A new request cancels a not-yet-started selection lookup. Late catalogue
     // responses must not replace the queue while the listener asks something else.
     feedLaunchGeneration.current += 1;
     setFeedLaunchId(null);
     setFeedLaunchSource(null);
     setFeedLaunchError(null);
-    const history: ChatHistoryTurn[] = messages
+    const baseMessages = retryBaseMessages ?? messages;
+    const history: ChatHistoryTurn[] = baseMessages
       .filter((message) => !message.errorFor)
       .slice(-HISTORY_LIMIT)
       .map((message) => ({ role: message.role, text: message.text }));
-    const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, messages);
-    const actionReceipts = messages.flatMap((message) => message.actionReceipts || []).slice(-6);
+    const userTaste = buildChatUserTaste(tasteProfile, favorites, recent, baseMessages);
+    const actionReceipts = baseMessages.flatMap((message) => message.actionReceipts || []).slice(-6);
     const trustedTrack = contextTrack?.trim();
     const trustedStationName = contextStation?.name?.trim();
     // The NAME alone cannot answer "tell me about this station" — the catalogue
     // is keyed by uuid, and names repeat. Sending the id lets Lira look the
     // station up for real instead of describing a string.
     const trustedStationUuid = contextStation?.stationuuid?.trim();
-    setMessages((prev) => [...prev, { id: nextId(), role: 'user', text }]);
+    setMessages([...baseMessages, { id: nextId(), role: 'user', text }]);
     if (override === undefined) {
       setInput('');
       if (composerRef.current) composerRef.current.style.height = '';
@@ -537,6 +562,11 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     if (prompt.text) void sendRef.current(prompt.text);
   }, [open, prompt]);
 
+  useEffect(() => {
+    if (!open || !savedFinding?.focusFirstAction) return;
+    rootRef.current?.querySelector<HTMLButtonElement>('[data-finding-question]')?.focus({ preventScroll: true });
+  }, [open, prompt?.id, savedFinding?.focusFirstAction]);
+
   const onInputChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setInput(event.target.value);
     event.target.style.height = 'auto';
@@ -575,6 +605,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       aria-labelledby={titleId}
       data-chat-sheet
       data-calm={CALM_PREVIEW ? 'true' : undefined}
+      data-lira-saved-finding={savedFinding ? 'true' : undefined}
       data-lira-studio={CALM_PREVIEW && messages.length === 0 ? 'true' : undefined}
     >
       {CALM_PREVIEW ? null : (
@@ -660,7 +691,11 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           aria-live="polite"
           aria-relevant="additions"
         >
-          {messages.length === 0 && CALM_PREVIEW ? (
+          {messages.length === 0 && savedFinding ? (
+            <section className="chat-finding-opening" data-chat-saved-finding-opening>
+              <p>{t('chat.savedFindingPrompt')}</p>
+            </section>
+          ) : messages.length === 0 && CALM_PREVIEW ? (
             <section className="chat-welcome chat-welcome--calm" data-chat-opening>
               <LiraStudio
                 prompts={quickPrompts}
@@ -775,19 +810,19 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                   <button
                     type="button"
                     className="chat-reject-btn chat-retry-btn"
+                    disabled={sending}
                     onClick={() => {
                       triggerHaptic('light');
                       // Drop the failed turn AND the question it answered, then
                       // resend that same question — the composer was cleared on
                       // submit, so without this the text was simply lost.
                       const failed = message.errorFor as string;
-                      setMessages((prev) => {
-                        const index = prev.findIndex((item) => item.id === message.id);
-                        if (index < 0) return prev;
-                        const start = index > 0 && prev[index - 1]?.role === 'user' ? index - 1 : index;
-                        return prev.slice(0, start);
-                      });
-                      void send(failed);
+                      const index = messages.findIndex((item) => item.id === message.id);
+                      if (index < 0) return;
+                      const start = index > 0 && messages[index - 1]?.role === 'user' ? index - 1 : index;
+                      const retryBase = messages.slice(0, start);
+                      setMessages(retryBase);
+                      void send(failed, 'none', retryBase);
                     }}
                   >
                     {t('chat.retry')}
@@ -923,7 +958,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           ) : null}
         </div>
 
-        {CALM_PREVIEW && messages.length > 0 ? (
+        {CALM_PREVIEW && messages.length > 0 && !savedFinding ? (
           <div className="chat-prompts-row" aria-label={t('chat.quickPrompts')} data-chat-prompts>
             {quickPrompts.map((prompt: ChatPromptSpec) => (
               <button
@@ -939,6 +974,54 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                 {t(prompt.labelKey)}
               </button>
             ))}
+          </div>
+        ) : null}
+        {savedFinding ? (
+          <div className="chat-finding-context" data-chat-saved-finding>
+            <div className="chat-finding-context-copy">
+              <span>{t('chat.savedFindingOrigin')}</span>
+              <strong title={savedFinding.track}>{savedFinding.track}</strong>
+              <small>{savedFinding.stationName}</small>
+            </div>
+            <button
+              type="button"
+              aria-label={t('chat.savedFindingClear')}
+              title={t('chat.savedFindingClear')}
+              data-chat-clear-finding
+              onClick={(event) => {
+                if (event.detail === 0) composerRef.current?.focus({ preventScroll: true });
+                requestChat('');
+              }}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        ) : null}
+        {savedFinding ? (
+          <div className="chat-finding-controls" data-chat-finding-controls>
+            {!savedFinding.trustedTrack ? (
+              <p className="chat-finding-clarification">{t('chat.savedFindingNeedsClarification')}</p>
+            ) : null}
+            <div className="chat-finding-questions" aria-label={t('chat.quickPrompts')} data-chat-finding-questions>
+            {([
+              ['about', 'savedFindingAbout', 'savedFindingAboutQuestion'],
+              ['similar', 'savedFindingSimilar', 'savedFindingSimilarQuestion'],
+              ['artist', 'savedFindingArtist', 'savedFindingArtistQuestion']
+            ] as const).map(([id, labelKey, questionKey]) => (
+              <button
+                key={id}
+                type="button"
+                data-finding-question={id}
+                disabled={!savedFinding.trustedTrack || sending}
+                onClick={() => {
+                  triggerSelectionHaptic();
+                  void send(t(`chat.${questionKey}`), 'force');
+                }}
+              >
+                {t(`chat.${labelKey}`)}
+              </button>
+            ))}
+            </div>
           </div>
         ) : null}
         <form className="chat-sheet-input" onSubmit={onSubmit}>

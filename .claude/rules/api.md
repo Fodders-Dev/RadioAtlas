@@ -41,6 +41,13 @@ a song for release/album questions. Radio/unrelated topic changes break replay;
 historical Play never grants new playback permission. No new response fields,
 persistent music memory or extra planner phase.
 
+Saved findings use an exact visible USER frame parsed by
+`readSavedFindingQuestion`; live `nowPlaying` stays the real player metadata.
+Resolve the question body separately from its saved caption. Action permission,
+direct transport and catalogue routing must never read a song title as a command.
+Rejected saved metadata clarifies, not a fallback to the live song. Retry and
+replay preserve the same USER subject; no new network subject field is required.
+
 For this music-only evidence lane, discard obvious generator/template widget
 snippets that do not mention the subject in their body before composer and
 attribution. A matching page title alone does not make reusable generation

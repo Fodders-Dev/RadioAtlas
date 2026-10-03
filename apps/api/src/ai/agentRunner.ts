@@ -3,6 +3,7 @@ import { applyAssistantActionPolicy, verifyAgentResult } from './agentPolicy.js'
 import { chatWithAssistant } from './brain.js';
 import { wantsForeignSource } from './currentSourceDiscovery.js';
 import { buildFallbackResult } from './fallbacks.js';
+import { readSavedFindingQuestion } from './musicQuestionContext.js';
 import type {
   AgentRoute,
   AgentRunStatus,
@@ -329,18 +330,23 @@ export const runLiraAgent = async (
   const startedAt = Date.now();
   const runId = randomUUID();
   const task = normalizeAgentTask(input);
+  // The visible saved-song caption is data. Only the actual question can
+  // authorize transport, queue or favorite writes; retain the full USER text
+  // for the brain's subject resolver and transcript.
+  const savedQuestion = readSavedFindingQuestion(input.userMessage)?.question;
+  const actionInput = savedQuestion === undefined ? input : { ...input, userMessage: savedQuestion };
   const toolCalls: AgentToolTrace[] = [];
   const warnings: string[] = [];
   let steps = 1;
   const classifiedDirectIntent = input.surface === 'miniapp'
     ? classifyDirectActionIntent(
-        input.userMessage,
+        actionInput.userMessage,
         Boolean(input.nowPlaying?.stationUuid)
       )
     : null;
   // A discovery request must not turn a negated queue/favourite clause into a
   // direct write. Preserve the existing explicit pause transport command.
-  const directIntent = wantsForeignSource(input.userMessage, input.history) && classifiedDirectIntent?.kind !== 'pause'
+  const directIntent = wantsForeignSource(actionInput.userMessage, input.history) && classifiedDirectIntent?.kind !== 'pause'
     ? null : classifiedDirectIntent;
   const route: AgentRoute = directIntent ? 'direct_action' : 'music_worker';
   steps += 1;
@@ -363,7 +369,7 @@ export const runLiraAgent = async (
   try {
     steps += 1;
     if (directIntent) {
-      const direct = await runDirectActionWorker(input, directIntent, deps);
+      const direct = await runDirectActionWorker(actionInput, directIntent, deps);
       workerResult = direct.result;
       status = direct.status;
     } else {
@@ -403,13 +409,13 @@ export const runLiraAgent = async (
   const policy = applyAssistantActionPolicy(
     workerResult.actions,
     workerResult,
-    input,
+    actionInput,
     runId
   );
   warnings.push(...policy.warnings);
   let policyResult: ChatResult = { ...workerResult, actions: policy.actions };
   steps += 1;
-  const verification = verifyAgentResult(policyResult, input);
+  const verification = verifyAgentResult(policyResult, actionInput);
   if (!verification.passed) {
     status = 'failed';
     warnings.push(...verification.errors);

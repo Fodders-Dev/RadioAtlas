@@ -4,6 +4,16 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
+**03.10 — находка → Лира реализована и проверена локально.**
+Нет запроса/Play/смены очереди при открытии; явный saved предмет отделён от
+живых metadata.900 API/905 unit/offline24/types/build;459/7 full functional,
+затем focused10/10 после последнего short-flow CSS исправления.
+[Итоговый результат/проверки](LIRA-SAVED-FINDING-2026-10-03.md).
+Владелец ещё не смотрел новый вход, не публиковать клиент вместе с непринятой
+Studio историей. Preview4194 пересобран с `VITE_AI_ENABLED=1`; dev5184/API4341
+сохраняются. [Исследование DeepSeek Vision](LIRA-DEEPSEEK-MULTIMODAL-2026-10-03.md)
+сохранено по просьбе владельца; API/model config не менялись, paid calls0.
+
 **03.10 — музыкальное продолжение опубликовано API-only: `c8d545d`.**
 890 API, source/test types, API build, offline24, independent Astra review.
 17 реальных реплик; public Numb→LinkinPark→Meteora при смене live metadata.

@@ -1,6 +1,7 @@
 import { sanitizeSnippet } from './untrustedData.js';
 import { requestedGenreRefinement } from './genreRefinement.js';
 import type { ChatTurn, WebSource } from './types.js';
+import { isNonArtistName, parseTrackTitle } from '../intel/harvestPipeline.js';
 
 export type MusicExpertiseKind = 'track_question' | 'artist_question' | 'track_suggestions';
 
@@ -40,6 +41,28 @@ const clean = (value: string) => value.trim().replace(/\s+/g, ' ').replace(/[?!.
 const safeSubject = (value: string) => {
   return clean(sanitizeSnippet(String(value || '')).replace(/[\u0000-\u001f\u007f\r\n]+/g, ' '));
 };
+
+/** This is a visible USER message, not metadata or an instruction channel. */
+export const readSavedFindingQuestion = (message: string): { track: string; question: string } | undefined => {
+  // Greedy matching on the single title line preserves quotation marks inside
+  // real titles. The closing delimiter must be followed by a newline.
+  const match = message.trim().match(/^(?:О сохранённой песне «([^\r\n]*)»:|About saved song “([^\r\n]*)”:)\r?\n([\s\S]+)$/u);
+  return match ? { track: match[1] ?? match[2] ?? '', question: match[3]!.trim() } : undefined;
+};
+
+const savedTrack = (value: string) => {
+  if (/[\u0000-\u001f\u007f\ufffd]|https?:\/\/|<\/?[a-z][^>]*>/iu.test(value)) return null;
+  const parsed = parseTrackTitle(value.replace(/\s+[—–]\s+/gu, ' - '));
+  if (!parsed || isNonArtistName(parsed.artist || parsed.title)) return null;
+  const placeholder = /^(?:unknown(?: (?:title|song|track))?|no (?:title|track|metadata)|loading\.*|metadata unavailable|нет (?:данных|трека)|без названия|загрузка|реклама|ad[ -]?trigger|artist\s*-\s*title|song title(?: here)?|track title|now playing info(?: goes here)?|kein titel(?: update)?|sin t[ií]tulo|sem t[ií]tulo|titre inconnu)$/iu;
+  if (placeholder.test(parsed.raw) || placeholder.test(parsed.title) || placeholder.test(parsed.artist || '')) return null;
+  const subject = safeSubject(parsed.artist ? `${parsed.artist} — ${parsed.title}` : parsed.title);
+  return subject ? { subject, artist: parsed.artist, title: parsed.title } : null;
+};
+
+export const explicitlyRequestsLiveSong = (text: string) =>
+  /(?:сейчас|текущ[а-яё]*|current(?:ly)?|now playing|playing now)/iu.test(text) &&
+  /(?:песн|трек|игра|звуч|слуша|song|track|playing)/iu.test(text);
 
 const RADIO_OR_STATION = /(?<![\p{L}\p{N}])(?:радио|станци[а-яё]*|эфир|radio|stations?)(?![\p{L}\p{N}])/iu;
 const isCurrentSongReference = (value: string) => /^(?:(?:эт(?:от|а|о|ого|ой|у)|this|that|current|то,? что|сейчас играющ)|текущ[а-яё]*\s+(?:песн[а-яё]*|трек[а-яё]*|композиц[а-яё]*))/iu.test(value.trim());
@@ -139,19 +162,117 @@ const isUnrelatedBarrier = (text: string) => {
   return /^(?:привет|здравствуй|спасибо|благодарю|ок(?:ей)?|понял[а]?|ясно|hi|hello|thanks|thank you)(?=$|[\s!?.,])/iu.test(value) ||
     !explicitPair(value) && /^(?:почему|объясни|расскажи|что такое|как работает|what is|why|explain)(?=$|[\s!?.,])/iu.test(value) && !/(?:песн|трек|музык|альбом|артист|исполнител|song|track|album|artist)/iu.test(value);
 };
+
+const savedShortAnalysisQuestion = (text: string) =>
+  /^(?:а\s+)?(?:(?:дай|скинь|покажи|пришли|найди)\s+(?:мне\s+)?(?:текст|слова)|объясни\s+смысл|переведи(?:\s+е[её])?|(?:show|find|get)(?:\s+me)?\s+(?:the\s+)?lyrics)[?!.,]*$/iu.test(text.trim());
+
+const savedFacetQuestion = (text: string) =>
+  /^(?:and\s+)?(?:who\s+(?:(?:sings|performs|recorded|wrote)(?:\s+(?:it|this(?:\s+(?:song|track))?))?|is\s+(?:the\s+)?(?:performer|artist))|what\s+(?:genre|style)(?:\s+is\s+(?:it|this(?:\s+(?:song|track))?))?)[?!.,]*$/iu.test(text.trim());
+
+// A named replacement without a performer must clarify that new title, never
+// borrow the saved song's artist. Keep this scoped to saved-song dialogue.
+const namedSavedTrack = (text: string) => {
+  const match = text.trim().match(/^(?:расскажи(?:\s+мне)?\s+(?:про|о|об)|tell\s+me\s+about)\s+(?:the\s+)?(?:песн[юе]|трек(?:е)?|song|track)\s+([^\r\n]+)$/iu);
+  if (!match?.[1] || explicitPair(match[1])) return undefined;
+  const title = safeSubject(match[1].replace(/^([«“"'])((?:.|\n)*)[»”"']\s*[?!.,]*$/u, '$2'));
+  return title && !isCurrentSongReference(title) ? title : undefined;
+};
+
+const savedMusicQuestion = (text: string) =>
+  savedShortAnalysisQuestion(text) || savedFacetQuestion(text) ||
+  isEllipticalMusicFollowup(text) || isTrackSuggestion(text) || isArtistQuestion(text) || continuationSuggestion(text) ||
+  /^(?:расскажи|tell me more)[.!?]*$|^(?:а\s+)?(?:когда|when).{0,30}(?:выш|релиз|releas|come out)/iu.test(text) ||
+  /^(?:нет,?\s*)?(?:я\s+)?(?:про|имею\s+в\s+виду)\s+/iu.test(text) ||
+  /(?:песн|трек|композиц|сингл|song|track|album)/iu.test(text) &&
+    /(?:расскажи|что|кто|как|почему|зачем|когда|ч[её]м|смысл|текст|слов|перев|tell|what|who|when|how|why|meaning|lyrics|translat)/iu.test(text) ||
+  /^(?:а\s+)?(?:о ч[её]м|про что)(?:\s+(?:она|он|это))?\s*[?!.]*$|^(?:текст|слова|lyrics|смысл|подтекст|перевод)\s*[?!.]*$/iu.test(text);
+
+const savedUnrelatedTopic = (text: string) =>
+  /^(?:а\s+)?(?:погод[ауы]|сколько будет|удали (?:мой )?аккаунт|weather|delete (?:my )?account)(?=$|\s|[?!.,])/iu.test(text.trim());
+
+const framedResolution = (frame: { track: string; question: string }): MusicQuestionResolution | undefined => {
+  const text = frame.question;
+  // The actual question can change topic. The saved caption never overrides
+  // an explicit new subject or supplies permission to play a station.
+  if (hasExplicitRadioIntent(text) || requestedGenreRefinement(text) || savedUnrelatedTopic(text)) return { status: 'skip' };
+  const pair = explicitPair(text);
+  const kind: MusicExpertiseKind = isTrackSuggestion(text) || continuationSuggestion(text) || /похож|similar/iu.test(text)
+    ? 'track_suggestions' : isArtistQuestion(text) && !asksTrackFacet(text) ? 'artist_question' : 'track_question';
+  if (pair) return (text.match(/\s+[—–-]\s+/gu) || []).length > 1
+    ? { status: 'clarify', reason: 'ambiguous_reference' }
+    : { status: 'resolved', context: { kind, subject: pair, subjectSource: 'explicit', ...(kind === 'track_suggestions' ? { suggestionCount: suggestionCount(text) } : {}) } };
+  const namedTitle = namedSavedTrack(text);
+  if (namedTitle) return { status: 'clarify', reason: 'missing_artist', subject: namedTitle };
+  if (explicitlyRequestsLiveSong(text) ||
+      (isTrackSuggestion(text) && explicitSuggestionTarget(text)) ||
+      (isArtistQuestion(text) && namedArtist(text) && !/(?:this|that)\s+(?:song|track)/iu.test(text))) return undefined;
+  if (!savedMusicQuestion(text)) return { status: 'skip' };
+  const track = savedTrack(frame.track);
+  if (!track) return { status: 'clarify', reason: 'missing_subject' };
+  const correction = text.match(/^(?:нет,?\s*)?(?:я\s+)?(?:про|имею\s+в\s+виду)\s+(.+?)(?:\s*[:;,]\s*(?:когда|в каком году|на каком альбоме|из какого альбома|кто|стиль|жанр|release|album|when|what|who).*)?$/iu)?.[1];
+  const title = correction ? safeSubject(correction) : track.title;
+  if (!track.artist) return { status: 'clarify', reason: 'missing_artist', subject: title };
+  return { status: 'resolved', context: {
+    kind, subject: correction ? `${track.artist} — ${title}` : track.subject, subjectSource: 'explicit',
+    ...(kind === 'track_suggestions' ? { suggestionCount: suggestionCount(text) } : {})
+  } };
+};
+
 const replayUserMusicContext = (turns: readonly string[]) => {
   let subject: string | undefined;
   let kind: MusicExpertiseKind = 'track_question';
   let pendingTitle: string | undefined;
   let pendingCount = 3;
+  let pendingKind: MusicExpertiseKind = 'track_suggestions';
+  let saved = false;
+  let savedQuestion: string | undefined;
   let ambiguous = false;
   let unknownCurrent = false;
-  for (const turn of turns) {
+  for (const original of turns) {
+    let turn = original;
+    const frame = readSavedFindingQuestion(turn);
+    if (frame) {
+      const resolution = framedResolution(frame);
+      if (resolution) {
+        subject = resolution.status === 'resolved' ? resolution.context.subject : undefined;
+        pendingTitle = resolution.status === 'clarify' && resolution.reason === 'missing_artist' ? resolution.subject : undefined;
+        kind = resolution.status === 'resolved' ? resolution.context.kind : 'track_question';
+        pendingKind = /похож|similar/iu.test(frame.question) ? 'track_suggestions' : isArtistQuestion(frame.question) ? 'artist_question' : 'track_question';
+        pendingCount = suggestionCount(frame.question) || 3;
+        saved = resolution.status !== 'skip';
+        savedQuestion = saved ? frame.question : undefined;
+        ambiguous = false;
+        unknownCurrent = false;
+        continue;
+      }
+      turn = frame.question;
+      saved = false;
+      savedQuestion = undefined;
+    }
+    if (saved && (savedUnrelatedTopic(turn) || !pendingTitle && !savedMusicQuestion(turn) && !explicitPair(turn))) {
+      subject = undefined;
+      pendingTitle = undefined;
+      saved = false;
+      savedQuestion = undefined;
+    }
+    const replacementTitle = saved ? namedSavedTrack(turn) : undefined;
+    if (replacementTitle) {
+      subject = undefined;
+      pendingTitle = replacementTitle;
+      pendingKind = 'track_question';
+      savedQuestion = turn;
+      continue;
+    }
+    // Saved deictic followups refer to the captured song; explicit live wording
+    // still breaks replay because old live metadata cannot be reconstructed.
+    if (saved && savedMusicQuestion(turn) && !explicitlyRequestsLiveSong(turn) && !explicitPair(turn) &&
+        (currentReference(turn) || savedShortAnalysisQuestion(turn) || savedFacetQuestion(turn) || /^(?:а\s+)?(?:о ч[её]м|про что|смысл|текст|lyrics|what is).*/iu.test(turn))) continue;
     if (currentReference(turn) && !explicitPair(turn)) {
       subject = undefined;
       pendingTitle = undefined;
       ambiguous = false;
       unknownCurrent = true;
+      saved = false;
       continue;
     }
     if (isUnrelatedBarrier(turn)) {
@@ -159,6 +280,7 @@ const replayUserMusicContext = (turns: readonly string[]) => {
       pendingTitle = undefined;
       ambiguous = false;
       unknownCurrent = false;
+      saved = false;
       continue;
     }
     if ((turn.match(/\s+[—–-]\s+/gu) || []).length > 1) {
@@ -176,6 +298,7 @@ const replayUserMusicContext = (turns: readonly string[]) => {
       pendingTitle = undefined;
       ambiguous = false;
       unknownCurrent = false;
+      saved = false;
       continue;
     }
     const historicalArtist = isArtistQuestion(turn) ? namedArtist(turn) : undefined;
@@ -185,22 +308,26 @@ const replayUserMusicContext = (turns: readonly string[]) => {
       pendingTitle = undefined;
       ambiguous = false;
       unknownCurrent = false;
+      saved = false;
       continue;
     }
     const target = isTrackSuggestion(turn) ? explicitSuggestionTarget(turn) : undefined;
     if (target) {
       pendingTitle = target;
       pendingCount = suggestionCount(turn) || 3;
+      pendingKind = 'track_suggestions';
       subject = undefined;
       ambiguous = false;
       unknownCurrent = false;
+      saved = false;
       continue;
     }
     if (pendingTitle && bareArtistAnswer(turn)) {
       const artist = safeSubject(turn);
+      if (saved && !savedTrack(`${artist} — ${pendingTitle}`)) continue;
       if (artist) {
         subject = `${artist} — ${pendingTitle}`;
-        kind = 'track_suggestions';
+        kind = pendingKind;
       }
       pendingTitle = undefined;
       ambiguous = false;
@@ -217,7 +344,7 @@ const replayUserMusicContext = (turns: readonly string[]) => {
       else if (pendingTitle && title) pendingTitle = title;
     }
   }
-  return { subject, kind, pendingTitle, pendingCount, ambiguous, unknownCurrent };
+  return { subject, kind, pendingTitle, pendingCount, pendingKind, ambiguous, unknownCurrent, saved, savedQuestion };
 };
 const hasMusicQuestionCue = (text: string) => /(?:когда|в каком году|на каком альбоме|из какого альбома|кто|стил[ьяе]?|жанр|расскажи|похож|similar|ещё|еще|more|release|album|style|genre)/iu.test(text);
 const continuationSuggestion = (text: string) => /(?:ещё|еще|more).{0,30}(?:похож|similar)|(?:похож|similar).{0,30}(?:ещё|еще|more)|у них.{0,35}(?:похож|similar)|(?:похож|similar).{0,25}(?:у них|от них)/iu.test(text);
@@ -229,6 +356,15 @@ const bareArtistAnswer = (text: string) => {
   return /^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} '&'.()-]{0,58}$/u.test(value) && value.trim().split(/\s+/u).length <= 5;
 };
 
+/** Restores only the still-pending question, from bounded USER history. */
+export const savedFindingQuestionForTurn = (message: string, history: readonly ChatTurn[] = []): string | undefined => {
+  const frame = readSavedFindingQuestion(message);
+  if (frame) return frame.question;
+  const replay = replayUserMusicContext(userTurns(history));
+  if (!replay.saved) return undefined;
+  return replay.pendingTitle && bareArtistAnswer(message) ? replay.savedQuestion : message;
+};
+
 const conversationContext = (text: string, turns: readonly string[]): MusicQuestionContext | undefined => {
   // Resolve a bare performer only when the immediately preceding user request
   // left a single named title awaiting its performer.
@@ -236,7 +372,7 @@ const conversationContext = (text: string, turns: readonly string[]): MusicQuest
   const pendingTarget = replay.pendingTitle;
   if (pendingTarget && bareArtistAnswer(text)) {
     const artist = safeSubject(text);
-    if (artist) return { kind: 'track_suggestions', subject: `${artist} — ${pendingTarget}`, subjectSource: 'conversation', suggestionCount: replay.pendingCount };
+    if (artist) return { kind: replay.pendingKind, subject: `${artist} — ${pendingTarget}`, subjectSource: 'conversation', ...(replay.pendingKind === 'track_suggestions' ? { suggestionCount: replay.pendingCount } : {}) };
   }
 
   const latest = replay.subject;
@@ -287,15 +423,37 @@ export const resolveMusicQuestionContext = (
   currentTrack?: string,
   history: readonly ChatTurn[] = []
 ): MusicQuestionResolution => {
-  const text = String(message || '').trim();
+  let text = String(message || '').trim();
   const playerSubject = safeSubject(currentTrack || '');
   const turns = userTurns(history);
+  const frame = readSavedFindingQuestion(text);
+  if (frame) {
+    const framed = framedResolution(frame);
+    if (framed) return framed;
+    text = frame.question;
+  }
   if (!text || hasExplicitRadioIntent(text) || requestedGenreRefinement(text)) return { status: 'skip' };
   if ((text.match(/\s+[—–-]\s+/gu) || []).length > 1 && hasMusicQuestionCue(text)) return { status: 'clarify', reason: 'ambiguous_reference' };
   const replay = replayUserMusicContext(turns);
+  if (replay.saved && savedUnrelatedTopic(text)) return { status: 'skip' };
+  const replacementTitle = replay.saved ? namedSavedTrack(text) : undefined;
+  if (replacementTitle) return { status: 'clarify', reason: 'missing_artist', subject: replacementTitle };
+  if (replay.saved && replay.pendingTitle && bareArtistAnswer(text) && !savedTrack(`${text} — ${replay.pendingTitle}`)) {
+    return { status: 'clarify', reason: 'missing_artist', subject: replay.pendingTitle };
+  }
+  if (replay.saved && savedMusicQuestion(text) && !explicitPair(text) && !explicitlyRequestsLiveSong(text) &&
+      (currentReference(text) || savedShortAnalysisQuestion(text) || savedFacetQuestion(text) || /^(?:а\s+)?(?:о ч[её]м|про что|смысл|текст|lyrics|what is).*/iu.test(text))) {
+    if (replay.pendingTitle) return { status: 'clarify', reason: 'missing_artist', subject: replay.pendingTitle };
+    if (!replay.subject) return { status: 'clarify', reason: 'missing_subject' };
+    return { status: 'resolved', context: {
+      kind: isTrackSuggestion(text) ? 'track_suggestions' : isArtistQuestion(text) && !asksTrackFacet(text) ? 'artist_question' : 'track_question',
+      subject: replay.subject, subjectSource: 'conversation',
+      ...(isTrackSuggestion(text) ? { suggestionCount: suggestionCount(text) } : {})
+    } };
+  }
   if (replay.ambiguous && hasMusicQuestionCue(text) && !explicitPair(text) && !currentReference(text)) return { status: 'clarify', reason: 'ambiguous_reference' };
   if (replay.unknownCurrent && isEllipticalMusicFollowup(text) && !explicitPair(text) && !currentReference(text)) return { status: 'clarify', reason: 'missing_subject' };
-  if (replay.kind === 'artist_question' && replay.subject && isEllipticalMusicFollowup(text) && !explicitPair(text) && !currentReference(text)) {
+  if (replay.kind === 'artist_question' && replay.subject && !explicitPair(replay.subject) && isEllipticalMusicFollowup(text) && !explicitPair(text) && !currentReference(text)) {
     if (/(?:когда|в каком году|на каком альбоме|из какого альбома|с какого альбома|release|album|date)/iu.test(text)) {
       return { status: 'clarify', reason: 'missing_subject' };
     }
