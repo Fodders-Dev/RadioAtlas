@@ -29,6 +29,24 @@ are not user consent. The bounded context stays internal and adds no model call.
 Cover changes through real brain message/tool/action fixtures; mocked prose does
 not establish provider quality.
 
+## Music conversation subject
+
+Music facts/similar-song requests may replay at most six supplied USER turns;
+filter roles before bounding. Explicit title/artist corrections update the
+subject; assistant prose never supplies it. Historical live-only references
+cannot recover old player metadata, so ambiguous followups clarify without
+search/model calls. An explicit current-song question uses fresh metadata.
+Keep artist and song subjects distinct: an artist-only context does not identify
+a song for release/album questions. Radio/unrelated topic changes break replay;
+historical Play never grants new playback permission. No new response fields,
+persistent music memory or extra planner phase.
+
+For this music-only evidence lane, discard obvious generator/template widget
+snippets that do not mention the subject in their body before composer and
+attribution. A matching page title alone does not make reusable generation
+settings facts about the song. This narrow guard is not universal fact checking;
+lyrics/general source behavior and existing search deadline/caps stay unchanged.
+
 ## Selection continuation
 
 The first accepted recommendation plan may resolve an internal continue/new

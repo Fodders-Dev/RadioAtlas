@@ -1,0 +1,741 @@
+{
+  "purpose": "Manually inspected coherent musical dialogues with changing live metadata; not an intelligence score",
+  "budgetUsd": 3,
+  "ledgerClosed": false,
+  "limitations": [
+    "Search-backed prose is not independently fact validated.",
+    "No audio recognition or physical headset checks.",
+    "Raw snippets, provider bodies and credentials omitted."
+  ],
+  "before": {
+    "at": "2026-10-03T18:08:59.301Z",
+    "modelCalls": 0,
+    "cases": [
+      {
+        "name": "artist clarification",
+        "message": "Linkin Park",
+        "history": [
+          "Найди две песни, похожие на Numb. Радио не надо."
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "skip"
+        }
+      },
+      {
+        "name": "same artist songs",
+        "message": "А что у них ещё похожего?",
+        "history": [
+          "Расскажи про Radiohead — Creep: когда вышел трек?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "skip"
+        }
+      },
+      {
+        "name": "title correction",
+        "message": "Нет, я про Numb/Encore",
+        "history": [
+          "Посоветуй две похожие песни на Linkin Park — Numb. Радио не надо."
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "skip"
+        }
+      },
+      {
+        "name": "song follow-up after live metadata change",
+        "message": "А когда она вышла?",
+        "history": [
+          "Расскажи про Radiohead — Creep: какой стиль?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "clarify",
+          "reason": "ambiguous_reference"
+        }
+      },
+      {
+        "name": "explicit station exit",
+        "message": "Теперь найди радио с роком. Не включай.",
+        "history": [
+          "Расскажи про Radiohead — Creep: какой стиль?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "skip"
+        }
+      }
+    ]
+  },
+  "after": {
+    "at": "2026-10-03T18:26:21.606Z",
+    "modelCalls": 0,
+    "cases": [
+      {
+        "name": "artist clarification",
+        "message": "Linkin Park",
+        "history": [
+          "Найди две песни, похожие на Numb. Радио не надо."
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "resolved",
+          "context": {
+            "kind": "track_suggestions",
+            "subject": "Linkin Park — Numb",
+            "subjectSource": "conversation",
+            "suggestionCount": 2
+          }
+        }
+      },
+      {
+        "name": "same artist songs",
+        "message": "А что у них ещё похожего?",
+        "history": [
+          "Расскажи про Radiohead — Creep: когда вышел трек?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "resolved",
+          "context": {
+            "kind": "track_suggestions",
+            "subject": "Radiohead",
+            "subjectSource": "conversation",
+            "suggestionCount": 3,
+            "sameArtist": true
+          }
+        }
+      },
+      {
+        "name": "title correction",
+        "message": "Нет, я про Numb/Encore",
+        "history": [
+          "Посоветуй две похожие песни на Linkin Park — Numb. Радио не надо."
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "resolved",
+          "context": {
+            "kind": "track_suggestions",
+            "subject": "Linkin Park — Numb/Encore",
+            "subjectSource": "conversation",
+            "suggestionCount": 2
+          }
+        }
+      },
+      {
+        "name": "song follow-up after live metadata change",
+        "message": "А когда она вышла?",
+        "history": [
+          "Расскажи про Radiohead — Creep: какой стиль?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "resolved",
+          "context": {
+            "kind": "track_question",
+            "subject": "Radiohead — Creep",
+            "subjectSource": "conversation"
+          }
+        }
+      },
+      {
+        "name": "explicit station exit",
+        "message": "Теперь найди радио с роком. Не включай.",
+        "history": [
+          "Расскажи про Radiohead — Creep: какой стиль?"
+        ],
+        "currentTrack": "Daft Punk — Get Lucky",
+        "actual": {
+          "status": "skip"
+        }
+      }
+    ]
+  },
+  "reports": [
+    {
+      "file": "lira-continuation-live-clarification.json",
+      "generatedAt": "2026-10-03T18:27:06.765Z",
+      "code": "continuation-candidate-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Найди две песни, похожие на Numb. Радио не надо.",
+          "reply": "Уточни исполнителя «Numb» — одинаковое название бывает у разных песен.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 4,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Linkin Park",
+          "reply": "Похожих по настроению и подаче могу назвать две: Feel Nothing — The Plot in You и Pushing Me Away — Linkin Park. Обе с той же смесью напряжения, мелодичности и личной боли, что и Numb.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Songs similar to Numb by Linkin Park",
+              "url": "https://spotalike.com/en/songs-similar-to/linkin-park-numb/3668425"
+            },
+            {
+              "title": "Songs Similar to Numb by Linkin Park",
+              "url": "https://www.chosic.com/similar-songs/numb-by-linkin-park"
+            }
+          ],
+          "runtimeMs": 3871,
+          "usage": {
+            "prompt": 3081,
+            "completion": 55
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А на каком альбоме?",
+          "reply": "Numb — с альбома Meteora, это его финальный тринадцатый трек. Сингл вышел 8 сентября 2003 года.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Numb - Linkinpedia",
+              "url": "https://linkinpedia.com/wiki/Numb"
+            },
+            {
+              "title": "Linkin Park released Numb on September 8, 2003, as the third ...",
+              "url": "https://www.instagram.com/reel/DZzROR1tNNN?hl=en"
+            }
+          ],
+          "runtimeMs": 3671,
+          "usage": {
+            "prompt": 3232,
+            "completion": 35
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "songs similar to Linkin Park — Numb",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Linkin Park — Numb",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Linkin Park — Numb song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 2
+    },
+    {
+      "file": "lira-continuation-live-correction.json",
+      "generatedAt": "2026-10-03T18:28:08.536Z",
+      "code": "continuation-candidate-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Посоветуй две похожие песни на Linkin Park — Numb. Радио не надо.",
+          "reply": "Из похожих по настроению и тяжести назову две: Feel Nothing — The Plot in You и Pushing Me Away — Linkin Park. Первая ближе к современному мрачному ню-металу, вторая — из ранних, более нервных вещей самих Linkin Park. Обе хорошо ложатся в то же состояние, что и Numb.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Songs similar to Numb by Linkin Park",
+              "url": "https://spotalike.com/en/songs-similar-to/linkin-park-numb/3668425"
+            },
+            {
+              "title": "Songs Similar to Numb by Linkin Park",
+              "url": "https://www.chosic.com/similar-songs/numb-by-linkin-park"
+            }
+          ],
+          "runtimeMs": 4837,
+          "usage": {
+            "prompt": 3077,
+            "completion": 84
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Нет, я про Numb/Encore",
+          "reply": "А, тогда понял. Из подтверждённых похожих назову две: Disturbia — Rihanna и Takeover — JAY-Z. Первая ближе по энергетике и тёмному драйву, вторая — по рэп-подаче и нерву.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Songs Similar to Numb / Encore by JAY-Z, Linkin Park",
+              "url": "https://www.chosic.com/similar-songs/numb-encore-by-jay-z-linkin-park"
+            },
+            {
+              "title": "Songs Similar to Numb/Encore by JAY-Z & Linkin Park",
+              "url": "https://www.albumoftheyear.org/album/247151-jay-z-linkin-park-numbencore/similar"
+            }
+          ],
+          "runtimeMs": 3767,
+          "usage": {
+            "prompt": 3201,
+            "completion": 66
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А когда она вышла?",
+          "reply": "Numb/Encore вышла 13 декабря 2004 года как сингл с совместного EP Jay-Z и Linkin Park — Collision Course. Это мэшап их треков Numb и Encore, оба оригинала появились в 2003-м.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Numb/Encore - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Numb/Encore"
+            },
+            {
+              "title": "Numb / Encore (Official Audio) - Linkin Park / JAY-Z",
+              "url": "https://www.youtube.com/watch?v=_1oO4wzPCmE"
+            }
+          ],
+          "runtimeMs": 3983,
+          "usage": {
+            "prompt": 3508,
+            "completion": 60
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "songs similar to Linkin Park — Numb",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Linkin Park — Numb",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "songs similar to Linkin Park — Numb/Encore",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Linkin Park — Numb/Encore song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 3
+    },
+    {
+      "file": "lira-continuation-live-current.json",
+      "generatedAt": "2026-10-03T18:30:36.182Z",
+      "code": "continuation-candidate-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Когда этот трек вышел?",
+          "reply": "«Get Lucky» вышел синглом 19 апреля 2013 года — это был лид-сингл с альбома Random Access Memories. Сам альбом появился чуть позже, 17 мая 2013-го.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Get Lucky (Daft Punk song) - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Get_Lucky_(Daft_Punk_song)"
+            },
+            {
+              "title": "2013 Daft Punk – Get Lucky (US:#2 UK:#1) | Sessiondays",
+              "url": "https://sessiondays.com/2024/08/15/2013-daft-punk-get-lucky-us2-uk1"
+            }
+          ],
+          "runtimeMs": 4733,
+          "usage": {
+            "prompt": 3202,
+            "completion": 53
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А на каком альбоме?",
+          "reply": "Напиши исполнителя и название песни или уточни, что имеешь в виду текущий трек.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [],
+          "runtimeMs": 2,
+          "usage": {
+            "prompt": 0,
+            "completion": 0
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Daft Punk — Get Lucky song release date album",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Daft Punk — Get Lucky song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 1
+    },
+    {
+      "file": "lira-continuation-live-history-repeat.json",
+      "generatedAt": "2026-10-03T18:33:38.104Z",
+      "code": "continuation-widget-filter-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Расскажи про Radiohead — Creep: когда вышел трек?",
+          "reply": "Классика. «Creep» — дебютный сингл Radiohead, вышел 21 сентября 1992 года, а уже в 1993-м попал на их первый альбом Pablo Honey. По звучанию — альтернативный рок с фирменными взрывами гитарного шума, текст про навязчивую безответную влюблённость.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Creep (Radiohead song) - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Creep_(Radiohead_song)"
+            },
+            {
+              "title": "Radiohead released their debut single \"Creep\" 30 years ...",
+              "url": "https://www.reddit.com/r/Music/comments/xka00y/radiohead_released_their_debut_single_creep_30"
+            }
+          ],
+          "runtimeMs": 4509,
+          "usage": {
+            "prompt": 3129,
+            "completion": 91
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А что у них ещё похожего?",
+          "reply": "Из их же вещей ближе всего по духу — «High and Dry» с The Bends: тоже про уязвимость, но уже мягче и мелодичнее. Ещё можно взять «Fake Plastic Trees» — там похожая эмоциональная дуга, только без гранжевого надрыва. А если хочется чуть более тёмного и гитарного — «Just» с того же альбома.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "List of songs recorded by Radiohead - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/List_of_songs_recorded_by_Radiohead"
+            },
+            {
+              "title": "Songs by other artists that sound like RH : r/radiohead",
+              "url": "https://www.reddit.com/r/radiohead/comments/138x6gu/songs_by_other_artists_that_sound_like_rh"
+            }
+          ],
+          "runtimeMs": 4090,
+          "usage": {
+            "prompt": 3370,
+            "completion": 97
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Нет, я про Radiohead — High and Dry: какой стиль?",
+          "reply": "«High and Dry» — это мягкий альтернативный рок с заметным пост-бритпоповым настроением: мелодичная гитара, прозрачная аранжировка и чуть меланхоличный, но светлый вокал. По ощущению — менее шумная и более «воздушная» вещь, чем ранние гранжевые записи Radiohead.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "High and Dry / Planet Telex - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/High_and_Dry_/_Planet_Telex"
+            },
+            {
+              "title": "High and Dry by Radiohead Chords, Melody, and Music Theory Analysis - Hooktheory",
+              "url": "https://www.hooktheory.com/theorytab/view/radiohead/high-and-dry"
+            }
+          ],
+          "runtimeMs": 3689,
+          "usage": {
+            "prompt": 3568,
+            "completion": 93
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А когда она вышла?",
+          "reply": "«High and Dry» вышла как двойной сингл вместе с «Planet Telex» 27 февраля 1995 года, а в марте того же года появилась на альбоме The Bends.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "High and Dry / Planet Telex - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/High_and_Dry_/_Planet_Telex"
+            },
+            {
+              "title": "High and Dry",
+              "url": "https://www.youtube.com/watch?v=7fv84nPfTH0"
+            }
+          ],
+          "runtimeMs": 4037,
+          "usage": {
+            "prompt": 3552,
+            "completion": 49
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead songs by the same artist",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — High and Dry song musical genre style instrumentation",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — High and Dry song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 4
+    },
+    {
+      "file": "lira-continuation-live-history.json",
+      "generatedAt": "2026-10-03T18:27:26.830Z",
+      "code": "continuation-candidate-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Расскажи про Radiohead — Creep: когда вышел трек?",
+          "reply": "Отличный выбор — классика, которую, кажется, слышал каждый, даже если не помнит, откуда. «Creep» — дебютный сингл Radiohead, вышел 21 сентября 1992 года. Потом он попал на их первый альбом Pablo Honey, который выпустили в феврале 1993-го.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Creep (Radiohead song) - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/Creep_(Radiohead_song)"
+            },
+            {
+              "title": "Radiohead released their debut single \"Creep\" 30 years ...",
+              "url": "https://www.reddit.com/r/Music/comments/xka00y/radiohead_released_their_debut_single_creep_30"
+            }
+          ],
+          "runtimeMs": 4082,
+          "usage": {
+            "prompt": 3129,
+            "completion": 84
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А что у них ещё похожего?",
+          "reply": "Если заходит именно меланхоличная, чуть надрывная сторона «Creep», у Radiohead есть ещё несколько вещей с похожим вайбом — особенно с ранних альбомов. Из подтверждённого списка их песен ближе всего по духу «High and Dry» и «Fake Plastic Trees» с The Bends: обе медленные, эмоциональные, с красивым вокалом Тома. Ещё можно глянуть «Street Spirit (Fade Out)» — она мрачнее, но тоже из той породы, когда хочется включить погромче и посидеть в тишине.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "Songs by other artists that sound like RH : r/radiohead",
+              "url": "https://www.reddit.com/r/radiohead/comments/138x6gu/songs_by_other_artists_that_sound_like_rh"
+            },
+            {
+              "title": "List of songs recorded by Radiohead - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/List_of_songs_recorded_by_Radiohead"
+            }
+          ],
+          "runtimeMs": 4928,
+          "usage": {
+            "prompt": 3353,
+            "completion": 144
+          },
+          "status": "completed"
+        },
+        {
+          "question": "Нет, я про Radiohead — High and Dry: какой стиль?",
+          "reply": "«High and Dry» обычно относят к альтернативному року с оттенком пост-брит-попа — это как раз тот более мелодичный и прозрачный Radiohead времён The Bends. По темпу она спокойная, около 85 BPM, с мягким, чуть «запылённым» звучанием: тёплые клавиши, расслабленный ритм и воздух в аранжировке. Вышла песня 27 февраля 1995 года как двойной сингл вместе с «Planet Telex».",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "What Is the Song 'High and Dry' About? Radiohead's ...",
+              "url": "https://www.soundverse.ai/blog/article/what-is-the-song-high-and-dry-about-0439"
+            },
+            {
+              "title": "High and Dry / Planet Telex - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/High_and_Dry_/_Planet_Telex"
+            }
+          ],
+          "runtimeMs": 3647,
+          "usage": {
+            "prompt": 3425,
+            "completion": 131
+          },
+          "status": "completed"
+        },
+        {
+          "question": "А когда она вышла?",
+          "reply": "«High and Dry» вышла 27 февраля 1995 года — двойным синглом вместе с «Planet Telex». Это был второй сингл с альбома The Bends.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "High and Dry / Planet Telex - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/High_and_Dry_/_Planet_Telex"
+            },
+            {
+              "title": "Daily Song Discussion (16) - High And Dry (Effort Post)",
+              "url": "https://www.reddit.com/r/radiohead/comments/ay7xed/daily_song_discussion_16_high_and_dry_effort_post"
+            }
+          ],
+          "runtimeMs": 2869,
+          "usage": {
+            "prompt": 3557,
+            "completion": 44
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": 403,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — Creep song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead songs by the same artist",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — High and Dry song musical genre style instrumentation",
+          "status": 200,
+          "upperUsd": 0.008
+        },
+        {
+          "query": "Radiohead — High and Dry song release date album",
+          "status": 200,
+          "upperUsd": 0.008
+        }
+      ],
+      "modelCalls": 4
+    },
+    {
+      "file": "lira-continuation-live-widget-replay.json",
+      "generatedAt": "2026-10-03T18:35:13.638Z",
+      "code": "continuation-widget-filter-20261003",
+      "status": "completed",
+      "offlinePreflight": {
+        "mode": "offline-contract",
+        "total": 24,
+        "passCount": 24,
+        "modelCalls": 0
+      },
+      "turns": [
+        {
+          "question": "Нет, я про Radiohead — High and Dry: какой стиль?",
+          "reply": "«High and Dry» — это пост-бритпоп с явным налётом альтернативного рока. Вышла 27 февраля 1995 года как двойной A-side сингл с «Planet Telex» со второго альбома Radiohead The Bends.",
+          "cards": [],
+          "actions": [
+            "none"
+          ],
+          "sources": [
+            {
+              "title": "High and Dry / Planet Telex - Wikipedia",
+              "url": "https://en.wikipedia.org/wiki/High_and_Dry_/_Planet_Telex"
+            }
+          ],
+          "runtimeMs": 1656,
+          "usage": {
+            "prompt": 3107,
+            "completion": 63
+          },
+          "status": "completed"
+        }
+      ],
+      "searchCalls": [],
+      "modelCalls": 1
+    }
+  ]
+}
