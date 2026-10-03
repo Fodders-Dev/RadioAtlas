@@ -21,6 +21,7 @@
 // badly.
 import { createServer } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { createTavilyRelayHandler } from './tavily-relay.mjs';
 
 const PORT = Number(process.env.TELEGRAM_RELAY_PORT || 8399);
 const HOST = '127.0.0.1';
@@ -31,8 +32,15 @@ const UPSTREAM_TIMEOUT_MS = Number(process.env.TELEGRAM_RELAY_TIMEOUT_MS || 120_
 
 let served = 0;
 let failed = 0;
+const handleTavily = createTavilyRelayHandler();
 
 const server = createServer((req, res) => {
+  // Search credentials stay in memory on our two servers: SSH between them,
+  // TLS to one fixed provider. Never send a misspelled search path to Telegram.
+  if ((req.url || '').startsWith('/tavily')) {
+    if (!handleTavily(req, res)) { res.writeHead(404); res.end(); }
+    return;
+  }
   served += 1;
 
   // Rebuild the headers rather than forwarding them wholesale: `host` must name

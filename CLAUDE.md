@@ -72,9 +72,13 @@ not an achievement.
 `apps/extractor` has no `package.json`, so despite `workspaces: ["apps/*"]` it is
 not an npm workspace — `build`/`typecheck`/`test --workspaces` never touch it.
 
-The API is the only process that holds secrets and the only one that talks to
-providers (Radio Browser, DeepSeek, Tavily, Cloudflare). The browser gets an
-explicit allow-list of fields, never raw provider data.
+The API alone loads long-lived provider credentials and normally makes the
+provider requests (Radio Browser, DeepSeek, Tavily, Cloudflare). The optional
+Tavily egress fallback is the narrow exception: the API sends its bearer key in
+memory through the existing loopback/SSH path to the NL Telegram relay, which
+forwards only `/tavily/search` to the fixed Tavily HTTPS endpoint. The relay has
+no configured or persisted Tavily key and does not log it. The browser gets an
+explicit allow-list of fields, never a provider key or raw provider data.
 
 ## Commands
 
@@ -202,6 +206,13 @@ the shared box (`systemctl`, `apt-get`). `git push`, `gh workflow run`, `pm2`
 and `catalog:update` do NOT ask — the owner works with full access, and a
 dialog on every ordinary action is noise that trains you to click through the
 one that mattered. Force-pushing is refused outright, not asked about.
+
+Reading `.env`, `apps/api/data/` or a catalogue artifact is normally denied.
+For the 2026-10-03 music evaluation, the owner explicitly authorized server-only
+environment reads needed to run the agreed $3 campaign and diagnose egress.
+The launcher loads the existing API keys into its child process; no key value
+is printed, persisted by the runner or transferred off the server. This records
+that session's authorization; it never authorizes disclosure of secret values.
 
 If one of these is genuinely the right move, say which and let the developer run
 it; do not look for a way around the guard.
