@@ -1,6 +1,7 @@
 import type { ChatInput, ChatResult, ToolProvider, VerifiedStationRef } from './types.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { sourceGenres } from './currentSourceDiscovery.js';
+import { describeSourceComparison } from './sourceComparison.js';
 
 const discovery = /(?:подб[еи]р|посовет|(?:по)?рекоменд|найд|поищ|переключ|предл[ао]г|\b(?:recommend|find|suggest|show|play)\b|(?:^|\s)(?:дай|покажи|предложи(?:те)?)(?:\s|$))/i;
 const affirmative = (text:string) => text
@@ -64,14 +65,7 @@ export const answerCatalogueQuestion = async (input: ChatInput, tools: ToolProvi
     if (rows.length < 2) return answer(english
       ? 'I cannot verify two previously suggested cards here. Ask for two stations first; then I can compare their catalogue genres.'
       : 'В контексте нет двух подтверждённых предложенных карточек. Попроси два эфира — тогда сравню их жанры из каталога.');
-    const first = rows[0]!, second = rows[1]!;
-    const a = tags(first), b = tags(second);
-    const common = a.filter(tag => b.includes(tag));
-    const different = [a.filter(tag => !b.includes(tag)), b.filter(tag => !a.includes(tag))];
-    const facts = rows.map((row, index) => `«${label(row.name)}» (${label(row.country, 60)}) — ${different[index]!.join(', ') || (index === 0 ? a : b).join(', ') || (english ? 'no genre tags' : 'без жанровых тегов')}`);
-    return answer(english
-      ? `${facts.join('; ')}. ${common.length ? `Shared tags: ${common.join(', ')}.` : 'Their catalogue genres do not overlap.'} These are format hints; I cannot hear their current programmes or guarantee which will suit your work right now.`
-      : `${facts.join('; ')}. ${common.length ? `Общее: ${common.join(', ')}.` : 'Жанровые теги в каталоге не пересекаются.'} Это ориентиры по формату: текущий эфир не слышу и не могу гарантировать, какой прямо сейчас подойдёт для работы.`, rows);
+    return answer(describeSourceComparison(rows[0]!, rows[1]!, english), rows);
   }
   if (/(гарантир|guarantee)/i.test(text) && /(реклам|ведущ|вокал|advert|commercial|host|vocal)/i.test(text)) {
     return answer(english

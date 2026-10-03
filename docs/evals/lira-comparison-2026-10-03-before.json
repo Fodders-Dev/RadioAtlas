@@ -1,0 +1,17 @@
+{
+  "reply": "«Paris Jazz» (France) — jazz; «Tokyo Jazz» (Japan) — jazz. Общее: jazz. Это ориентиры по формату: текущий эфир не слышу и не могу гарантировать, какой прямо сейчас подойдёт для работы.",
+  "subgenrePreserved": false,
+  "ids": [
+    "eval-paris",
+    "eval-tokyo"
+  ],
+  "actions": [
+    {
+      "kind": "none"
+    }
+  ],
+  "usage": {
+    "prompt": 0,
+    "completion": 0
+  }
+}

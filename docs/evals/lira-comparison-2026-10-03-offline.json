@@ -1,0 +1,429 @@
+{
+  "mode": "offline-contract",
+  "modelQualityAssessed": false,
+  "total": 24,
+  "passCount": 24,
+  "modelCalls": 0,
+  "runs": [
+    {
+      "fixture": "compare-own-subgenre",
+      "passed": true,
+      "failures": [],
+      "reply": "«Paris Jazz» (France) — jazz.\n«Tokyo Jazz» (Japan) — smooth jazz.\nОбщие жанры каталога: jazz. Сравниваю формат по каталогу, а не музыку в эфире.",
+      "stationIds": [
+        "eval-paris",
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "1bab8ba0-2d14-4548-9a75-363d679d90bf:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "compare-missing-card",
+      "passed": true,
+      "failures": [],
+      "reply": "В контексте нет двух подтверждённых предложенных карточек. Попроси два эфира — тогда сравню их жанры из каталога.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "b60b30fe-0881-4c86-94e0-f4d0652c5b9c:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "compare-no-latest-pair",
+      "passed": true,
+      "failures": [],
+      "reply": "I cannot identify an exact pair from the latest reply. Ask for two stations first, then ask me to compare them.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "525b2bd3-3818-4f85-9e35-d0234c5d8ee6:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "near-country",
+      "passed": true,
+      "failures": [],
+      "reply": "Ближе по жанрам каталога к «Paris Jazz»:\n«Tokyo Jazz» (Japan) — общее: jazz.\nЭто связь по жанрам каталога; текущий эфир я не слышу.",
+      "stationIds": [
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-tokyo",
+          "actionId": "3fc6c48d-5605-49ab-9bfc-fc187e1ddb21:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "near-unsupported-vocals",
+      "passed": true,
+      "failures": [],
+      "reply": "Могу сопоставить жанры каталога, но дополнительные условия или контраст звучания подтвердить не могу. Назови жанр или направление, которое хочешь попробовать.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "1a8854e2-8818-4355-b39f-3f39a50a1f5c:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "two-genre-slots",
+      "passed": true,
+      "failures": [],
+      "reply": "Джаз — «Midnight Jazz» (US).\nЭмбиент — «Quiet Focus» (IS).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "stationIds": [
+        "eval-jazz",
+        "eval-ambient"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-jazz",
+          "actionId": "f1a44887-0104-4766-9a6b-a028e7ca4563:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "two-genre-country-partial",
+      "passed": true,
+      "failures": [],
+      "reply": "Джаз — «Tokyo Jazz» (Japan).\nЭмбиент (0 из 1) — подтверждённый источник не найден.\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "stationIds": [
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-tokyo",
+          "actionId": "45a4a433-8519-40aa-a275-f902639b367b:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "foreign-no-play",
+      "passed": true,
+      "failures": [],
+      "reply": "Вот jazz из других стран. Ориентир — жанры «Paris Jazz» в каталоге (France); треки в эфире могут отличаться.",
+      "stationIds": [
+        "eval-jazz",
+        "eval-berlin",
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-jazz",
+          "actionId": "4b80e637-049c-4de1-a1ed-a89a04dd3a83:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "foreign-en",
+      "passed": true,
+      "failures": [],
+      "reply": "Here’s jazz from other countries. The reference is “Paris Jazz” in the catalogue (France); live songs may differ.",
+      "stationIds": [
+        "eval-jazz",
+        "eval-berlin",
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-jazz",
+          "actionId": "39050c19-fec5-43de-941a-4615f083e2ae:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "foreign-explicit-play",
+      "passed": true,
+      "failures": [],
+      "reply": "Вот jazz из других стран. Ориентир — жанры «Paris Jazz» в каталоге (France); треки в эфире могут отличаться.",
+      "stationIds": [
+        "eval-jazz",
+        "eval-berlin",
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "play",
+          "stationuuid": "eval-jazz",
+          "actionId": "0ff41be9-38d9-48d4-ba46-e6df7dec9323:1",
+          "permission": "write"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "play-then-prohibition",
+      "passed": true,
+      "failures": [],
+      "reply": "Вот jazz из других стран. Ориентир — жанры «Paris Jazz» в каталоге (France); треки в эфире могут отличаться.",
+      "stationIds": [
+        "eval-jazz",
+        "eval-berlin",
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-jazz",
+          "actionId": "179c075f-ab57-4d89-a243-500b10ab62d3:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "foreign-more",
+      "passed": true,
+      "failures": [],
+      "reply": "Вот jazz из других стран. Ориентир — жанры «Paris Jazz» в каталоге (France); треки в эфире могут отличаться.",
+      "stationIds": [
+        "eval-tokyo"
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "eval-tokyo",
+          "actionId": "394a0dbb-0123-4569-bba4-33b79d6128bb:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "missing-context",
+      "passed": true,
+      "failures": [],
+      "reply": "Не вижу подтверждённой станции. Выбери источник и попроси похожее из другой страны.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "f20cf89d-49ce-4451-912b-24427762dfed:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "missing-source",
+      "passed": true,
+      "failures": [],
+      "reply": "Не вижу подтверждённой станции. Выбери источник и попроси похожее из другой страны.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "7676bd5d-af91-4b8e-abe2-1c407d3d56ba:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "missing-country",
+      "passed": true,
+      "failures": [],
+      "reply": "В каталоге этой станции не хватает страны или музыкальных жанров. Могу поискать по жанру, который ты выберешь.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "c6b21025-0fa3-4497-8d1f-1c8dfe3dea6a:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "missing-genre",
+      "passed": true,
+      "failures": [],
+      "reply": "В каталоге этой станции не хватает страны или музыкальных жанров. Могу поискать по жанру, который ты выберешь.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "4040a087-d9a2-41b5-836d-82eda26ed843:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "unsupported-energy",
+      "passed": true,
+      "failures": [],
+      "reply": "Могу сопоставить жанры из каталога и выбрать другую страну, но все дополнительные условия подтвердить не могу. Для конкретной страны напиши жанр и страну поиска.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "d1abd1b0-98ee-4bac-b3e3-8aab3aee8159:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "unsupported-more",
+      "passed": true,
+      "failures": [],
+      "reply": "Могу сопоставить жанры из каталога и выбрать другую страну, но все дополнительные условия подтвердить не могу. Для конкретной страны напиши жанр и страну поиска.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "ee84a700-013c-4533-899a-cfc7574cd921:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "no-foreign-match",
+      "passed": true,
+      "failures": [],
+      "reply": "Станций с родственными жанрами из другой страны сейчас не нашла. Можешь выбрать другой жанр для поиска.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "92d70def-634c-4871-ad40-a7290a7981a0:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "lookup-unavailable",
+      "passed": true,
+      "failures": [],
+      "reply": "Не получилось собрать ответ на этот раз. Попробуй чуть позже.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "5ea7cab1-3d79-4d99-8e4f-e7c0beafb783:1",
+          "permission": "read"
+        }
+      ],
+      "status": "failed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "search-unavailable",
+      "passed": true,
+      "failures": [],
+      "reply": "Не получилось собрать ответ на этот раз. Попробуй чуть позже.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "5be8d39a-af1a-4dae-b59f-b0f1098b6998:1",
+          "permission": "read"
+        }
+      ],
+      "status": "failed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "pause-is-transport",
+      "passed": true,
+      "failures": [],
+      "reply": "Поставила на паузу.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "pause",
+          "actionId": "e6e30580-194c-4ac7-a7b6-a65bd656a578:1",
+          "permission": "write"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "already-paused",
+      "passed": true,
+      "failures": [],
+      "reply": "Уже на паузе.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "59581757-2cd9-4909-aa4b-89e7135403d0:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    },
+    {
+      "fixture": "unsupported-enqueue",
+      "passed": true,
+      "failures": [],
+      "reply": "Могу сопоставить жанры из каталога и выбрать другую страну, но все дополнительные условия подтвердить не могу. Для конкретной страны напиши жанр и страну поиска.",
+      "stationIds": [],
+      "actions": [
+        {
+          "kind": "none",
+          "actionId": "efc77905-53af-4e77-86ea-237fa16ebc52:1",
+          "permission": "read"
+        }
+      ],
+      "status": "completed",
+      "modelCalls": 0
+    }
+  ]
+}

@@ -79,6 +79,15 @@ const foreign = ['eval-jazz', 'eval-berlin', 'eval-tokyo'];
 const query = 'Найди похожее из другой страны, не включай';
 
 export const CONTRACT_FIXTURES: ContractFixture[] = [
+  { id: 'compare-own-subgenre', input: input('Чем эти две отличаются? Не включай.', {
+    userTaste: { lastSuggestedStationIds: ['eval-paris', 'eval-tokyo'], lastRecommendedStationIds: ['eval-rock'] }
+  }), stationIds: ['eval-paris', 'eval-tokyo'], action: 'none', replyIncludes: 'smooth jazz' },
+  { id: 'compare-missing-card', input: input('Сравни эти две станции.', {
+    userTaste: { lastSuggestedStationIds: ['eval-paris', 'not-in-catalogue'] }
+  }), stationIds: [], action: 'none', replyIncludes: 'нет двух подтверждённых' },
+  { id: 'compare-no-latest-pair', input: input('Compare these two. Do not play.', {
+    locale: 'en', userTaste: { lastSuggestedStationIds: [], lastRecommendedStationIds: ['eval-paris', 'eval-tokyo'] }
+  }), stationIds: [], action: 'none', replyIncludes: 'exact pair' },
   { id: 'near-country', input: input('Найди одну похожую станцию из Японии. Не включай.'), stationIds: ['eval-tokyo'], action: 'open-station', replyIncludes:'общее: jazz' },
   { id: 'near-unsupported-vocals', input: input('Найди похожее без вокала. Не включай.'), stationIds: [], action: 'none', replyIncludes:'дополнительные условия' },
   { id: 'two-genre-slots', input: input('Найди одну джазовую станцию и одну с эмбиентом. Не включай.'), stationIds: ['eval-jazz','eval-ambient'], action: 'open-station' },
