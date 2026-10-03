@@ -8,7 +8,7 @@ test('offline Lira contracts exercise the real worker with zero provider calls a
   assert.equal(report.mode, 'offline-contract');
   assert.equal(report.modelQualityAssessed, false);
   assert.equal(report.modelCalls, 0);
-  assert.equal(report.total, 21);
+  assert.equal(report.total, 24);
   assert.equal(report.passCount, report.total, JSON.stringify(report.runs.filter(run => !run.passed)));
   assert.equal(report.runs.find(run => run.fixture === 'lookup-unavailable')?.status, 'failed');
   assert.equal(report.runs.find(run => run.fixture === 'search-unavailable')?.status, 'failed');

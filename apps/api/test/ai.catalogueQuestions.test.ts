@@ -19,7 +19,7 @@ test('metadata-only tags are not presented as genre differences or musical taste
   const metadataTools = {...tools, getStation:async (id:string)=>rows.find(row=>row.stationuuid===id) || null};
   const comparison = await answerCatalogueQuestion(input('Чем эти две отличаются?',{userTaste:{lastSuggestedStationIds:['x','y']}}),metadataTools);
   assert.deepEqual(comparison?.stations.map(row=>row.stationuuid),['x','y']);
-  assert.match(comparison!.reply,/без жанровых тегов/);
+  assert.match(comparison!.reply,/недостаточно данных о жанре/);
   assert.doesNotMatch(comparison!.reply,/128kbps|70er|black music|Общее:/);
   const taste = await answerCatalogueQuestion(input('Что общего у моих избранных станций?',{userTaste:{favoriteStationIds:['x','y']}}),metadataTools);
   assert.doesNotMatch(taste!.reply,/128kbps|70er|black music|Общие теги:/);
@@ -32,6 +32,7 @@ test('comparison resolves the provided two IDs, uses actual differences and neve
   assert.deepEqual(r?.stations.map(s=>s.stationuuid),['f','a']);
   assert.match(r!.reply,/Real Funk.*funk, soul/);
   assert.match(r!.reply,/Real Ambient.*ambient/);
+  assert.match(r!.reply,/жанровые метки каталога не пересекаются/);
   assert.deepEqual(r?.actions,[{kind:'none'}]);
   assert.deepEqual(r?.usage,{prompt:0,completion:0});
 });
