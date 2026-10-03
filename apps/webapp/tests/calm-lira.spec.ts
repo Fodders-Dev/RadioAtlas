@@ -1,6 +1,119 @@
 import { expect, test } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState, stations } from './helpers';
 
+for (const {width, theme} of [{width:390,theme:'journal'}, {width:834,theme:'journal'}, {width:1440,theme:'journal'}, {width:390,theme:'aurora-field'}]) {
+  test(`Lira selection enters the shared Feed queue only after listening at ${width}px ${theme}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 834 ? 1112 : width === 390 ? 844 : 900 });
+    await mockStations(page);
+    await installMediaMocks(page);
+    await seedRadioState(page, { activeSection: 'feed', queue: [stations[0]], queueCurrentIndex: 0, stationCache: stations });
+    await page.addInitScript(theme => localStorage.setItem('radio:theme-current:v1', JSON.stringify(theme)), theme);
+    await page.route('**/catalog/stations/**', async route => {
+      const id = decodeURIComponent(route.request().url().split('/').pop() || '');
+      const item = stations.find(station => station.stationuuid === id);
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ item }) });
+    });
+    const offered = stations.slice(1, 3);
+    await page.route('**/ai/chat**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      reply: 'Два направления для пробы', stations: offered.map(station => ({ ...station, tags: station.tags.split(',') })), actions: [{ kind: 'none' }]
+    }) }));
+    await page.goto('/?calm=1');
+    await page.getByRole('button', { name: 'Лира', exact: true }).click();
+    const chat = page.locator('[data-chat-sheet]');
+    await chat.getByRole('textbox').fill('Подбери два направления. Не включай.');
+    await chat.getByRole('button', { name: 'Отправить', exact: true }).click();
+    await expect(chat.getByText('Два направления для пробы', { exact: true })).toBeVisible();
+    const queue = () => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+    expect((await queue()).items.map((station: {stationuuid:string}) => station.stationuuid)).toEqual([stations[0].stationuuid]);
+    expect(await page.evaluate(() => document.querySelector('audio')?.getAttribute('src') || null)).toBeNull();
+    await page.screenshot({ path: `../../output/lira-feed-selection-${width}-${theme}.png` });
+    await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
+    await expect(chat).toHaveCount(0);
+    await expect.poll(async () => (await queue()).items.map((station: {stationuuid:string}) => station.stationuuid))
+      .toEqual(offered.map(station => station.stationuuid));
+    expect((await queue()).sourceLabel).toBe('Подборка Лиры');
+    await expect(page.locator('.station-feed-card-content[data-focus="true"]')).toContainText(offered[0].name);
+    await page.locator('.station-feed-card-content[data-focus="true"]').getByRole('button', { name: 'Следующий эфир', exact: true }).click();
+    await expect.poll(async () => (await queue()).currentIndex).toBe(1);
+    await expect(page.locator('.station-feed-card-content[data-focus="true"]')).toContainText(offered[1].name);
+    await page.locator('.station-feed-card-content[data-focus="true"]').getByRole('button', { name: 'Предыдущий эфир', exact: true }).click();
+    await expect.poll(async () => (await queue()).currentIndex).toBe(0);
+  });
+}
+
+test('an unavailable Lira selection leaves the existing queue and sound intact', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page, { summaryHandler: route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ catalogPool: [stations[0]], freshSignals: [], searchLaunch: [], sponsored: [], counts: { stations: 1, countries: 1, languages: 1, genres: 1 } }) }) });
+  await installMediaMocks(page);
+  await seedRadioState(page, { queue: [stations[0]], queueCurrentIndex: 0, stationCache: [stations[0]] });
+  await page.route('**/catalog/stations/**', route => route.fulfill({ status: 404, body: '{}' }));
+  // The browser fallback builds its local snapshot before looking up an ID.
+  // Mock that snapshot and all three by-UUID hosts so unavailable synthetic IDs
+  // are absent from both catalogues without live network timing in this spec.
+  await page.route('**/json/stations/topvote/**', route =>
+    route.fulfill({ contentType: 'application/json', body: '[]' })
+  );
+  const fallbackLookups: string[] = [];
+  await page.route(/^https:\/\/(?:de1|nl1|at1)\.api\.radio-browser\.info\/json\/stations\/byuuid\//, route => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split('/').pop() || '');
+    fallbackLookups.push(id);
+    return route.fulfill({ contentType: 'application/json', body: '[]' });
+  });
+  await page.route('**/ai/chat**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    reply: 'Недоступная подборка', stations: stations.slice(1, 3).map(station => ({ ...station, stationuuid: `unavailable-${station.stationuuid}`, tags: station.tags.split(',') })), actions: [{kind:'none'}]
+  }) }));
+  await page.goto('/?calm=1');
+  await page.locator('[data-stage-play]').click();
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+  const originalAudio = await page.locator('audio').getAttribute('src');
+  const originalQueue = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue);
+  await page.getByRole('button', { name: 'Лира', exact: true }).click();
+  const chat = page.locator('[data-chat-sheet]');
+  await chat.getByRole('textbox').fill('Два эфира');
+  await chat.getByRole('button', { name: 'Отправить', exact: true }).click();
+  await expect(chat.getByText('Недоступная подборка', {exact:true})).toBeVisible();
+  await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
+  await expect(chat.getByRole('status')).toContainText('Одна из станций сейчас недоступна');
+  expect(fallbackLookups).toEqual(['unavailable-uuid-osaka', 'unavailable-uuid-kyoto']);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(originalQueue);
+  expect(await page.locator('audio').getAttribute('src')).toBe(originalAudio);
+  await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
+
+  // The failure is recoverable: the listener can try the same CTA again.
+  await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
+  await expect(chat.getByRole('status')).toContainText('Одна из станций сейчас недоступна');
+  expect(fallbackLookups).toEqual([
+    'unavailable-uuid-osaka', 'unavailable-uuid-kyoto',
+    'unavailable-uuid-osaka', 'unavailable-uuid-kyoto'
+  ]);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(originalQueue);
+  expect(await page.locator('audio').getAttribute('src')).toBe(originalAudio);
+});
+
+test('a failed selection stream releases the Lira listening control', async ({ page }) => {
+  test.setTimeout(100_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockStations(page);
+  await seedRadioState(page, { queue: [stations[0]], queueCurrentIndex: 0, stationCache: stations });
+  // Real HTMLMediaElement plus failed HTTP, rather than resolving play() in the fixture.
+  for (const pattern of ['https://stream.example.com/**', '**/stream?url=**']) {
+    await page.route(pattern, route => route.fulfill({ status: 502, body: 'stream unavailable' }));
+  }
+  await page.route('**/ai/chat**', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+    reply: 'Пара для проверки', stations: stations.slice(1, 3).map(station => ({ ...station, tags: station.tags.split(',') })), actions: [{kind:'none'}]
+  }) }));
+  await page.goto('/?calm=1');
+  await page.getByRole('button', { name: 'Лира', exact: true }).click();
+  const chat = page.locator('[data-chat-sheet]');
+  await chat.getByRole('textbox').fill('Два эфира');
+  await chat.getByRole('button', { name: 'Отправить', exact: true }).click();
+  const launch = chat.getByRole('button', { name: 'Слушать в Ленте', exact: true });
+  await launch.click();
+  await expect(chat.getByRole('status')).toContainText('Одна из станций сейчас недоступна', {timeout:80_000});
+  await expect(launch).toBeEnabled();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue.items.map((station:{stationuuid:string})=>station.stationuuid))).toEqual([stations[0].stationuuid]);
+});
+
 for (const width of [390, 834, 1440]) {
   test(`Lira sends only the latest offered slate at ${width}px without playing`, async ({ page }) => {
     await page.setViewportSize({ width, height: width === 834 ? 1112 : width === 390 ? 844 : 900 });

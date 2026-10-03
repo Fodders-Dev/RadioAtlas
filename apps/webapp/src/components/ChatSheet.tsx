@@ -16,6 +16,7 @@ import { StationArtwork } from './StationArtwork';
 import type { StationLite } from '../types';
 import { localizedCountry } from '../lib/countryName';
 import { liraOpeningStations } from '../lib/liraOpening';
+import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import {
   latestSuggestedStationIds,
   postChatMessage,
@@ -224,9 +225,9 @@ const buildChatUserTaste = (
 export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { t, locale } = useLocale();
   const { fetchStationById, summary } = useCatalog();
-  const { player, queue, nowPlaying, playStation } = usePlayback();
+  const { player, queue, nowPlaying, nowPlayingStatus, playStation, playStationQueue } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
-  const { setGlobeFocusStationId, setActiveSection } = useShell();
+  const { setGlobeFocusStationId, setActiveSection, rerollFeedSeed, setFeedEntryStation } = useShell();
   // «Показать на глобусе» from a recommended source: the calm Globe lands on
   // its dot when the catalogue has coordinates, on its country otherwise.
   const showOnGlobe = (stationuuid: string) => {
@@ -247,7 +248,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const promptSeedRef = useRef(0);
   const welcomeVisible = open && messages.length === 0;
   const contextStation = prompt?.station ?? player.current ?? player.pending;
-  const contextTrack = contextStation?.stationuuid === player.current?.stationuuid ? nowPlaying : undefined;
+  const contextTrack = contextStation?.stationuuid === player.current?.stationuuid
+    ? resolveNowPlayingTrust({ station: player.current, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track
+    : undefined;
   useEffect(() => {
     if (welcomeVisible) promptSeedRef.current += 1;
   }, [welcomeVisible]);
@@ -264,6 +267,56 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [feedLaunchId, setFeedLaunchId] = useState<number | null>(null);
+  const [feedLaunchError, setFeedLaunchError] = useState<number | null>(null);
+  const [feedLaunchSource, setFeedLaunchSource] = useState<string | null>(null);
+  const feedLaunchGeneration = useRef(0);
+  useEffect(() => () => { feedLaunchGeneration.current += 1; }, []);
+  useEffect(() => {
+    if (!feedLaunchSource || queue.sourceId !== feedLaunchSource || !queue.items.length) return;
+    // The lazy transport publishes its queue asynchronously. Enter only once
+    // that exact selection exists, so Feed cannot mount on a stale queue/deck.
+    rerollFeedSeed();
+    setFeedEntryStation(queue.items[Math.max(queue.currentIndex, 0)] ?? null);
+    setFeedLaunchSource(null);
+    setFeedLaunchId(null);
+    onClose();
+    setActiveSection('feed');
+  }, [feedLaunchSource, queue.sourceId, queue.items, queue.currentIndex]);
+
+  // Reading a reply never changes sound or the queue. Only this explicit
+  // listening gesture hands the exact verified selection to the shared transport.
+  const listenInFeed = async (message: ChatMessage) => {
+    if (feedLaunchId !== null) return;
+    const generation = ++feedLaunchGeneration.current;
+    setFeedLaunchId(message.id);
+    setFeedLaunchError(null);
+    const ids = [...new Set((message.stations || []).map(station => station.stationuuid).filter(Boolean))].slice(0, 5);
+    const stations = await Promise.all(ids.map(id => fetchStationById(id).catch(() => null)));
+    if (generation !== feedLaunchGeneration.current) return;
+    const valid = stations.filter((station, index): station is NonNullable<typeof station> =>
+      Boolean(station && station.stationuuid === ids[index] && station.url_resolved));
+    // Do not silently turn a partly unavailable selection into another set.
+    if (!valid.length || valid.length !== ids.length) {
+      setFeedLaunchId(null);
+      setFeedLaunchError(message.id);
+      return;
+    }
+    const sourceId = `lira-selection:${message.id}:${generation}`;
+    setFeedLaunchSource(sourceId);
+    try {
+      const outcome = await playStationQueue(valid, { sourceId, sourceLabel: t('chat.feedSelection') });
+      if (generation !== feedLaunchGeneration.current || outcome === 'played') return;
+      setFeedLaunchSource(null);
+      setFeedLaunchId(null);
+      if (outcome === 'exhausted') setFeedLaunchError(message.id);
+    } catch {
+      if (generation !== feedLaunchGeneration.current) return;
+      setFeedLaunchSource(null);
+      setFeedLaunchId(null);
+      setFeedLaunchError(message.id);
+    }
+  };
 
   // Under the calm preview Лира is a SECTION, not a modal: the nav and the mini
   // player stay reachable, so nothing traps focus or inerts the shell.
@@ -373,6 +426,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   };
 
   const playVerified = async (stationuuid: string) => {
+    feedLaunchGeneration.current += 1;
+    setFeedLaunchId(null);
+    setFeedLaunchSource(null);
     const station = await fetchStationById(stationuuid).catch(() => null);
     if (station && station.url_resolved) {
       playStation(station, { sourceId: 'assistant', sourceLabel: t('chat.sourceLabel') });
@@ -382,6 +438,12 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const send = async (override?: string) => {
     const text = (override ?? input).trim();
     if (!text || sending) return;
+    // A new request cancels a not-yet-started selection lookup. Late catalogue
+    // responses must not replace the queue while the listener asks something else.
+    feedLaunchGeneration.current += 1;
+    setFeedLaunchId(null);
+    setFeedLaunchSource(null);
+    setFeedLaunchError(null);
     const history: ChatHistoryTurn[] = messages
       .filter((message) => !message.errorFor)
       .slice(-HISTORY_LIMIT)
@@ -486,6 +548,10 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
   const startFresh = () => {
     if (!window.confirm(t('chat.clearChatConfirm'))) return;
+    feedLaunchGeneration.current += 1;
+    setFeedLaunchId(null);
+    setFeedLaunchSource(null);
+    setFeedLaunchError(null);
     triggerSelectionHaptic();
     setMessages([]);
     setInput('');
@@ -725,6 +791,20 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                 ) : null}
                 {message.stations && message.stations.length ? (
                   <div className="chat-station-list">
+                    {message.stations.length > 1 ? (
+                      <button
+                        type="button"
+                        className="chat-feed-selection"
+                        onClick={() => { triggerHaptic('light'); void listenInFeed(message); }}
+                        disabled={feedLaunchId !== null || sending}
+                        data-chat-feed-selection={message.id}
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 10 7-10 7V5Z" /></svg>
+                        <span>{t(feedLaunchId === message.id ? 'chat.feedPreparing' : 'chat.listenInFeed')}</span>
+                        <span className="chat-feed-count" aria-hidden="true">{message.stations.length}</span>
+                      </button>
+                    ) : null}
+                    {feedLaunchError === message.id ? <p className="chat-feed-error" role="status">{t('chat.feedUnavailable')}</p> : null}
                     {message.stations.map((station) => (
                       <div key={station.stationuuid} className="chat-station-item">
                       <button

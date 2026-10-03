@@ -102,6 +102,13 @@ test('Home card favorite saves the displayed station without changing playback o
   await expect(stage).toHaveAttribute('data-calm-offer', firstId);
   await expect(favorite).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => readFavoriteIds(page)).toContain(firstId);
+  // Queue writes are debounced. The screen can already be back on Tokyo while
+  // storage still points at the station selected by the preceding Next action.
+  // Prove the state under test reached storage before using reload as a restart.
+  await expect.poll(async () => {
+    const queue = await readQueue(page);
+    return queue?.items?.[queue.currentIndex]?.stationuuid;
+  }).toBe(firstId);
   const savedQueue = await readQueue(page);
   await page.reload();
   await expect(stage).toHaveAttribute('data-calm-offer', firstId);

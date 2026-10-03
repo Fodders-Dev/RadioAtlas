@@ -510,6 +510,15 @@ export const StationFeed = () => {
   const personalQueue = CALM_PREVIEW && queue.items.length > 0 && queue.sourceId && queue.sourceId !== FEED_SOURCE_ID && queue.sourceId !== 'home-calm' ? queue : null;
   const [context, setContext] = useState<'queue' | 'discovery'>(() => restoreVisit?.context ?? (personalQueue ? 'queue' : 'discovery'));
   const queueMode = context === 'queue' && Boolean(personalQueue);
+  useEffect(() => {
+    // An explicit entry from a chosen source set takes precedence over a saved
+    // discovery visit, including when Feed was already mounted behind chat.
+    if (feedEntryStation && personalQueue?.items.some(station => station.stationuuid === feedEntryStation.stationuuid)) {
+      setContext('queue');
+      setUseRestoredDeck(false);
+      restorePendingRef.current = null;
+    }
+  }, [feedEntryStation?.stationuuid, personalQueue?.sourceId]);
   // The audio runtime is lazy on a cold reload, while its persisted queue is
   // available immediately. For the two Feed-owned queue sources, use their
   // persisted current row as the listener station until current/pending hydrates;

@@ -25,7 +25,17 @@ for (const size of [{ width: 390, height: 844 }, { width: 834, height: 1112 }, {
       await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ reply: 'Подбор по выбранному источнику', stations: [], actions: [{ kind: 'none' }] }) });
     });
     await page.goto('/?calm=1');
-    await expect(page.locator(`[data-calm-live-station="${selected.stationuuid}"]`)).toBeVisible();
+    await expect(page.locator('[data-calm-live-station]').first()).toBeVisible();
+    const selectedRow = page.locator(`[data-calm-live-station="${selected.stationuuid}"]`);
+    // Home pages its live catalogue by viewport: at tablet width only six
+    // sources are initially shown. Reveal further pages through the actual
+    // control instead of assuming this fixture lands on the first page.
+    for (let pageIndex = 0; pageIndex < 4 && !(await selectedRow.count()); pageIndex += 1) {
+      const more = page.locator('[data-calm-live-more]');
+      await expect(more, 'the selected fixture source must be reachable in Home pagination').toBeVisible();
+      await more.click();
+    }
+    await expect(selectedRow).toBeVisible();
     const homeQueue = await page.locator('[data-calm-live-station]').evaluateAll(rows => rows.map(row => row.getAttribute('data-calm-live-station')));
     await page.locator(`[data-calm-live-station="${stations[0].stationuuid}"] .calm-live-open`).click();
     await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');

@@ -197,7 +197,7 @@ export type PlaybackContextValue = {
   playStationQueue: (
     stations: Array<Station | StationLite>,
     options?: Pick<PlayStationOptions, 'sourceId' | 'sourceLabel'>
-  ) => void;
+  ) => Promise<'played' | 'exhausted' | 'handedOver'>;
   playPrevious: () => void;
   playNext: () => void;
   playLast: () => void;

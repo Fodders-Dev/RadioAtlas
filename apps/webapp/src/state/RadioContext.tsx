@@ -1605,11 +1605,11 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     stations: Array<Station | StationLite>,
     options?: Pick<PlayStationOptions, 'sourceId' | 'sourceLabel'>
   ) =>
-    void (async () => {
+    (async () => {
       const items = normalizeStations(stations);
       if (!items.length) {
         notify(t('toast.noPlayable'));
-        return;
+        return 'exhausted' as const;
       }
       rememberStations(items);
       const sourceId = options?.sourceId ?? 'station-queue';
@@ -1641,6 +1641,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       // Only `exhausted` earns the notice: it is the one outcome where we
       // actually tried this listener's stations and they actually failed.
       if (result === 'exhausted') notify(t('toast.noPlayable'));
+      return result;
     })();
 
   useEffect(() => {

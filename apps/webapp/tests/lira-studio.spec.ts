@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { installMediaMocks, mockStations, seedRadioState, stations, waitForAnimationsToSettle } from './helpers';
+import { toLite } from '../src/lib/stationUtils';
 
 for (const size of [{ width: 320, height: 740 }, { width: 390, height: 844 },
   { width: 834, height: 1112 }, { width: 1024, height: 768 }, { width: 1440, height: 900 }]) {
@@ -18,11 +19,16 @@ for (const size of [{ width: 320, height: 740 }, { width: 390, height: 844 },
     });
     await page.goto('/?calm=1');
     const nav = page.locator(size.width < 900 ? '.app-navigation-mobile' : '.app-navigation-desktop');
-    const snapshot = () => page.evaluate(() => {
+    const snapshot = async () => {
+      const state = await page.evaluate(() => {
       const audio = document.querySelector('audio');
       return { src: audio?.getAttribute('src') || null, paused: audio?.paused ?? true,
         queue: JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue };
-    });
+      });
+      // Seed rows include provider-only codec/language fields. Late hydration
+      // publishes StationLite; compare the complete playable queue contract.
+      return {...state, queue:{...state.queue,items:state.queue.items.map(toLite)}};
+    };
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue?.items?.length)).toBe(3);
     await nav.getByRole('button', { name: 'Лента', exact: true }).click();
     // A restored paused source need not have an attached stream yet. Start
