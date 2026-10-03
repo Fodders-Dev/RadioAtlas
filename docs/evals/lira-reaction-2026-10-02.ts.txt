@@ -1,0 +1,178 @@
+import { writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { runLiraAgent } from '../apps/api/src/ai/agentRunner.js';
+import type { AssistantDeps, ChatInput, SearchStationsArgs, VerifiedStationRef } from '../apps/api/src/ai/types.js';
+
+const jsonPath = resolve('output/lira-reaction-diagnosis.json');
+const logPath = resolve('output/lira-reaction-diagnosis.log');
+const originalUser = 'Подбери энергичное радио из России, без новостей. Два варианта, не включай.';
+const assistantBrief = 'Вот прошлые варианты: Prior 1 и Prior 2.';
+const priorIds = ['prior-01', 'prior-02', 'prior-03', 'prior-04', 'prior-05'];
+const hiddenId = 'hidden-01';
+const negativeId = 'negative-01';
+const reactions = [
+  { name: 'softer', latest: 'Помягче', tags: ['chillout', 'downtempo'] },
+  { name: 'more_broken', latest: 'Хочется рванее', tags: ['breakbeat', 'drum and bass'] },
+  { name: 'more_energy', latest: 'Больше энергии', tags: ['drum and bass', 'electronic'] },
+  { name: 'different_direction', latest: 'Другое направление', tags: ['house', 'indie'] },
+  { name: 'keep_country', latest: 'Нужен рваный ритм. Страну сохрани', tags: ['breakbeat', 'industrial'] },
+  { name: 'deep_house', latest: 'Теперь deep house', tags: ['deep house', 'house'] },
+  { name: 'pizza_then_short_followup', latest: 'и?', tags: [], pizza: true }
+];
+
+const station = (stationuuid: string, name: string, country: string, tags: string[], url_resolved = `https://radio.fixture/${stationuuid}`): VerifiedStationRef => ({
+  stationuuid, name, country, tags, favicon: '', url_resolved
+});
+const anchors = new Map<string, VerifiedStationRef>([
+  ['prior-01', station('prior-01', 'Prior Anchor One', 'Russia', ['energy'], 'https://radio.fixture/prior-one')],
+  ['prior-02', station('prior-02', 'Prior Anchor Two', 'Russia', ['energy'], 'https://radio.fixture/shared?channel=a#old')],
+  ['prior-03', station('prior-03', 'Radio Sonic AAC', 'Russia', ['energy'], 'https://radio.fixture/name-anchor')],
+  ['prior-04', station('prior-04', 'Prior Anchor Four', 'Russia', ['energy'])],
+  ['prior-05', station('prior-05', 'Prior Anchor Five', 'Russia', ['energy'])],
+  [hiddenId, station(hiddenId, 'Hidden Favorite', 'Russia', ['energy'])],
+  [negativeId, station(negativeId, 'Negative Favorite', 'Russia', ['energy'])]
+]);
+const promptEvidence = (messages: Array<{ role: string; content: string }>) => {
+  const systems = messages.filter(message => message.role === 'system').map(message => message.content);
+  return {
+    userRequestRecordMessages: systems.filter(text => text.startsWith('USER REQUEST RECORD')).map(text => text.slice(0, 1400)),
+    replyContextHeads: systems.filter(text => text.startsWith('REPLY CONTEXT')).map(text => text.slice(0, 300))
+  };
+};
+
+async function main() {
+const reports: unknown[] = [];
+for (const reaction of reactions) {
+  const modelRequests: Array<Record<string, unknown>> = [];
+  const searches: Array<Record<string, unknown>> = [];
+  const batchRequests: string[][] = [];
+  const serialLookupRequests: string[] = [];
+  const plannerTags = reaction.tags;
+  const planner = reaction.pizza || !plannerTags.length
+    ? JSON.stringify({ action: 'final', intent: 'chat' })
+    : JSON.stringify({
+        action: 'use_tool', intent: 'recommend', tool: 'search_stations', args: { query: plannerTags[0] },
+        semanticSearch: { kind: 'hypothesis', tags: plannerTags }
+      });
+  const deps: AssistantDeps = {
+    model: {
+      provider: 'deepseek', enabled: true, apiKey: 'fixture-only', baseUrl: 'https://fixture.invalid/v1',
+      model: 'fixture', maxOutputTokens: 1000, timeoutSec: 5
+    },
+    musicServices: [],
+    now: () => 1_800_000_000_000,
+    log: () => undefined,
+    tools: {
+      getStation: async id => { serialLookupRequests.push(id); return anchors.get(id) || null; },
+      getStationsByIds: async ids => {
+        batchRequests.push([...ids]);
+        return ids.flatMap(id => anchors.has(id) ? [anchors.get(id)!] : []);
+      },
+      searchStations: async (args: SearchStationsArgs) => {
+        searches.push({ query: args.query, tag: args.tag, semanticGenre: args.semanticGenre,
+          country: args.country, limit: args.limit, excludeStationIds: args.excludeStationIds });
+        const tag = args.semanticGenre || args.tag || args.query || 'music';
+        return [
+          station('prior-01', 'Prior Anchor One', 'Russia', [tag], 'https://radio.fixture/prior-one'),
+          station('stream-mirror', 'Different Stream Label', 'Russia', [tag], 'https://radio.fixture/shared?channel=a#new'),
+          station('name-mirror', 'Radio Sonic (128 kbps)', 'Russia', [tag], 'https://radio.fixture/name-mirror'),
+          station(hiddenId, 'Hidden Favorite', 'Russia', [tag]),
+          station(negativeId, 'Negative Favorite', 'Russia', [tag]),
+          station(`foreign-${tag}`, `Foreign ${tag}`, 'France', [tag]),
+          station(`news-${tag}`, `News ${tag}`, 'Russia', [tag, 'news']),
+          station(`fresh-a-${tag}`, `Fresh A ${tag}`, 'Russia', [tag]),
+          station(`fresh-b-${tag}`, `Fresh B ${tag}`, 'Russia', [tag])
+        ];
+      },
+      discoverTrending: async () => []
+    },
+    fetch: (async (url, init) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { messages?: Array<{ role: string; content: string }> };
+      const messages = body.messages || [];
+      const systemText = messages.filter(message => message.role === 'system').map(message => message.content).join('\n');
+      modelRequests.push({
+        url: String(url),
+        phase: systemText.includes('PLANNER MODE') ? 'planner' : systemText.includes('radio genre tag') ? 'tag_mapper' : 'composer_or_other',
+        plannerMode: systemText.includes('PLANNER MODE'),
+        promptEvidence: promptEvidence(messages),
+        userMessages: messages.filter(message => message.role === 'user').map(message => message.content)
+      });
+      const content = systemText.includes('PLANNER MODE') ? planner : 'Поняла, попробую изменить подборку.';
+      return new Response(JSON.stringify({ choices: [{ message: { content } }], usage: { prompt_tokens: 10, completion_tokens: 6 } }), {
+        status: 200, headers: { 'content-type': 'application/json' }
+      });
+    }) as typeof fetch
+  };
+  const priorHistory = reaction.pizza
+    ? [
+        { role: 'user' as const, text: originalUser },
+        { role: 'assistant' as const, text: assistantBrief },
+        { role: 'user' as const, text: 'Что лучше подать к пицце?' },
+        { role: 'assistant' as const, text: 'Можно взять салат и напиток.' }
+      ]
+    : [
+        { role: 'user' as const, text: originalUser },
+        { role: 'assistant' as const, text: assistantBrief }
+      ];
+  const input: ChatInput = {
+    userMessage: reaction.latest,
+    history: priorHistory,
+    surface: 'miniapp', locale: 'ru',
+    userTaste: {
+      lastRecommendedStationIds: priorIds,
+      hiddenStationIds: [hiddenId],
+      negativeStationIds: [negativeId]
+    }
+  };
+  const result = await runLiraAgent(input, deps);
+  reports.push({
+    case: reaction.name,
+    initialRequest: originalUser,
+    assistantBrief,
+    latestUserReaction: reaction.latest,
+    fixturePlannerDirections: plannerTags,
+    pizzaTopicTurnIncluded: Boolean(reaction.pizza),
+    modelRequests,
+    toolInputs: {
+      searches,
+      batchRequests,
+      serialLookupRequests
+    },
+    observedResult: {
+      cards: result.stations.map(item => ({ stationuuid: item.stationuuid, name: item.name, country: item.country, tags: item.tags })),
+      actions: result.actions,
+      serviceLinks: result.serviceLinks.map(link => ({ service: link.service, url: link.url })),
+      reply: result.reply,
+      constraintFilter: result.constraintFilter,
+      agentRun: result.agentRun
+    },
+    fixtureBoundary: {
+      modelTransportUrls: modelRequests.map(request => request.url),
+      allModelTransportCallsStayedOnFixture: modelRequests.every(request => String(request.url).startsWith('https://fixture.invalid/')),
+      noNetworkProviderBound: true
+    }
+  });
+}
+
+const report = {
+  purpose: 'Observe how existing bounded context and explicit search constraints appear for free-form reactions. This report does not score planner interpretation.',
+  runCount: reports.length,
+  cases: reports
+};
+await writeFile(jsonPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+const lines = [
+  'One fixture pass completed using runLiraAgent and fixture-only model transport.',
+  'No network fetch, provider key, environment read, source change, or behavior assertion was used.',
+  'Cases: ' + (reports as Array<{ case: string; toolInputs: { searches: Array<{ query: string; country?: string; limit?: number; excludeStationIds?: string[] }> }; observedResult: { cards: Array<{ stationuuid: string; country: string; tags: string[] }>; actions: Array<{ kind: string }> } }>).map(item => {
+    const queries = item.toolInputs.searches.map(search => `${search.query}[country=${search.country || '-'},limit=${search.limit || '-'},exclusions=${search.excludeStationIds?.length || 0}]`).join('; ') || 'no search';
+    const cards = item.observedResult.cards.map(card => `${card.stationuuid}:${card.country}:${card.tags.join(',')}`).join('; ') || 'no cards';
+    return `${item.case}: ${queries} => ${cards}; actions=${item.observedResult.actions.map(action => action.kind).join(',') || 'none'}`;
+  })
+];
+await writeFile(logPath, lines.join('\n') + '\n', 'utf8');
+process.stdout.write(lines.join('\n') + '\n');
+}
+main().catch(error => { console.error(error); process.exitCode = 1; });
+
+
+
