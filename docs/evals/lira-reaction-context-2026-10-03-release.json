@@ -1,0 +1,31 @@
+{
+  "stage": "lira-selection-continuity",
+  "state": "isolated-release-candidate",
+  "sourceCommit": "1bc0541",
+  "base": "d8c27c273967aa83dcf56bde2ed9928cec12da3c",
+  "publicationRequestedByOwner": "2026-10-03",
+  "sourceSha256": {
+    "apps/api/src/ai/brain.ts": "771341f54eae4dffce53740b8b2d63d32371a894d91c868e41bf058094110218",
+    "apps/api/src/ai/tools.ts": "b0afb82866c2050257d76a990aadab40cbf668211bc75e670536245cc379a2f0",
+    "apps/api/src/ai/types.ts": "9bef4256d9b071ecf3bb77d6c237fff967211738cdbc562b284099da07f37265",
+    "apps/api/src/ai/selectionContext.ts": "e523df9daf0bb3a0be5d57517df2ac919e18913565364484f5ab0eae6cdb13d9",
+    "apps/api/test/ai.reactionIntegration.test.ts": "d0d852d2293f04c5b7f42bb4f74f8849e195682e7f8685bd2df302cecc618d20",
+    "apps/api/test/ai.selectionContext.test.ts": "0b02195ba3c41da806e1243eda8947853865b80fbfa411b0efb951d448f60cb7"
+  },
+  "priorLocalChecks": {
+    "apiPassed": 856,
+    "apiFailed": 0,
+    "offlinePassed": 21,
+    "modelCalls": 0,
+    "sourceTypecheck": 0,
+    "testTypecheck": 0,
+    "workspaceBuild": 0
+  },
+  "liveQualityAssessed": false,
+  "paidCallsThisStage": 0,
+  "limits": [
+    "Owner explicitly requested publication for manual testing before a new paid campaign.",
+    "No new Studio UI or client files included.",
+    "Fixture tags are specified, not proof of live model interpretation."
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "atUtc": "2026-10-03T04:23:53.420Z",
+  "expectedSha": "347261411aa011c10bf1ae963ec84d0bb884d077",
+  "health": {
+    "ok": true
+  },
+  "entry": "/assets/index-_hvxQTip.js",
+  "state": "radio-state-C_YuIrML.js",
+  "publicBuildVerified": true,
+  "modelCalls": 0,
+  "modelCallsEvidence": "Closed deterministic selection and decline branches; no action executed.",
+  "limits": [
+    "No live provider-semantic validation or physical audio."
+  ],
+  "probes": [
+    {
+      "message": "Одна фанк и одна эмбиент. Не включай.",
+      "reply": "Фанк — «BBC Radio 6 Music» (The United Kingdom Of Great Britain And Northern Ireland).\nЭмбиент — «SomaFM Groove Salad (128k MP3)» (The United States Of America).\nЭто жанры из каталога; музыка в живом эфире может отличаться.",
+      "cards": [
+        {
+          "stationuuid": "1c6dcd6f-88c6-4fd4-8191-078435168e85",
+          "name": "BBC Radio 6 Music",
+          "tags": [
+            "blues",
+            "dance",
+            "electronic",
+            "funk",
+            "hip hop",
+            "house"
+          ],
+          "country": "The United Kingdom Of Great Britain And Northern Ireland"
+        },
+        {
+          "stationuuid": "960cf833-0601-11e8-ae97-52543be04c81",
+          "name": "SomaFM Groove Salad (128k MP3)",
+          "tags": [
+            "ambient",
+            "chillout",
+            "downtempo",
+            "groove",
+            "lounge",
+            "sleep"
+          ],
+          "country": "The United States Of America"
+        }
+      ],
+      "actions": [
+        "open-station"
+      ],
+      "status": "completed",
+      "elapsedMs": 589
+    },
+    {
+      "message": "Страну сохрани. Не подбирай радио.",
+      "reply": "Хорошо, новую подборку станций не делаю.",
+      "cards": [],
+      "actions": [
+        "none"
+      ],
+      "status": "completed",
+      "elapsedMs": 29
+    }
+  ],
+  "serverRelease": "/opt/RadioAtlas/releases/347261411aa011c10bf1ae963ec84d0bb884d077"
+}

@@ -4,15 +4,17 @@
 продуктовых требований. Требования — в PRODUCT.md и DESIGN-DIRECTION.md,
 приоритет — в PLAN.md.
 
-**02–03.10 — свободная реакция Лиры: локальный серверный кандидат.**
-USER-only continue/new context фиксируется до первого station tool;
-сохраняет ограничения и исключение прежних источников, не переносит Play.
-Проверяется цепочка original → свободная реакция → genre refinement → «и?».
-Новых client/UI files нет. [Результат](LIRA-REACTION-CONTEXT-2026-10-02.md).
-Оба typecheck/build, API 856/856, offline 21/21 (modelCalls 0), Astra review без
-оставшихся blockers. Branch codex/calm-home; это локальный кандидат, не prod.
-Следующий шаг — живой campaign: новый бюджет запрошен, ответа пока нет.
-Не использовать закрытый ledger; не публиковать непроверенную Studio-композицию.
+**03.10 — свободная реакция Лиры опубликована: `3472614`.**
+Continue/new USER-context фиксируется до station tools; страна/число/запреты
+сохраняются через свободное уточнение, genre refinement и «и?», Play не переносится.
+API 856, оба typecheck/build, offline 21/21 (modelCalls 0), independent review.
+Same-SHA CI 37095336541 / deploy 37095336511 successful; functional 432/7.
+Public SHA/health/две бесплатные проверки/RU symlink подтверждены. Pixel 13/5:
+12 общих PNG совпали; mobile Search capture восстановился, новый actual просмотрен.
+Владелец явно запросил выпуск для своей проверки до paid campaign. Новых paid calls
+нет; live model quality не оценено, Studio UI не включён. [Результат](LIRA-REACTION-CONTEXT-2026-10-02.md).
+Далее — настоящий диалог по реакции при согласованном бюджете; следующий продуктовый
+пункт — компактное сравнение двух источников по собственным проверенным данным.
 
 **02.10 — повторный подбор Лиры опубликован: `d8c27c2`.**
 Пять прежних anchors разрешаются одним bounded batch; два новых направления

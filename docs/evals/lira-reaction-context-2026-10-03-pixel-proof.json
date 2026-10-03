@@ -1,0 +1,142 @@
+{
+  "currentCi": 37095336541,
+  "previousCi": 37038965629,
+  "previousPngCount": 12,
+  "newPngCount": 15,
+  "commonPngCount": 12,
+  "hashDifferences": 0,
+  "newOnlyPngCount": 3,
+  "passed": 13,
+  "failed": 5,
+  "attachments": [
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-expected.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-actual.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "search screen visual baseline",
+      "attachment": "search-screen-diff.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-expected.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-actual.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay visual baseline",
+      "attachment": "full-player-overlay-diff.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-expected.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-actual.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "full player overlay mobile visual baseline",
+      "attachment": "full-player-queue-sheet-mobile-diff.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "search mobile visual baseline (results + filters sheet)",
+      "attachment": "search-mobile-results-expected.png",
+      "previousExists": false,
+      "sameBytes": null
+    },
+    {
+      "test": "search mobile visual baseline (results + filters sheet)",
+      "attachment": "search-mobile-results-actual.png",
+      "previousExists": false,
+      "sameBytes": null
+    },
+    {
+      "test": "search mobile visual baseline (results + filters sheet)",
+      "attachment": "search-mobile-results-diff.png",
+      "previousExists": false,
+      "sameBytes": null
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-expected.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-actual.png",
+      "previousExists": true,
+      "sameBytes": true
+    },
+    {
+      "test": "library mobile visual baseline (queue + collections)",
+      "attachment": "library-mobile-queue-diff.png",
+      "previousExists": true,
+      "sameBytes": true
+    }
+  ],
+  "errors": [
+    {
+      "title": null,
+      "status": "failed",
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mBuffer\u001b[39m\u001b[2m).\u001b[22mtoMatchSnapshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  11320 pixels (ratio 0.01 of all image pixels) are different.\n\n  Snapshot: search-screen.png\n\n\n  287 |     fullPage: true\n  288 |   });\n> 289 |   expect(screenshot).toMatchSnapshot('search-screen.png');\n      |                      ^\n  2"
+      ]
+    },
+    {
+      "title": null,
+      "status": "failed",
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mBuffer\u001b[39m\u001b[2m).\u001b[22mtoMatchSnapshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  45591 pixels (ratio 0.04 of all image pixels) are different.\n\n  Snapshot: full-player-overlay.png\n\n\n  369 |     mask: [page.locator('.full-player-clock')]\n  370 |   });\n> 371 |   expect(overlayShot).toMatchSnapshot('full-player-overlay."
+      ]
+    },
+    {
+      "title": null,
+      "status": "failed",
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mBuffer\u001b[39m\u001b[2m).\u001b[22mtoMatchSnapshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  4122 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: full-player-queue-sheet-mobile.png\n\n\n  427 |     mask: [page.locator('.full-player-clock')]\n  428 |   });\n> 429 |   expect(sheetShot).toMatchSnapshot('full-player-"
+      ]
+    },
+    {
+      "title": null,
+      "status": "failed",
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mBuffer\u001b[39m\u001b[2m).\u001b[22mtoMatchSnapshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  11244 pixels (ratio 0.05 of all image pixels) are different.\n\n  Snapshot: search-mobile-results.png\n\n\n  479 |   // same class of noise home-shell tolerates via maxDiffPixels).\n  480 |   const resultsShot = await page.screenshot({ animat"
+      ]
+    },
+    {
+      "title": null,
+      "status": "failed",
+      "errors": [
+        "Error: \u001b[2mexpect(\u001b[22m\u001b[31mBuffer\u001b[39m\u001b[2m).\u001b[22mtoMatchSnapshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  11289 pixels (ratio 0.05 of all image pixels) are different.\n\n  Snapshot: library-mobile-queue.png\n\n\n  522 |\n  523 |   const queueShot = await page.screenshot({ animations: 'disabled' });\n> 524 |   expect(queueShot).toMatchSnapshot('lib"
+      ]
+    }
+  ],
+  "baselineFilesChanged": false,
+  "inspection": "New-only mobile Search screenshot inspected against baseline: existing letter/logo placeholders and current catalogue metadata differ from old Mock Song/art tiles. Client files unchanged; prior capture error recovered to a baseline mismatch."
+}
