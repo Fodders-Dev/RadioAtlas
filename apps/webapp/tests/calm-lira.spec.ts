@@ -135,7 +135,8 @@ test('an unavailable Lira selection leaves the existing queue and sound intact',
   await expect(chat.getByText('Недоступная подборка', {exact:true})).toBeVisible();
   await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
   await expect(chat.getByRole('status')).toContainText('Одна из станций сейчас недоступна');
-  expect(fallbackLookups).toEqual(['unavailable-uuid-osaka', 'unavailable-uuid-kyoto']);
+  // Resolution is concurrent: assert the exact lookup multiset, not completion order.
+  expect([...fallbackLookups].sort()).toEqual(['unavailable-uuid-kyoto', 'unavailable-uuid-osaka']);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(originalQueue);
   expect(await page.locator('audio').getAttribute('src')).toBe(originalAudio);
   await expect(page.locator('[data-calm-player]')).toHaveAttribute('data-status', 'playing');
@@ -143,10 +144,10 @@ test('an unavailable Lira selection leaves the existing queue and sound intact',
   // The failure is recoverable: the listener can try the same CTA again.
   await chat.getByRole('button', { name: 'Слушать в Ленте', exact: true }).click();
   await expect(chat.getByRole('status')).toContainText('Одна из станций сейчас недоступна');
-  expect(fallbackLookups).toEqual([
+  expect([...fallbackLookups].sort()).toEqual([
     'unavailable-uuid-osaka', 'unavailable-uuid-kyoto',
     'unavailable-uuid-osaka', 'unavailable-uuid-kyoto'
-  ]);
+  ].sort());
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('radio:player:v2') || '{}').queue)).toEqual(originalQueue);
   expect(await page.locator('audio').getAttribute('src')).toBe(originalAudio);
 });

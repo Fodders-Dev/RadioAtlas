@@ -172,8 +172,8 @@ test('Feed More adds its selected card to a playlist without changing the live p
   await collectionCard.locator('.library-collection-title-button').click();
   const detail = page.locator('.library-collection-detail');
   await expect(detail).toBeVisible();
-  const detailActions = detail.locator('.library-preview-detail-menu');
-  await detailActions.locator('summary').click();
+  await detail.locator('[data-collection-actions-trigger]').click();
+  const detailActions = detail.locator('[data-collection-actions]');
   await expect(detailActions).toBeVisible();
   await detailActions.getByRole('button', { name: /Порядок|Reorder/ }).click();
   const targetRow = page.locator(`[data-library-collection-row][data-station-id="${stationId}"]`);

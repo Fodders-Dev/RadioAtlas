@@ -266,6 +266,13 @@ export const Library = () => {
   // as chips instead of opening a sheet.
   const [collectionActionsId, setCollectionActionsId] = useState<string | null>(null);
   const [detailActionsOpen, setDetailActionsOpen] = useState(false);
+  const [collectionDetailActionsOpen, setCollectionDetailActionsOpen] = useState(false);
+  const [collectionDetailActionsPosition, setCollectionDetailActionsPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    maxHeight: number;
+  } | null>(null);
   // Two-tap delete confirm: the first «Удалить» tap arms this id, the second
   // («Точно удалить?») commits. Lives inline in the detail row / S3 sheet — NOT
   // a new fixed element (would hit the z-130-under-dock trap).
@@ -285,6 +292,11 @@ export const Library = () => {
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const collectionBackButtonRef = useRef<HTMLButtonElement>(null);
+  const collectionDetailActionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const collectionDetailActionsPanelRef = useRef<HTMLDivElement>(null);
+  const collectionReorderDoneRef = useRef<HTMLButtonElement>(null);
+  const collectionReorderWasActiveRef = useRef(false);
+  const collectionDetailActionsPanelId = useId();
   const pendingCollectionScrollRestoreRef = useRef<number | null>(null);
   // Drag-to-reorder the queue. The playing row is locked (#86 — never moved).
   const queueReorder = usePointerReorder(
@@ -339,6 +351,115 @@ export const Library = () => {
     back?.closest('header')?.scrollIntoView({ block: 'start', behavior: 'auto' });
     back?.focus({ preventScroll: true });
   }, [selectedCollectionId]);
+
+  useEffect(() => {
+    if (!collectionDetailActionsOpen) return;
+    const closeFromOutside = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (collectionDetailActionsTriggerRef.current?.contains(target)) return;
+      if (collectionDetailActionsPanelRef.current?.contains(target)) return;
+      setCollectionDetailActionsOpen(false);
+    };
+    const closeFromEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      setCollectionDetailActionsOpen(false);
+      collectionDetailActionsTriggerRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', closeFromOutside);
+    document.addEventListener('keydown', closeFromEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeFromOutside);
+      document.removeEventListener('keydown', closeFromEscape);
+    };
+  }, [collectionDetailActionsOpen]);
+
+  useLayoutEffect(() => {
+    if (!collectionDetailActionsOpen || !CALM_PREVIEW) {
+      setCollectionDetailActionsPosition(null);
+      return;
+    }
+    const placePanel = () => {
+      const trigger = collectionDetailActionsTriggerRef.current;
+      const panel = collectionDetailActionsPanelRef.current;
+      if (!trigger || !panel) return;
+      const visualViewport = window.visualViewport;
+      const viewportLeft = visualViewport?.offsetLeft ?? 0;
+      const viewportTop = visualViewport?.offsetTop ?? 0;
+      const viewportWidth = visualViewport?.width ?? window.innerWidth;
+      const viewportHeight = visualViewport?.height ?? window.innerHeight;
+      const gutter = 12;
+      const width = Math.min(280, Math.max(44, viewportWidth - gutter * 2));
+      const maxLeft = viewportLeft + viewportWidth - gutter - width;
+      const left = Math.max(viewportLeft + gutter, Math.min(trigger.getBoundingClientRect().left, maxLeft));
+      const triggerRect = trigger.getBoundingClientRect();
+      let safeBottom = viewportTop + viewportHeight - gutter;
+      const obstacles = document.querySelectorAll<HTMLElement>(
+        '.calm-mini[data-calm-player], .app-navigation-mobile, .app-navigation-desktop, .player-dock-bar, .player-dock-peek'
+      );
+      obstacles.forEach((obstacle) => {
+        const style = window.getComputedStyle(obstacle);
+        if (style.display === 'none' || style.visibility === 'hidden') return;
+        const rect = obstacle.getBoundingClientRect();
+        const overlapsHorizontally = rect.right > left && rect.left < left + width;
+        if (overlapsHorizontally && rect.bottom > viewportTop && rect.top < safeBottom) {
+          safeBottom = Math.min(safeBottom, rect.top - 8);
+        }
+      });
+
+      const panelHeight = panel.scrollHeight;
+      const belowTop = triggerRect.bottom + 8;
+      const availableBelow = Math.max(0, safeBottom - belowTop);
+      const aboveBottom = triggerRect.top - 8;
+      const availableAbove = Math.max(0, aboveBottom - (viewportTop + gutter));
+      let top: number;
+      let maxHeight: number;
+      if (panelHeight <= availableBelow) {
+        top = belowTop;
+        maxHeight = panelHeight;
+      } else if (panelHeight <= availableAbove) {
+        top = aboveBottom - panelHeight;
+        maxHeight = panelHeight;
+      } else if (availableAbove >= availableBelow) {
+        maxHeight = Math.max(44, Math.min(panelHeight, availableAbove));
+        top = aboveBottom - maxHeight;
+      } else {
+        maxHeight = Math.max(44, Math.min(panelHeight, availableBelow));
+        top = belowTop;
+      }
+      const lowestTop = Math.max(viewportTop + gutter, safeBottom - maxHeight);
+      top = Math.min(Math.max(top, viewportTop + gutter), lowestTop);
+      setCollectionDetailActionsPosition((previous) => {
+        if (previous && previous.left === left && previous.top === top && previous.width === width && previous.maxHeight === maxHeight) return previous;
+        return { left, top, width, maxHeight };
+      });
+    };
+    placePanel();
+    window.addEventListener('resize', placePanel);
+    document.addEventListener('scroll', placePanel, true);
+    window.visualViewport?.addEventListener('resize', placePanel);
+    window.visualViewport?.addEventListener('scroll', placePanel);
+    return () => {
+      window.removeEventListener('resize', placePanel);
+      document.removeEventListener('scroll', placePanel, true);
+      window.visualViewport?.removeEventListener('resize', placePanel);
+      window.visualViewport?.removeEventListener('scroll', placePanel);
+    };
+  }, [collectionDetailActionsOpen, deleteArmedCollectionId, player.current, selectedCollectionId]);
+
+  useEffect(() => {
+    if (!CALM_PREVIEW) return;
+    if (collectionReorderMode) {
+      collectionReorderWasActiveRef.current = true;
+      collectionReorderDoneRef.current?.focus();
+      return;
+    }
+    if (collectionReorderWasActiveRef.current) {
+      collectionReorderWasActiveRef.current = false;
+      collectionDetailActionsTriggerRef.current?.focus();
+    }
+  }, [collectionReorderMode]);
 
   const compactRows = viewportWidth < 720;
   const stationMap = useMemo(
@@ -638,6 +759,7 @@ export const Library = () => {
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
+    setCollectionDetailActionsOpen(false);
     setSelectedCollectionId(collectionId);
     if (CALM_PREVIEW) setLibraryTab('collections');
   };
@@ -648,6 +770,7 @@ export const Library = () => {
     setCollectionReorderMode(false);
     setRenamingCollectionId(null);
     setDetailActionsOpen(false);
+    setCollectionDetailActionsOpen(false);
     if (CALM_PREVIEW && collectionDetailReturnHomeRef.current) setLibraryHomeOpen(true);
   };
   const openLibraryCategory = (tab: LibraryTab) => {
@@ -1655,7 +1778,7 @@ export const Library = () => {
                   ) : (
                     <CollectionArtwork label={selectedCollection.name} stations={selectedCollectionStations} />
                   )}
-                  <div>
+                  <div className="library-collection-detail-copy">
                   {!CALM_PREVIEW ? <button className="chip" type="button" onClick={closeCollectionDetail}>{t('common.back')}</button> : null}
                   {renamingCollectionId === selectedCollection.id ? (
                     <form
@@ -1681,7 +1804,11 @@ export const Library = () => {
                     </form>
                   ) : (
                     <>
-                      <div className="section-title">{selectedCollection.name}</div>
+                      {CALM_PREVIEW ? (
+                        <h1 className="section-title library-detail-title">{selectedCollection.name}</h1>
+                      ) : (
+                        <div className="section-title">{selectedCollection.name}</div>
+                      )}
                       <div className="section-subtitle">
                         {t('library.collectionCount', { count: selectedCollection.stationIds.length })}
                       </div>
@@ -1689,13 +1816,13 @@ export const Library = () => {
                   )}
                   </div>
                 </div>
-                {/* Decluttered: ONE primary action (Слушать) + one secondary
-                    (Вперемешку) + «Ещё» → detail-actions sheet (rename / pin /
-                    add-current / reorder / delete). Reorder mode collapses the
-                    row to a single «Готово» so the list is the focus. */}
+                {/* Keep listening actions primary. Collection maintenance stays
+                    in the anchored «Ещё» group; arrangement replaces playback
+                    controls so row edits cannot be confused with listening. */}
                 <div className="chip-row library-collection-detail-actions">
                   {collectionReorderMode ? (
                     <button
+                      ref={collectionReorderDoneRef}
                       className="chip active"
                       type="button"
                       onClick={() => setCollectionReorderMode(false)}
@@ -1722,22 +1849,97 @@ export const Library = () => {
                           </button>
                         </>
                       ) : null}
-                      {/* Mobile collapses the rest into «Ещё» → a bottom sheet; the
-                          sheet's CSS is phone-only, so on desktop (>720px, where there
-                          is room) render the same actions INLINE as chips instead —
-                          otherwise the ungated sheet rendered unstyled and inerted the
-                          whole app. */}
                       {CALM_PREVIEW ? (
-                        <details className="library-preview-detail-menu">
-                          <summary className="chip">{t('library.more')}</summary>
-                          <div className="library-preview-detail-menu-items">
-                            <button className="chip" type="button" onClick={() => beginRenameCollection(selectedCollection)}>{t('library.renameCollection')}</button>
-                            <button className={`chip ${selectedCollection.pinned ? 'active' : ''}`} type="button" onClick={() => toggleCollectionPinned(selectedCollection.id)}>{selectedCollection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}</button>
-                            {player.current ? <button className="chip" type="button" onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}>{t('library.addCurrentToCollection')}</button> : null}
-                            {selectedCollectionStations.length > 1 ? <button className={`chip ${collectionReorderMode ? 'active' : ''}`} type="button" onClick={() => setCollectionReorderMode((value) => !value)}>{collectionReorderMode ? t('library.reorderDone') : t('library.reorderMode')}</button> : null}
-                            <button className={`chip library-delete-chip ${deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''}`} type="button" onClick={() => requestDeleteCollection(selectedCollection)}>{deleteArmedCollectionId === selectedCollection.id ? t('library.deleteCollectionConfirm') : t('library.deleteCollection')}</button>
+                        <div className="library-preview-detail-menu">
+                          <button
+                            ref={collectionDetailActionsTriggerRef}
+                            className="chip"
+                            type="button"
+                            data-collection-actions-trigger
+                            aria-expanded={collectionDetailActionsOpen}
+                            aria-controls={collectionDetailActionsPanelId}
+                            onClick={() => setCollectionDetailActionsOpen((open) => !open)}
+                          >
+                            {t('library.more')}
+                          </button>
+                          <div
+                            ref={collectionDetailActionsPanelRef}
+                            id={collectionDetailActionsPanelId}
+                            className="library-preview-detail-menu-items"
+                            style={collectionDetailActionsPosition ? {
+                              position: 'fixed',
+                              left: collectionDetailActionsPosition.left,
+                              top: collectionDetailActionsPosition.top,
+                              right: 'auto',
+                              width: collectionDetailActionsPosition.width,
+                              maxHeight: collectionDetailActionsPosition.maxHeight
+                            } : undefined}
+                            role="group"
+                            aria-label={t('library.more')}
+                            data-collection-actions
+                            hidden={!collectionDetailActionsOpen}
+                          >
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => {
+                                setCollectionDetailActionsOpen(false);
+                                beginRenameCollection(selectedCollection);
+                              }}
+                            >
+                              {t('library.renameCollection')}
+                            </button>
+                            <button
+                              className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
+                              type="button"
+                              onClick={() => {
+                                setCollectionDetailActionsOpen(false);
+                                toggleCollectionPinned(selectedCollection.id);
+                                window.requestAnimationFrame(() => collectionDetailActionsTriggerRef.current?.focus());
+                              }}
+                            >
+                              {selectedCollection.pinned ? t('library.unpinCollection') : t('library.pinCollection')}
+                            </button>
+                            {player.current ? (
+                              <button
+                                className="chip"
+                                type="button"
+                                onClick={() => {
+                                  setCollectionDetailActionsOpen(false);
+                                  addCurrentToCollection(selectedCollection.id, selectedCollection.name);
+                                  window.requestAnimationFrame(() => collectionDetailActionsTriggerRef.current?.focus());
+                                }}
+                              >
+                                {t('library.addCurrentToCollection')}
+                              </button>
+                            ) : null}
+                            {selectedCollectionStations.length > 1 ? (
+                              <button
+                                className="chip"
+                                type="button"
+                                onClick={() => {
+                                  setCollectionDetailActionsOpen(false);
+                                  setCollectionReorderMode(true);
+                                }}
+                              >
+                                {t('library.reorderMode')}
+                              </button>
+                            ) : null}
+                            <button
+                              className={`chip library-delete-chip ${deleteArmedCollectionId === selectedCollection.id ? 'is-armed' : ''}`}
+                              type="button"
+                              onClick={() => {
+                                const wasArmed = deleteArmedCollectionId === selectedCollection.id;
+                                requestDeleteCollection(selectedCollection);
+                                if (wasArmed) setCollectionDetailActionsOpen(false);
+                              }}
+                            >
+                              {deleteArmedCollectionId === selectedCollection.id
+                                ? t('library.deleteCollectionConfirm')
+                                : t('library.deleteCollection')}
+                            </button>
                           </div>
-                        </details>
+                        </div>
                       ) : isMobileLayout ? (
                         <button
                           className="chip"
@@ -1807,15 +2009,20 @@ export const Library = () => {
                 </div>
               </div>
 
-              {CALM_PREVIEW ? (
-                <button className="chip library-detail-add-stations" type="button" onClick={addStationsToCollection}>
-                  + {t('library.addStationsToCollection')}
-                </button>
-              ) : null}
-              {selectedCollectionStations.length ? (
-                collectionReorderMode ? (
-                  <div className="library-detail-station-list">
-                    {selectedCollectionStations.map((station, index) => (
+              <div
+                className={`library-collection-list-pane ${collectionReorderMode ? 'is-editing' : ''}`}
+                data-library-collection-list
+              >
+                {CALM_PREVIEW && !collectionReorderMode ? (
+                  <button className="chip library-detail-add-stations" type="button" onClick={addStationsToCollection}>
+                    + {t('library.addStationsToCollection')}
+                  </button>
+                ) : null}
+                {selectedCollectionStations.length ? (
+                  collectionReorderMode ? (
+                    <div className="library-detail-station-list" data-editing="true">
+                      {CALM_PREVIEW ? <div className="library-detail-edit-label">{t('library.reorderMode')}</div> : null}
+                      {selectedCollectionStations.map((station, index) => (
                       <div
                         key={`${selectedCollection.id}-${station.stationuuid}`}
                         className="playlist-row library-detail-station-row"
@@ -1823,23 +2030,24 @@ export const Library = () => {
                         data-station-id={station.stationuuid}
                       >
                         <div className="playlist-order">{index + 1}</div>
+                        {CALM_PREVIEW ? <StationArtwork station={station} size="card" /> : null}
                         <div className="playlist-body">
                           <div className="playlist-name">{normalizeStationName(station.name)}</div>
                           <div className="playlist-meta">{stationLocation(station)}</div>
                         </div>
                         <div className="playlist-actions">
                           <button
-                            className="chip"
+                            className={CALM_PREVIEW ? 'library-detail-edit-action library-detail-edit-remove' : 'chip'}
                             type="button"
                             aria-label={t('library.removeStationFromCollection', {
                               station: normalizeStationName(station.name)
                             })}
                             onClick={() => removeStationFromCollection(selectedCollection.id, station.stationuuid)}
                           >
-                            {t('common.remove')}
+                            {CALM_PREVIEW ? <span aria-hidden="true">×</span> : t('common.remove')}
                           </button>
                           <button
-                            className="chip"
+                            className={CALM_PREVIEW ? 'library-detail-edit-action' : 'chip'}
                             type="button"
                             onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, -1)}
                             disabled={index === 0}
@@ -1847,10 +2055,10 @@ export const Library = () => {
                               station: normalizeStationName(station.name)
                             })}
                           >
-                            {t('library.moveUp')}
+                            {CALM_PREVIEW ? <span aria-hidden="true">↑</span> : t('library.moveUp')}
                           </button>
                           <button
-                            className="chip"
+                            className={CALM_PREVIEW ? 'library-detail-edit-action' : 'chip'}
                             type="button"
                             onClick={() => moveStationInCollection(selectedCollection.id, station.stationuuid, 1)}
                             disabled={index === selectedCollectionStations.length - 1}
@@ -1858,41 +2066,42 @@ export const Library = () => {
                               station: normalizeStationName(station.name)
                             })}
                           >
-                            {t('library.moveDown')}
+                            {CALM_PREVIEW ? <span aria-hidden="true">↓</span> : t('library.moveDown')}
                           </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="library-detail-station-list library-detail-station-table">
+                      <StationTable
+                        stations={selectedCollectionStations}
+                        compact
+                        sourceId={`collection-${selectedCollection.id}`}
+                        sourceLabel={selectedCollection.name}
+                      />
+                    </div>
+                  )
                 ) : (
-                  <div className="library-detail-station-list library-detail-station-table">
-                    <StationTable
-                      stations={selectedCollectionStations}
-                      compact
-                      sourceId={`collection-${selectedCollection.id}`}
-                      sourceLabel={selectedCollection.name}
-                    />
+                  <div className="empty-state library-empty-state">
+                    <div className="section-subtitle">{t('library.collectionEmpty')}</div>
+                    <div className="hero-chip-row">
+                      {!CALM_PREVIEW ? <button className="chip active" type="button" onClick={addStationsToCollection}>
+                        {t('library.addStationsToCollection')}
+                      </button> : null}
+                      {player.current ? (
+                        <button
+                          className="chip"
+                          type="button"
+                          onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}
+                        >
+                          {t('library.addCurrentToCollection')}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
-                )
-              ) : (
-                <div className="empty-state library-empty-state">
-                  <div className="section-subtitle">{t('library.collectionEmpty')}</div>
-                  <div className="hero-chip-row">
-                    {!CALM_PREVIEW ? <button className="chip active" type="button" onClick={addStationsToCollection}>
-                      {t('library.addStationsToCollection')}
-                    </button> : null}
-                    {player.current ? (
-                      <button
-                        className="chip"
-                        type="button"
-                        onClick={() => addCurrentToCollection(selectedCollection.id, selectedCollection.name)}
-                      >
-                        {t('library.addCurrentToCollection')}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
 
               {!CALM_PREVIEW && collectionAddCandidates.length ? (
                   <div className="library-collection-picker">
