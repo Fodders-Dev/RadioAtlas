@@ -8,6 +8,46 @@
   color: var(--text, #eef7ff);
 }
 
+.chat-music-image-context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 54px;
+  margin: 0 16px 6px;
+  padding: 6px 7px 6px 13px;
+  border: 1px solid color-mix(in oklab, var(--text) 16%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--panel) 82%, transparent);
+}
+.chat-music-image-context-copy { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.chat-music-image-context-copy span { color: var(--muted); font-size: 12px; }
+.chat-music-image-context-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.chat-music-image-context > button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 13px;
+  color: var(--text);
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  font: inherit;
+  font-size: 24px;
+  cursor: pointer;
+}
+.chat-music-image-questions { display: flex; flex-wrap: wrap; gap: 7px; margin: 0 16px 8px; }
+.chat-music-image-questions button {
+  min-height: 44px;
+  padding: 0 13px;
+  border: 1px solid color-mix(in oklab, var(--accent) 38%, transparent);
+  border-radius: 14px;
+  color: var(--text);
+  background: color-mix(in oklab, var(--panel) 84%, var(--accent) 8%);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.chat-music-image-questions button:disabled { opacity: .5; cursor: default; }
+
 .chat-sheet-scrim {
   position: absolute;
   inset: 0;

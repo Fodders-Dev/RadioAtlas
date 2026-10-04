@@ -1,0 +1,92 @@
+.music-image-launch,
+.music-image-close,
+.music-image-remove,
+.music-image-secondary,
+.music-image-primary,
+.music-image-file-button {
+  min-height: 44px;
+  border: 1px solid color-mix(in oklab, var(--text, #eef7ff) 18%, transparent);
+  border-radius: 15px;
+  color: var(--text, #eef7ff);
+  background: color-mix(in oklab, var(--panel, rgba(17, 25, 38, 0.56)) 78%, transparent);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.music-image-launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 13px;
+  margin: 0 0 8px;
+  background: color-mix(in oklab, var(--panel, rgba(17, 25, 38, 0.56)) 78%, var(--accent, #8e7cff) 10%);
+}
+.music-image-launch svg { width: 20px; height: 20px; fill: currentColor; flex: 0 0 auto; }
+
+.music-image-overlay {
+  position: fixed;
+  z-index: 220;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+  color: var(--text, #eef7ff);
+}
+.music-image-scrim { position: absolute; inset: 0; border: 0; background: color-mix(in oklab, var(--bg, #08111c) 54%, transparent); backdrop-filter: blur(8px); }
+.music-image-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(520px, 100%);
+  max-height: min(720px, calc(100dvh - 24px));
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--text, #eef7ff) 22%, transparent);
+  border-radius: 24px;
+  background: var(--bg, #08111c);
+  box-shadow: 0 18px 48px rgba(0,0,0,.24);
+}
+.music-image-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px 12px; }
+.music-image-head span { color: var(--muted, #a8b4c8); font-size: 13px; }
+.music-image-head h2 { margin: 2px 0 0; font-size: 21px; line-height: 1.2; }
+.music-image-close { flex: 0 0 44px; width: 44px; padding: 0; font-size: 28px; line-height: 1; }
+.music-image-body { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 20px 16px; }
+.music-image-disclosure { margin: 0 0 14px; color: var(--muted, #c0c9d7); font-size: 14px; line-height: 1.45; }
+.music-image-file-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 15px; }
+.music-image-file-button span { font-size: 22px; }
+.music-image-file-button { position: relative; overflow: hidden; }
+.music-image-input-native { display: none; }
+.music-image-preview-wrap { display: flex; align-items: center; gap: 12px; min-height: 100px; }
+.music-image-preview { display: block; width: auto; max-width: min(180px, 48%); height: 120px; object-fit: contain; border-radius: 12px; background: color-mix(in oklab, var(--panel, rgba(17, 25, 38, 0.56)) 78%, transparent); }
+.music-image-remove { padding: 0 12px; color: var(--muted, #c0c9d7); }
+.music-image-message { margin: 12px 0 0; color: var(--muted, #d5ddec); font-size: 14px; line-height: 1.4; }
+.music-image-candidates { display: grid; gap: 8px; margin-top: 16px; }
+.music-image-candidate { display: grid; gap: 3px; min-height: 54px; padding: 10px 12px; text-align: left; color: inherit; border: 1px solid color-mix(in oklab, var(--text, #eef7ff) 16%, transparent); border-radius: 14px; background: color-mix(in oklab, var(--panel, rgba(17, 25, 38, 0.56)) 86%, transparent); font: inherit; cursor: pointer; }
+.music-image-candidate[aria-pressed='true'] { border-color: var(--accent, #9f91ff); background: color-mix(in oklab, var(--accent, #9f91ff) 16%, var(--panel, rgba(17, 25, 38, 0.56))); }
+.music-image-candidate strong { overflow-wrap: anywhere; font-size: 16px; }
+.music-image-candidate span { color: var(--muted, #c0c9d7); overflow-wrap: anywhere; font-size: 14px; }
+.music-image-candidate small { color: var(--accent, #c0b7ff); font-size: 13px; }
+.music-image-edit { display: grid; gap: 10px; margin-top: 14px; }
+.music-image-edit label { display: grid; gap: 5px; font-size: 14px; color: var(--muted, #c0c9d7); }
+.music-image-edit input { width: 100%; min-height: 46px; box-sizing: border-box; padding: 8px 11px; border: 1px solid color-mix(in oklab, var(--text, #eef7ff) 20%, transparent); border-radius: 12px; color: var(--text, #eef7ff); background: color-mix(in oklab, var(--panel, rgba(17, 25, 38, 0.56)) 82%, transparent); font: inherit; font-size: 16px; }
+.music-image-footer { display: flex; align-items: flex-end; justify-content: flex-end; gap: 9px; padding: 12px 20px max(16px, env(safe-area-inset-bottom)); border-top: 1px solid color-mix(in oklab, var(--text, #eef7ff) 12%, transparent); }
+.music-image-footer-action { display: grid; justify-items: end; gap: 5px; }
+.music-image-footer-action .music-image-disclosure { max-width: 340px; margin: 0; font-size: 12px; text-align: right; }
+.music-image-secondary, .music-image-primary { padding: 0 15px; }
+.music-image-primary { color: var(--text, #fff); border-color: color-mix(in oklab, var(--accent, #9f91ff) 62%, transparent); background: color-mix(in oklab, var(--accent, #9f91ff) 30%, var(--panel, rgba(17, 25, 38, 0.56))); }
+.music-image-primary:disabled { opacity: .48; cursor: default; }
+.music-image-retry { position: relative; display: inline-flex; align-items: center; overflow: hidden; }
+
+@media (max-height: 500px) {
+  .music-image-overlay { place-items: start center; overflow: auto; }
+  .music-image-dialog { max-height: calc(100dvh - 16px); margin: 8px 0; }
+  .music-image-head { padding-top: 10px; }
+  .music-image-body { padding-bottom: 8px; }
+  .music-image-footer { padding-top: 8px; padding-bottom: 8px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .music-image-dialog { animation: music-image-enter 160ms ease-out both; }
+  @keyframes music-image-enter { from { opacity: 0; transform: translateY(8px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+}

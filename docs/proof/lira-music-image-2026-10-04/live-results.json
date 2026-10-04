@@ -1,0 +1,225 @@
+{
+  "campaign": "music-image-20261004",
+  "budget": 3,
+  "upperUsd": 0.0011061,
+  "reserved": 0,
+  "closed": true,
+  "priceSource": "https://api-docs.deepseek.com/quick_start/pricing/",
+  "inputPeakUsdPerMillion": 0.3,
+  "outputPeakUsdPerMillion": 1.2,
+  "conversationModelUnchanged": "deepseek-v4-pro",
+  "imageModel": "deepseek-flash",
+  "runs": [
+    {
+      "id": "clear-player",
+      "passed": true,
+      "expected": [
+        [
+          "Linkin Park",
+          "Numb"
+        ]
+      ],
+      "candidates": [
+        {
+          "artist": "Linkin Park",
+          "title": "Numb",
+          "uncertain": false
+        }
+      ],
+      "error": "",
+      "durationMs": 2354,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 22,
+        "total_tokens": 411,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.00014309999999999998
+    },
+    {
+      "id": "multiple-songs",
+      "passed": true,
+      "expected": [
+        [
+          "Linkin Park",
+          "Numb"
+        ],
+        [
+          "Coldplay",
+          "Yellow"
+        ],
+        [
+          "Radiohead",
+          "Creep"
+        ]
+      ],
+      "candidates": [
+        {
+          "artist": "Linkin Park",
+          "title": "Numb",
+          "uncertain": false
+        },
+        {
+          "artist": "Coldplay",
+          "title": "Yellow",
+          "uncertain": false
+        },
+        {
+          "artist": "Radiohead",
+          "title": "Creep",
+          "uncertain": false
+        }
+      ],
+      "error": "",
+      "durationMs": 2154,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 51,
+        "total_tokens": 440,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.0001779
+    },
+    {
+      "id": "cyrillic",
+      "passed": true,
+      "expected": [
+        [
+          "Кино",
+          "Группа крови"
+        ]
+      ],
+      "candidates": [
+        {
+          "artist": "Кино",
+          "title": "Группа крови",
+          "uncertain": false
+        }
+      ],
+      "error": "",
+      "durationMs": 1732,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 24,
+        "total_tokens": 413,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.0001455
+    },
+    {
+      "id": "missing-artist",
+      "passed": true,
+      "expected": [
+        [
+          "",
+          "Numb"
+        ]
+      ],
+      "candidates": [
+        {
+          "artist": "",
+          "title": "Numb",
+          "uncertain": true
+        }
+      ],
+      "error": "",
+      "durationMs": 1888,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 19,
+        "total_tokens": 408,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.0001395
+    },
+    {
+      "id": "blurred",
+      "passed": false,
+      "expected": [
+        [
+          "Linkin Park",
+          "Numb"
+        ]
+      ],
+      "candidates": [],
+      "error": "",
+      "durationMs": 1981,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 79,
+        "total_tokens": 468,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.0002115
+    },
+    {
+      "id": "non-music",
+      "passed": true,
+      "expected": [],
+      "candidates": [],
+      "error": "",
+      "durationMs": 2017,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 24,
+        "total_tokens": 413,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.0001455
+    },
+    {
+      "id": "injected-text",
+      "passed": true,
+      "expected": [
+        [
+          "Linkin Park",
+          "Numb"
+        ]
+      ],
+      "candidates": [
+        {
+          "artist": "Linkin Park",
+          "title": "Numb",
+          "uncertain": false
+        }
+      ],
+      "error": "",
+      "durationMs": 1877,
+      "usage": {
+        "prompt_tokens": 389,
+        "completion_tokens": 22,
+        "total_tokens": 411,
+        "prompt_tokens_details": {
+          "cached_tokens": 0
+        },
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 389
+      },
+      "estimatedPeakUncachedUsd": 0.00014309999999999998
+    }
+  ]
+}

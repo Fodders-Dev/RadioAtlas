@@ -14,11 +14,12 @@ type RateLimitBucket = {
 type ProtectedRouteOptions = {
   // 'ai-chat' joins the shared concurrency pool so the (slow) assistant route
   // can't starve the media routes — and vice versa.
-  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library' | 'ai-chat';
+  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library' | 'ai-chat' | 'ai-music-image';
   maxConcurrency: number;
   sharedMaxConcurrency: number;
   rateLimitPerWindow: number;
   rateLimitWindowMs: number;
+  maxRateLimitKeys?: number;
 };
 
 export class MediaOverloadError extends Error {
@@ -116,6 +117,7 @@ export class ProtectedMediaRoute<T> {
   private readonly maxConcurrency: number;
   private readonly rateLimitPerWindow: number;
   private readonly rateLimitWindowMs: number;
+  private readonly maxRateLimitKeys: number;
   private readonly cache = new Map<string, CacheEntry<T>>();
   private readonly inflight = new Map<string, Promise<T>>();
   private readonly rateLimits = new Map<string, RateLimitBucket>();
@@ -131,6 +133,7 @@ export class ProtectedMediaRoute<T> {
     this.maxConcurrency = clampPositiveInt(options.maxConcurrency, 4);
     this.rateLimitPerWindow = clampPositiveInt(options.rateLimitPerWindow, 120);
     this.rateLimitWindowMs = clampPositiveInt(options.rateLimitWindowMs, 60_000);
+    this.maxRateLimitKeys = clampPositiveInt(options.maxRateLimitKeys ?? Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
     sharedState.maxActive = clampPositiveInt(options.sharedMaxConcurrency, sharedState.maxActive);
     this.publishGauges();
   }
@@ -213,6 +216,10 @@ export class ProtectedMediaRoute<T> {
     this.sweepRateLimits(now);
     const current = this.rateLimits.get(ip);
     if (!current || current.resetAt <= now) {
+      if (!current && this.rateLimits.size >= this.maxRateLimitKeys) {
+        bumpCounter(`media_rate_limit:${this.routeName}`);
+        return Math.max(1, Math.ceil(this.rateLimitWindowMs / 1000));
+      }
       this.rateLimits.set(ip, {
         count: 1,
         resetAt: now + this.rateLimitWindowMs

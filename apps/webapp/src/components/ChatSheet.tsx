@@ -35,10 +35,12 @@ import { CALM_PREVIEW } from '../lib/calmPreview';
 import { triggerHaptic, triggerSelectionHaptic } from '../lib/telegram';
 import { withFavoriteTasteBoosts, type TasteProfileV2 } from '../lib/tasteProfile';
 import { frameSavedFindingQuestion } from '../lib/findingChat';
+import { frameMusicImageQuestion, getMusicImageCapability, type MusicImageCandidate } from '../lib/musicImage';
 import type { SavedFindingChatContext } from '../state/radio/types';
 import { LiraMark } from './LiraMark';
 import { CalmLiraFace } from './CalmLiraFace';
 import { LiraStudio } from './LiraStudio';
+import { MusicImagePicker } from './MusicImagePicker';
 import './ChatSheet.css';
 
 type ChatMessage = {
@@ -250,6 +252,35 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const promptSeedRef = useRef(0);
   const welcomeVisible = open && messages.length === 0;
   const savedFinding = prompt?.savedFinding ?? null;
+  const [musicImageSubject, setMusicImageSubject] = useState<MusicImageCandidate | null>(null);
+  const [musicImageEnabled, setMusicImageEnabled] = useState(false);
+  const musicImageAnchorRef = useRef<{ requestId: number; track: MusicImageCandidate; armed: boolean } | null>(null);
+  const currentRequestId = prompt?.id ?? -1;
+  if (musicImageAnchorRef.current?.requestId !== currentRequestId) musicImageAnchorRef.current = null;
+  const musicImageActive = Boolean(
+    !savedFinding && musicImageSubject && musicImageAnchorRef.current?.requestId === currentRequestId
+  );
+  useEffect(() => {
+    if (!open || savedFinding) {
+      setMusicImageEnabled(false);
+      return;
+    }
+    const controller = new AbortController();
+    void getMusicImageCapability(controller.signal).then(enabled => {
+      if (!controller.signal.aborted) setMusicImageEnabled(enabled);
+    });
+    return () => controller.abort();
+  }, [open, prompt?.id, savedFinding]);
+  useEffect(() => {
+    setMusicImageSubject(null);
+    musicImageAnchorRef.current = null;
+  }, [prompt?.id]);
+  useEffect(() => {
+    if (open) return;
+    setMusicImageSubject(null);
+    musicImageAnchorRef.current = null;
+    setMusicImageEnabled(false);
+  }, [open]);
   const findingAnchorRef = useRef<{ requestId: number; context: SavedFindingChatContext; armed: boolean } | null>(null);
   if (findingAnchorRef.current?.requestId !== prompt?.id) {
     findingAnchorRef.current = savedFinding
@@ -339,7 +370,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   // names only genres supported by tags; a selection is not proof of playback.
   const onAirStation = contextStation ?? null;
   const openingCards = useMemo(() => {
-    if (!CALM_PREVIEW || savedFinding) return [];
+    if (!CALM_PREVIEW || savedFinding || musicImageActive) return [];
     const pool = [...(summary?.catalogPool || []), ...(summary?.topVoted || [])];
     return liraOpeningStations(onAirStation, pool).map(station => ({
       station,
@@ -347,7 +378,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         ? t(player.isPlaying && station.stationuuid === player.current?.stationuuid ? 'journal.liraOnAir' : 'mapExplorer.selected')
         : t('journal.liraPicks')
     }));
-  }, [onAirStation, player.current?.stationuuid, player.isPlaying, savedFinding, summary, t]);
+  }, [onAirStation, player.current?.stationuuid, player.isPlaying, savedFinding, musicImageActive, summary, t]);
   // One send control, placed inside the capsule under calm (the mock's
   // composer) and beside it in the classic window.
   const sendButton = (
@@ -464,6 +495,13 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         // Consume at acceptance time. An older async response cannot re-arm or
         // change the anchor belonging to a newer opening.
         anchor.armed = false;
+      }
+    } else {
+      const musicAnchor = musicImageAnchorRef.current;
+      if (musicAnchor && musicAnchor.requestId === currentRequestId &&
+        (findingAnchor === 'force' || (findingAnchor === 'first' && musicAnchor.armed))) {
+        text = frameMusicImageQuestion(musicAnchor.track, text, locale);
+        musicAnchor.armed = false;
       }
     }
     // A new request cancels a not-yet-started selection lookup. Late catalogue
@@ -589,6 +627,8 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
     triggerSelectionHaptic();
     setMessages([]);
     setInput('');
+    setMusicImageSubject(null);
+    musicImageAnchorRef.current = null;
     if (composerRef.current) composerRef.current.style.height = '';
   };
 
@@ -698,7 +738,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           ) : messages.length === 0 && CALM_PREVIEW ? (
             <section className="chat-welcome chat-welcome--calm" data-chat-opening>
               <LiraStudio
-                prompts={quickPrompts}
+              prompts={musicImageActive ? [] : quickPrompts}
                 onPrompt={(prompt, keyboardActivation) => {
                   triggerSelectionHaptic();
                   // This tile disappears on send. Keep keyboard users in the
@@ -756,7 +796,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                 </div>
               </div>
 
-              <div className="chat-prompt-grid" aria-label={t('chat.quickPrompts')}>
+              {!musicImageActive ? <div className="chat-prompt-grid" aria-label={t('chat.quickPrompts')}>
                 {quickPrompts.map((prompt: ChatPromptSpec) => (
                   <button
                     key={prompt.id}
@@ -773,7 +813,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
                     <span>{t(prompt.labelKey)}</span>
                   </button>
                 ))}
-              </div>
+              </div> : null}
               <p className="chat-history-note">{t('chat.historyHint')}</p>
             </section>
           ) : null}
@@ -958,7 +998,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           ) : null}
         </div>
 
-        {CALM_PREVIEW && messages.length > 0 && !savedFinding ? (
+        {CALM_PREVIEW && messages.length > 0 && !savedFinding && !musicImageActive ? (
           <div className="chat-prompts-row" aria-label={t('chat.quickPrompts')} data-chat-prompts>
             {quickPrompts.map((prompt: ChatPromptSpec) => (
               <button
@@ -1023,6 +1063,35 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
             ))}
             </div>
           </div>
+        ) : null}
+        {musicImageActive && musicImageSubject ? (
+          <div className="chat-music-image-context" data-chat-music-image>
+            <div className="chat-music-image-context-copy">
+              <span>{t('chat.musicImageSubject')}</span>
+              <strong title={`${musicImageSubject.artist} — ${musicImageSubject.title}`}>{musicImageSubject.artist} — {musicImageSubject.title}</strong>
+            </div>
+            <button type="button" aria-label={t('chat.musicImageSubjectClear')} title={t('chat.musicImageSubjectClear')} onClick={() => { setMusicImageSubject(null); musicImageAnchorRef.current = null; }}>×</button>
+          </div>
+        ) : null}
+        {musicImageActive && musicImageSubject ? (
+          <div className="chat-music-image-questions" aria-label={t('chat.quickPrompts')} data-chat-music-image-questions>
+            {([
+              ['about', 'musicImageAbout', 'musicImageAboutQuestion'],
+              ['similar', 'musicImageSimilar', 'musicImageSimilarQuestion'],
+              ['artist', 'savedFindingArtist', 'musicImageArtistQuestion']
+            ] as const).map(([id, labelKey, questionKey]) => (
+              <button key={id} type="button" data-music-image-question={id} disabled={sending} onClick={() => {
+                triggerSelectionHaptic();
+                void send(t(`chat.${questionKey}`), 'force');
+              }}>{t(`chat.${labelKey}`)}</button>
+            ))}
+          </div>
+        ) : null}
+        {!savedFinding && musicImageEnabled ? (
+          <MusicImagePicker onChoose={candidate => {
+            setMusicImageSubject(candidate);
+            musicImageAnchorRef.current = { requestId: currentRequestId, track: candidate, armed: true };
+          }} />
         ) : null}
         <form className="chat-sheet-input" onSubmit={onSubmit}>
           <div className="chat-composer-glass">

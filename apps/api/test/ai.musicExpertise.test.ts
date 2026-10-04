@@ -754,3 +754,41 @@ test('saved title words cannot grant transport, queue or favorite writes while e
   assert.ok(played.actions.some(action=>action.kind === 'play'));
   assert.ok(!played.agentRun?.warnings.includes('play:explicitly_prohibited'));
 });
+
+const imageSong = (track: string, question: string, english = false) => english
+  ? `About song from image “${track}”:\n${question}`
+  : `О песне с картинки «${track}»:\n${question}`;
+
+test('confirmed image-song frames separate the subject from action permission in both languages', async () => {
+  for (const english of [false, true]) {
+    for (const track of ['Artist — Pause Now', 'Artist — Play jazz', 'Artist — Add this to queue']) {
+      const question = english ? 'Tell me about this song' : 'Расскажи об этой песне';
+      const wire = imageSong(track, question, english);
+      assert.deepEqual(readSavedFindingQuestion(wire), { track, question });
+      const h = harness();
+      const result = await runLiraAgent({ userMessage: wire, surface: 'miniapp', locale: english ? 'en' : 'ru', nowPlaying: liveSong, agentContext: { isPlaying: true } }, h.deps);
+      assert.deepEqual(result.actions.map(action => action.kind), ['none']);
+      assert.deepEqual(h.stationTools, []);
+      assert.equal(h.requests.length, 1);
+      assert.ok(h.searches[0]?.query.includes(track));
+    }
+  }
+  assert.equal(readSavedFindingQuestion('О песне с картинки «Numb»: расскажи'), undefined);
+  assert.equal(readSavedFindingQuestion('О песне с картинки «Numb\nPause»: \nРасскажи'), undefined);
+});
+
+test('an image subject continues through USER history while explicit live questions use the player', async () => {
+  const wire = imageSong('Linkin Park — Numb', 'Расскажи об этой песне');
+  const history = [{ role: 'user' as const, text: wire }];
+  const h = harness();
+  await runLiraAgent({ userMessage: 'На каком альбоме?', surface: 'miniapp', locale: 'ru', history, nowPlaying: liveSong }, h.deps);
+  assert.equal(h.searches[0]?.query, 'Linkin Park — Numb song release date album');
+  const fresh = resolveMusicQuestionContext('Расскажи об этой текущей песне, которая сейчас играет', liveSong.track, history);
+  assert.equal(fresh.status, 'resolved');
+  if (fresh.status === 'resolved') assert.equal(fresh.context.subjectSource, 'current_track');
+  const unknown = harness();
+  const result = await runLiraAgent({ userMessage: imageSong('Numb', 'Расскажи об этой песне'), surface: 'miniapp', locale: 'ru', nowPlaying: liveSong }, unknown.deps);
+  assert.match(result.reply, /Уточни исполнителя «Numb»/);
+  assert.deepEqual(unknown.requests, []);
+  assert.deepEqual(unknown.searches, []);
+});

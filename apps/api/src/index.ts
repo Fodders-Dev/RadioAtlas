@@ -10,7 +10,7 @@ import { registerBotRoutes } from './botRoutes.js';
 import { createAssistantRuntime, registerAiRoutes } from './aiRoutes.js';
 import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
-import type { AiModelProvider, ModelReasoningEffort } from './ai/types.js';
+import type { AiModelConfig, AiModelProvider, ModelReasoningEffort } from './ai/types.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
@@ -22,6 +22,7 @@ import { registerSceneArtworkRoutes } from './sceneArtworkRoutes.js';
 import { registerShareRoutes } from './shareRoutes.js';
 import { installObservability, recordCatalogFallback } from './observability.js';
 import { registerStationProfileRoutes } from './stationProfileRoutes.js';
+import { registerMusicImageRoutes } from './musicImageRoutes.js';
 import { openStationIntelStore } from './intel/stationIntelDb.js';
 
 const DEFAULT_API_URLS = [
@@ -291,7 +292,13 @@ type CacheEntry = {
 
 const app = express();
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '1mb' }));
+const jsonParser = express.json({ limit: '1mb' });
+app.use((req, res, next) => {
+  // Image bytes are read only after the protected music-image slot is acquired.
+  // Match the same case and trailing-slash aliases as the Express route.
+  if (/^\/ai\/music-image\/?$/i.test(req.path)) return next();
+  return jsonParser(req, res, next);
+});
 
 const corsHeaders = (req: express.Request, res: express.Response) => {
   const rawOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim() : '';
@@ -627,19 +634,22 @@ registerSceneArtworkRoutes(app, {
 // AI endpoint can share the same warm in-process catalog + model client. Null
 // when AI is off → no /ai/chat route, no internal endpoint, no bot
 // handler (byte-identical to today).
-const aiRuntime = AI_ACTIVE
+const aiModelConfig: AiModelConfig | null = AI_ACTIVE
+  ? {
+      provider: AI_PROVIDER,
+      enabled: true,
+      apiKey: AI_MODEL_API_KEY,
+      baseUrl: AI_MODEL_BASE_URL,
+      model: AI_MODEL_NAME,
+      maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+      timeoutSec: AI_TIMEOUT_SEC,
+      reasoningEffort: AI_REASONING_EFFORT
+    }
+  : null;
+const aiRuntime = aiModelConfig
   ? createAssistantRuntime({
       catalog: catalogService,
-      model: {
-        provider: AI_PROVIDER,
-        enabled: true,
-        apiKey: AI_MODEL_API_KEY,
-        baseUrl: AI_MODEL_BASE_URL,
-        model: AI_MODEL_NAME,
-        maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
-        timeoutSec: AI_TIMEOUT_SEC,
-        reasoningEffort: AI_REASONING_EFFORT
-      },
+      model: aiModelConfig,
       musicServices: AI_MUSIC_SERVICES,
       webSearch: AI_WEB_SEARCH_ACTIVE
         ? createTavilyWebSearch({
@@ -657,6 +667,14 @@ const aiRuntime = AI_ACTIVE
 registerBotRoutes(app, { internalWebhookToken: INTERNAL_WEBHOOK_TOKEN, aiRuntime });
 if (aiRuntime) {
   registerAiRoutes(app, { runtime: aiRuntime });
+}
+if (aiModelConfig) {
+  registerMusicImageRoutes(app, {
+    // Screenshot extraction is a separate, single vision call. Never change
+    // the selected conversation model (production currently uses text-only Pro).
+    model: { ...aiModelConfig, model: process.env.AI_MUSIC_IMAGE_MODEL || 'deepseek-flash' },
+    sharedMaxConcurrency: MEDIA_SHARED_CONCURRENCY
+  });
 }
 // T_share_3 (PR-A): the Story-card endpoint. Resolves the station via the warm
 // catalog (getStationById is ~16ms post-#43); render/SSRF/cache live in the

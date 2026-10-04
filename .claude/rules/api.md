@@ -48,6 +48,13 @@ direct transport and catalogue routing must never read a song title as a command
 Rejected saved metadata clarifies, not a fallback to the live song. Retry and
 replay preserve the same USER subject; no new network subject field is required.
 
+Screenshot songs use the same exact visible USER-frame boundary, with a distinct
+image caption. Keep caption out of action/transport/catalogue permission. Image
+extraction is a separate protected raw route with decode/size/deadline/admission
+caps and one provider call; never import it into the general conversation loop
+or persist image bytes/file names/candidates. Its optional model override does
+not change the conversation model.
+
 For this music-only evidence lane, discard obvious generator/template widget
 snippets that do not mention the subject in their body before composer and
 attribution. A matching page title alone does not make reusable generation

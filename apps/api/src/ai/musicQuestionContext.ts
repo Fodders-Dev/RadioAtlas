@@ -42,11 +42,14 @@ const safeSubject = (value: string) => {
   return clean(sanitizeSnippet(String(value || '')).replace(/[\u0000-\u001f\u007f\r\n]+/g, ' '));
 };
 
-/** This is a visible USER message, not metadata or an instruction channel. */
+/** Visible USER subject frames. The caption is evidence, never action permission.
+ * Keep the existing helper name for saved-find callers; screenshot subjects
+ * deliberately use a different visible label and share the same trust boundary.
+ */
 export const readSavedFindingQuestion = (message: string): { track: string; question: string } | undefined => {
   // Greedy matching on the single title line preserves quotation marks inside
   // real titles. The closing delimiter must be followed by a newline.
-  const match = message.trim().match(/^(?:О сохранённой песне «([^\r\n]*)»:|About saved song “([^\r\n]*)”:)\r?\n([\s\S]+)$/u);
+  const match = message.trim().match(/^(?:О (?:сохранённой песне|песне с картинки) «([^\r\n]*)»:|About (?:saved song|song from image) “([^\r\n]*)”:)\r?\n([\s\S]+)$/u);
   return match ? { track: match[1] ?? match[2] ?? '', question: match[3]!.trim() } : undefined;
 };
 
