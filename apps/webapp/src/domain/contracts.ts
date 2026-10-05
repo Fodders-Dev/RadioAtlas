@@ -161,6 +161,7 @@ export type SyncedTasteProfile = {
 };
 
 export type CloudLibrary = {
+  revision?: string;
   favorites: StationLite[];
   recent: StationLite[];
   trackHistory: SyncedTrackHistoryItem[];

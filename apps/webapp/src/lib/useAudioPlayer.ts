@@ -247,7 +247,9 @@ const isConstrainedApplePlayback = () => {
   const ua = navigator.userAgent || '';
   const looksLikeIPad = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
   const isAppleMobile = /iPhone|iPad|iPod/i.test(ua) || looksLikeIPad;
-  const isAppleWebKit = /AppleWebKit/i.test(ua) && !/CriOS|FxiOS|EdgiOS/i.test(ua);
+  // The iOS browser brand does not make routing through Web Audio safer.
+  // Keep Apple mobile media on the native element in those browsers too.
+  const isAppleWebKit = /AppleWebKit/i.test(ua);
   return isAppleMobile && isAppleWebKit;
 };
 const shouldUseLeanPlaybackMode = () =>
@@ -475,6 +477,8 @@ export const useAudioPlayer = ({
   const stationStartingRef = useRef(false);
   const cancelPendingPlayRef = useRef<((reason: Error) => void) | null>(null);
   const explicitlyPausedRef = useRef(false);
+  const internalPauseRef = useRef(false);
+  const queuedInternalPausesRef = useRef(0);
   const playPendingDeferralsRef = useRef(0);
   const statusRef = useRef<PlayerStatus>('idle');
   const isPlayingRef = useRef(false);
@@ -640,6 +644,17 @@ export const useAudioPlayer = ({
     audio.dataset.raTransportCandidateIndex = String(candidateIndexRef.current);
   };
 
+  // Native pause events are queued tasks. A source reset's event can arrive
+  // after its caller returns, so a synchronous flag alone cannot distinguish
+  // it from a call/headphone interruption. pause() queues exactly one event
+  // when the element was not already paused. A subsequent load discards queued
+  // media tasks, so each source load must also clear this bookkeeping.
+  const pauseForSourceChange = (audio: HTMLAudioElement) => {
+    if (!audio.paused) queuedInternalPausesRef.current += 1;
+    internalPauseRef.current = true;
+    try { audio.pause(); } finally { internalPauseRef.current = false; }
+  };
+
   const cleanupHls = () => {
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -715,8 +730,12 @@ export const useAudioPlayer = ({
       }
 
       audioContextRef.current = context;
-      const onContextStateChange = () =>
+      const onContextStateChange = () => {
         recordAudioDiagnostic('audio_context_statechange', audio, context);
+        // WebKit may interrupt the graph without pausing its media element.
+        // Stop its source as well so ending a call cannot restart radio itself.
+        if ((context.state as string) === 'interrupted') pause();
+      };
       try {
         context.addEventListener('statechange', onContextStateChange);
         audioContextStateListenerRef.current = onContextStateChange;
@@ -744,9 +763,14 @@ export const useAudioPlayer = ({
     }
   };
 
+  const audioContextNeedsResume = () => {
+    const state = audioContextRef.current?.state as string | undefined;
+    return state === 'suspended' || state === 'interrupted';
+  };
+
   const resumeAudioContext = async () => {
     const context = audioContextRef.current;
-    if (!context || context.state !== 'suspended') return;
+    if (!context || !audioContextNeedsResume()) return;
     try {
       await Promise.race([
         context.resume(),
@@ -761,6 +785,7 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (!audio) return;
 
+    pauseForSourceChange(audio);
     cleanupHls();
     clearWaitingTimeout();
     candidateStartedAtRef.current = Date.now();
@@ -771,6 +796,8 @@ export const useAudioPlayer = ({
       const mod = await import('hls.js/dist/hls.light.mjs');
       // The await above is the danger window: a station switch during the
       // import must NOT let this (now-stale) call attach to the shared <audio>.
+      if (!isSessionCurrent(sessionId)) return;
+      queuedInternalPausesRef.current = 0;
       const hls = attachHlsIfCurrent(
         mod.default as unknown as HlsConstructor,
         audio,
@@ -793,6 +820,7 @@ export const useAudioPlayer = ({
       }
       audio.src = url;
       audio.load();
+      queuedInternalPausesRef.current = 0;
     }
   };
 
@@ -922,7 +950,7 @@ export const useAudioPlayer = ({
               if (!audio.paused && Math.abs(audio.currentTime - position) > 0.05) finish();
               else {
                 finish(new Error('Playback startup timed out'));
-                audio.pause();
+                pauseForSourceChange(audio);
               }
             }, PLAY_REQUEST_TIMEOUT_MS);
             cancelPendingPlayRef.current = cancel;
@@ -1111,6 +1139,7 @@ export const useAudioPlayer = ({
   }, [isPlaying]);
 
   useEffect(() => {
+    queuedInternalPausesRef.current = 0;
     const audio =
       typeof document !== 'undefined' ? document.createElement('audio') : new Audio();
     const leanPlayback = shouldUseLeanPlaybackMode();
@@ -1186,10 +1215,29 @@ export const useAudioPlayer = ({
     };
     const handlePause = () => {
       recordAudioDiagnostic('audio_pause', audio, audioContextRef.current);
-      // A headphone pause/resume need never produce visibilitychange. Bind a
-      // fresh reconnect debt here while hidden, before the live socket expires.
+      if (internalPauseRef.current || queuedInternalPausesRef.current > 0) {
+        if (queuedInternalPausesRef.current > 0) queuedInternalPausesRef.current -= 1;
+        return;
+      }
+      // A queued pause from a command already followed by Play is obsolete.
+      if (!audio.paused) return;
+      // Reaching the media's end also queues pause, followed by ended. That
+      // path owns same-station stream recovery and is not an interruption.
+      if (audio.ended) return;
+      const nativeInterruption = !explicitlyPausedRef.current;
+      if (nativeInterruption) {
+        explicitlyPausedRef.current = true;
+        if (playPendingRef.current) beginPlaybackSession();
+        clearReconnect();
+        clearWaitingTimeout();
+        recoveryAuthorizedForRef.current = null;
+      }
+      // Native interruptions can occur while visible, and headphone controls
+      // need never produce visibilitychange. Keep a same-station reconnect
+      // available without allowing any automatic restart.
       const station = requestedStationRef.current || currentRef.current;
-      if (station && !stationStartingRef.current && document.visibilityState === 'hidden' && candidateHasPlayedRef.current) {
+      if (station && (nativeInterruption ||
+          (!stationStartingRef.current && document.visibilityState === 'hidden' && candidateHasPlayedRef.current))) {
         backgroundResumeEligibleRef.current = {
           stationId: station.stationuuid,
           session: playbackSessionRef.current,
@@ -1380,6 +1428,7 @@ export const useAudioPlayer = ({
     };
     const handleEnded = () => {
       recordAudioDiagnostic('audio_ended', audio, audioContextRef.current);
+      if (automaticPlaybackSuppressed()) return;
       const activeSession = playbackSessionRef.current;
       if (requestedStationRef.current || currentRef.current) {
         setStatus('buffering');
@@ -1573,7 +1622,7 @@ export const useAudioPlayer = ({
     return () => {
       beginPlaybackSession();
       window.clearInterval(stallWatchdog);
-      audio.pause();
+      pauseForSourceChange(audio);
       if ('srcObject' in audio) {
         try {
           (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
@@ -1809,7 +1858,7 @@ export const useAudioPlayer = ({
     setErrorMessage(null);
     setPlaybackFailure(null);
 
-    audio.pause();
+    pauseForSourceChange(audio);
     if ('srcObject' in audio) {
       try {
         (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
@@ -1821,6 +1870,7 @@ export const useAudioPlayer = ({
     audio.currentTime = 0;
     setCurrentTime(0);
     audio.load();
+    queuedInternalPausesRef.current = 0;
 
     let resolvedStation = station;
     const sourceUrls: string[] = [];
@@ -1959,8 +2009,18 @@ export const useAudioPlayer = ({
     // OS play is an idempotent command, including duplicate headphone events
     // while the live stream is connecting. Never turn it into a pause.
     if (stationStartingRef.current || playPendingRef.current) return true;
+    const progress = lastProgressRef.current;
+    const positionMoved = Math.abs(audio.currentTime - progress.time) > 0.05;
+    if (positionMoved) lastProgressRef.current = { time: audio.currentTime, at: Date.now() };
+    // An accepted play() is not proof of sound. Once the same position has
+    // stayed frozen past the normal stall threshold, an explicit OS Play may
+    // spend this debt without requiring a preceding Pause. A fresh attempt or
+    // measured native progress still makes repeated Play idempotent.
+    const frozenRecovery = Boolean(unresolvedRecoveryDebt()) && !positionMoved &&
+      Date.now() - Math.max(progress.at, candidateStartedAtRef.current) >= STALL_WATCHDOG_THRESHOLD_MS;
     if (currentRef.current && statusRef.current !== 'error' && !audio.paused &&
-        !audio.ended && !audio.error && !explicitlyPausedRef.current) return true;
+        !audio.ended && !audio.error && !explicitlyPausedRef.current &&
+        !frozenRecovery && !audioContextNeedsResume()) return true;
     explicitlyPausedRef.current = false;
 
     // The pause can also precede hiding the page. An explicit background Play
@@ -2033,12 +2093,15 @@ export const useAudioPlayer = ({
         );
         return result.ok;
       }
+      const resumeSession = playbackSessionRef.current;
       if (!shouldUseLeanPlaybackMode() || shouldForceAudioGraph()) {
         ensureAudioGraph();
         applyEqToGraph();
         applyBalanceToGraph();
         await resumeAudioContext();
       }
+      // A Pause or station change can arrive while the graph is resuming.
+      if (!isSessionCurrent(resumeSession) || automaticPlaybackSuppressed()) return false;
       await audio.play();
       return true;
     } catch (error) {
@@ -2098,7 +2161,7 @@ export const useAudioPlayer = ({
     // that depends on a side effect of an unrelated line is one refactor away
     // from being gone.
     recoveryAuthorizedForRef.current = null;
-    audio.pause();
+    pauseForSourceChange(audio);
     if ('srcObject' in audio) {
       try {
         (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;

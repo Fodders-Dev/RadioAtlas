@@ -22,7 +22,8 @@ export const MAX_RECENT = 20;
    nothing: ten thousand finds merge in 6ms and cost 2.2MB of a ~5MB budget.
    Leaving the constant behind would tell the next reader a limit still exists. */
 export const MAX_PLAYBACK_HISTORY = 80;
-export const MAX_QUEUE_ITEMS = 120;
+// Bounds automatically generated discovery refills, never a listener's saved queue.
+export const MAX_PERSONAL_RADIO_ITEMS = 120;
 
 export const DEFAULT_STORED_SKIN: StoredSkin = {
   source: 'preset',

@@ -8,7 +8,6 @@ import type {
 import { toLite } from '../../lib/stationUtils';
 import { tasteProfilesMatch } from '../../lib/tasteProfile';
 import type { Station, StationLite } from '../../types';
-import { MAX_QUEUE_ITEMS } from './defaults';
 import type { QueueSnapshot, TrackHistoryItem } from './types';
 
 export const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
@@ -28,7 +27,7 @@ export const mergeUniqueStations = (...groups: Array<Array<StationLite | null | 
 };
 
 export const normalizeStations = (stations: Array<Station | StationLite>) =>
-  mergeUniqueStations(stations.map((station) => toLite(station))).slice(0, MAX_QUEUE_ITEMS);
+  mergeUniqueStations(stations.map((station) => toLite(station)));
 
 export const mergeTrackHistory = (...groups: TrackHistoryItem[][]) => {
   const seen = new Set<string>();
@@ -196,7 +195,7 @@ export const cloudLibraryMatches = (
 export const resolveNextCloudLibrary = <T extends ComparableCloudLibrary>(
   previous: T | null,
   next: T
-): T => (previous && cloudLibraryMatches(previous, next) ? previous : next);
+): T => (previous && (previous as T & { revision?: string }).revision === (next as T & { revision?: string }).revision && cloudLibraryMatches(previous, next) ? previous : next);
 
 export const getQueueSourceLabel = (
   sourceId: string | null | undefined,

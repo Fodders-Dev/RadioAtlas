@@ -173,6 +173,7 @@ describe('returning to the app after the stream may have died', () => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
     vi.useRealTimers();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     container.remove();
   });
 
@@ -271,6 +272,210 @@ describe('returning to the app after the stream may have died', () => {
     expect(paused).toBe(false);
     expect(get().status).toBe('playing');
     expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+  });
+
+  // Mutation: the unpaused early return in resume() used to ignore this debt.
+  it('explicit OS Play reconnects a demonstrably frozen unpaused stream without a preceding Pause', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+    expect(paused).toBe(false);
+    const before = { loads: loadCalls, plays: playCalls };
+    await act(async () => { await get().resume(); });
+    expect(loadCalls).toBe(before.loads + 1);
+    expect(playCalls).toBe(before.plays + 1);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    // A duplicated command during the fresh attempt must not reset the source.
+    await act(async () => { await get().resume(); });
+    expect(loadCalls).toBe(before.loads + 1);
+  });
+
+  it('explicit OS Play leaves an advancing stream alone even when timeupdate was withheld', async () => {
+    const get = mount();
+    await startPlaying(get);
+    await hideFor(60_000);
+    setVisibility('visible');
+    const before = { loads: loadCalls, plays: playCalls };
+    position += 2;
+    await act(async () => { await get().resume(); });
+    expect(loadCalls).toBe(before.loads);
+    expect(playCalls).toBe(before.plays);
+    expect(paused).toBe(false);
+  });
+
+  it.each(['visible', 'hidden'] as const)('a native pause while %s retains the station and blocks error/ended recovery until Play', async (visibility) => {
+    const get = mount();
+    await startPlaying(get);
+    setVisibility(visibility);
+    const before = { loads: loadCalls, plays: playCalls, src: audio!.src };
+    act(() => {
+      paused = true;
+      audio!.dispatchEvent(new Event('pause'));
+      audio!.dispatchEvent(new Event('error'));
+      audio!.dispatchEvent(new Event('ended'));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(loadCalls).toBe(before.loads);
+    expect(playCalls).toBe(before.plays);
+    expect(audio!.src).toBe(before.src);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(get().status).toBe('paused');
+    await act(async () => { await get().resume(); });
+    expect(loadCalls).toBe(before.loads + 1);
+    expect(paused).toBe(false);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it('a native interruption during startup cancels its candidate walk and retains a same-station retry', async () => {
+    const get = mount();
+    let rejectPlay!: (error: Error) => void;
+    setPlay(() => new Promise<void>((_, reject) => { rejectPlay = reject; }));
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>;
+    await act(async () => { attempt = get().playStation(station); });
+    const before = { loads: loadCalls, plays: playCalls };
+    await act(async () => {
+      paused = true;
+      audio!.dispatchEvent(new Event('pause'));
+      rejectPlay(new DOMException('Interrupted', 'AbortError'));
+    });
+    expect(loadCalls).toBe(before.loads);
+    expect(playCalls).toBe(before.plays);
+    await act(async () => { await attempt; });
+    expect(get().pending?.stationuuid).toBe(station.stationuuid);
+    expect(get().status).toBe('paused');
+    setPlay(() => Promise.resolve());
+    await act(async () => { await get().resume(); });
+    expect(paused).toBe(false);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  const installAudioContext = () => {
+    const node = () => ({ connect() {}, disconnect() {}, gain: { value: 0 }, pan: { value: 0 },
+      frequency: { value: 0 }, Q: { value: 0 } });
+    const context = Object.assign(new EventTarget(), {
+      state: 'running', destination: node(), createMediaElementSource: node,
+      createGain: node, createAnalyser: node, createBiquadFilter: node, createStereoPanner: node,
+      close: vi.fn(async () => {}), resume: vi.fn(async () => { context.state = 'running'; })
+    });
+    const constructor = vi.fn(function () { return context; });
+    vi.stubGlobal('AudioContext', constructor);
+    return { context, constructor };
+  };
+
+  it('explicit Play resumes an interrupted AudioContext even if the native element still says playing', async () => {
+    const { context } = installAudioContext();
+    const get = mount();
+    await startPlaying(get);
+    context.state = 'interrupted';
+    expect(paused).toBe(false);
+    await act(async () => { await get().resume(); });
+    expect(context.resume).toHaveBeenCalledOnce();
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+  });
+
+  it('an AudioContext interruption pauses until explicit Play, even if the context later returns to running', async () => {
+    const { context } = installAudioContext();
+    const get = mount();
+    await startPlaying(get);
+    const before = { loads: loadCalls, plays: playCalls };
+    act(() => {
+      context.state = 'interrupted';
+      context.dispatchEvent(new Event('statechange'));
+    });
+    expect(paused).toBe(true);
+    act(() => {
+      context.state = 'running';
+      context.dispatchEvent(new Event('statechange'));
+      audio!.dispatchEvent(new Event('error'));
+    });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(loadCalls).toBe(before.loads);
+    expect(playCalls).toBe(before.plays);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    await act(async () => { await get().resume(); });
+    expect(paused).toBe(false);
+  });
+
+  it('a Pause arriving during explicit context resume cannot be followed by sound', async () => {
+    const { context } = installAudioContext();
+    const get = mount();
+    await startPlaying(get);
+    act(() => get().pause());
+    context.state = 'suspended';
+    let finishResume!: () => void;
+    context.resume.mockImplementationOnce(() => new Promise<void>((resolve) => { finishResume = resolve; }));
+    const playsBefore = playCalls;
+    let resume!: Promise<boolean>;
+    await act(async () => { resume = get().resume(); });
+    act(() => get().pause());
+    await act(async () => { context.state = 'running'; finishResume(); await resume; });
+    expect(playCalls).toBe(playsBefore);
+    expect(paused).toBe(true);
+  });
+
+  it('an asynchronously queued source-reset pause does not cancel the new station or swallow its later interruption', async () => {
+    const get = mount();
+    await startPlaying(get);
+    audio!.pause = () => {
+      if (paused) return;
+      paused = true;
+      window.setTimeout(() => audio!.dispatchEvent(new Event('pause')), 0);
+    };
+    await act(async () => { await get().playStation(stationB); });
+    act(() => audio!.dispatchEvent(new Event('playing')));
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(paused).toBe(false);
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+    const playsBefore = playCalls;
+    act(() => { paused = true; audio!.dispatchEvent(new Event('pause')); audio!.dispatchEvent(new Event('error')); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(playCalls).toBe(playsBefore);
+    expect(get().status).toBe('paused');
+  });
+
+  it('load discarding a queued internal pause cannot hide the next real interruption', async () => {
+    const get = mount();
+    await startPlaying(get);
+    let pauseTask: number | undefined;
+    const load = audio!.load;
+    audio!.pause = () => {
+      if (paused) return;
+      paused = true;
+      pauseTask = window.setTimeout(() => audio!.dispatchEvent(new Event('pause')), 0);
+    };
+    // HTML load algorithm discards tasks queued by the old media resource.
+    audio!.load = () => { window.clearTimeout(pauseTask); load(); };
+    await act(async () => { await get().playStation(stationB); });
+    act(() => audio!.dispatchEvent(new Event('playing')));
+    const playsBefore = playCalls;
+    act(() => { paused = true; audio!.dispatchEvent(new Event('pause')); audio!.dispatchEvent(new Event('error')); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(playCalls).toBe(playsBefore);
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+    expect(get().status).toBe('paused');
+  });
+
+  it('the pause event at a natural stream end still permits same-station recovery', async () => {
+    const get = mount();
+    await startPlaying(get);
+    const playsBefore = playCalls;
+    Object.defineProperty(audio, 'ended', { configurable: true, value: true });
+    act(() => { paused = true; audio!.dispatchEvent(new Event('pause')); audio!.dispatchEvent(new Event('ended')); });
+    await act(async () => { await Promise.resolve(); });
+    expect(playCalls).toBe(playsBefore + 1);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it.each(['CriOS/140.0', 'FxiOS/140.0', 'EdgiOS/140.0'])('Apple mobile %s uses the native element without an AudioContext', async (browser) => {
+    const { constructor } = installAudioContext();
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(`Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 ${browser} Mobile/15E148 Safari/604.1`);
+    const get = mount();
+    await startPlaying(get);
+    expect(constructor).not.toHaveBeenCalled();
+    expect(audio!.crossOrigin).toBeNull();
+    expect(get().status).toBe('playing');
   });
 
   it('pause cancels startup rather than failing over after a rejected play', async () => {

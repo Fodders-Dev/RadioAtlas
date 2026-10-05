@@ -47,11 +47,20 @@ describe('latestTrackForStation', () => {
   });
 });
 
-import { reorderQueueItems } from './helpers';
+import { normalizeStations, reorderQueueItems } from './helpers';
 import type { StationLite } from '../../types';
 
 const qs = (id: string): StationLite =>
   ({ stationuuid: id, name: id, url_resolved: '', tags: '' }) as unknown as StationLite;
+
+describe('personal queue membership', () => {
+  it('keeps all 200 saved stations in their order while removing duplicate UUIDs', () => {
+    const saved = Array.from({ length: 200 }, (_, index) => qs(`saved-${index}`));
+    const normalized = normalizeStations([...saved, saved[199], saved[0]]);
+    expect(normalized.map(station => station.stationuuid)).toEqual(saved.map(station => station.stationuuid));
+    expect(normalized[199].stationuuid).toBe('saved-199');
+  });
+});
 
 describe('reorderQueueItems (#86-safe drag reorder)', () => {
   const items = [qs('a'), qs('b'), qs('c'), qs('d')];

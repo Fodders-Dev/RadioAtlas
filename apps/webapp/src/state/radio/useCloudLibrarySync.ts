@@ -7,6 +7,7 @@ import type {
   UserCollection
 } from '../../domain/contracts';
 import { MAX_RECENT } from './defaults';
+import { rebaseCloudLibrary } from './rebaseCloudLibrary';
 import {
   alertsMatch,
   cloudLibraryMatches,
@@ -28,13 +29,11 @@ import {
 
 type CloudSetter<T> = (next: T) => void;
 
-const CLOUD_LIBRARY_SYNC_DELAY_MS = 1_400;
-
 type UseCloudLibrarySyncArgs = {
   sessionStatus: string;
   sessionProfileId: string | null | undefined;
   cloudLibrary: CloudLibrary | null | undefined;
-  replaceCloudLibrary: (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => Promise<unknown> | void;
+  replaceCloudLibrary: (nextLibrary: Omit<CloudLibrary, 'updatedAt'>, options?: { defer?: boolean }) => Promise<unknown> | void;
   favorites: StationLite[];
   recent: StationLite[];
   trackHistory: TrackHistoryItem[];
@@ -76,10 +75,16 @@ export const useCloudLibrarySync = ({
   trackHistory
 }: UseCloudLibrarySyncArgs) => {
   const hydratedCloudProfileRef = useRef<string | null>(null);
+  const acceptedCloudRef = useRef<CloudLibrary | null>(null);
+  const awaitingLocalRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
+  const submittedLocalRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
 
   useEffect(() => {
     if (sessionStatus !== 'authenticated') {
       hydratedCloudProfileRef.current = null;
+      acceptedCloudRef.current = null;
+      awaitingLocalRef.current = null;
+      submittedLocalRef.current = null;
     }
   }, [sessionStatus]);
 
@@ -88,12 +93,30 @@ export const useCloudLibrarySync = ({
       sessionStatus !== 'authenticated' ||
       !sessionProfileId ||
       !cloudLibrary ||
-      hydratedCloudProfileRef.current === sessionProfileId
+      (hydratedCloudProfileRef.current === sessionProfileId && acceptedCloudRef.current === cloudLibrary)
     ) {
       return;
     }
 
+    const alreadyHydrated = hydratedCloudProfileRef.current === sessionProfileId;
+    const previousCloud = acceptedCloudRef.current;
     hydratedCloudProfileRef.current = sessionProfileId;
+    acceptedCloudRef.current = cloudLibrary;
+
+    if (alreadyHydrated && previousCloud) {
+      const local = { favorites, recent, trackHistory, collections, followedStations, followedRegions, alerts, tasteProfile };
+      const rebased = rebaseCloudLibrary(previousCloud, local, cloudLibrary);
+      awaitingLocalRef.current = cloudLibraryMatches(rebased, local) ? null : rebased;
+      if (!stationsMatch(rebased.favorites, favorites)) setFavorites(rebased.favorites);
+      if (!stationsMatch(rebased.recent, recent)) setRecent(rebased.recent);
+      if (!trackHistoryMatch(rebased.trackHistory, trackHistory)) setTrackHistory(rebased.trackHistory as TrackHistoryItem[]);
+      if (!collectionsMatch(rebased.collections, collections)) setCollections(rebased.collections);
+      if (!followedStationsMatch(rebased.followedStations, followedStations)) setFollowedStations(rebased.followedStations);
+      if (!followedRegionsMatch(rebased.followedRegions, followedRegions)) setFollowedRegions(rebased.followedRegions);
+      if (!alertsMatch(rebased.alerts, alerts)) setAlerts(rebased.alerts);
+      if (rebased.tasteProfile && !tasteProfilesMatch(rebased.tasteProfile, tasteProfile)) setTasteProfile(rebased.tasteProfile);
+      return;
+    }
 
     const mergedFavorites = mergeUniqueStations(cloudLibrary.favorites, favorites);
     const mergedRecent = mergeUniqueStations(cloudLibrary.recent, recent).slice(0, MAX_RECENT);
@@ -116,7 +139,8 @@ export const useCloudLibrarySync = ({
       .sort((left, right) => right.createdAt - left.createdAt)
       .filter((item, index, source) => source.findIndex((candidate) => candidate.id === item.id) === index)
       .slice(0, 160);
-    const mergedTasteProfile = mergeTasteProfiles(cloudLibrary.tasteProfile, tasteProfile);
+    const mergedTasteProfile = tasteProfilesMatch(cloudLibrary.tasteProfile, tasteProfile)
+      ? tasteProfile : mergeTasteProfiles(cloudLibrary.tasteProfile, tasteProfile);
 
     if (!stationsMatch(mergedFavorites, favorites)) {
       setFavorites(mergedFavorites);
@@ -153,8 +177,10 @@ export const useCloudLibrarySync = ({
       !alertsMatch(mergedAlerts, cloudLibrary.alerts) ||
       !tasteProfilesMatch(mergedTasteProfile, cloudLibrary.tasteProfile);
 
+    awaitingLocalRef.current = { favorites: mergedFavorites, recent: mergedRecent, trackHistory: mergedTrackHistory, collections: mergedCollections, followedStations: mergedFollowedStations, followedRegions: mergedFollowedRegions, alerts: mergedAlerts, tasteProfile: mergedTasteProfile };
+
     if (remoteNeedsUpdate) {
-      void replaceCloudLibrary({
+      const mergedLibrary = {
         favorites: mergedFavorites,
         recent: mergedRecent,
         trackHistory: mergedTrackHistory,
@@ -163,7 +189,9 @@ export const useCloudLibrarySync = ({
         followedRegions: mergedFollowedRegions,
         alerts: mergedAlerts,
         tasteProfile: mergedTasteProfile
-      });
+      };
+      submittedLocalRef.current = mergedLibrary;
+      void replaceCloudLibrary(mergedLibrary);
     }
   }, [
     alerts,
@@ -214,13 +242,23 @@ export const useCloudLibrarySync = ({
     };
     const sameAsCloud = cloudLibraryMatches(nextLibrary, cloudLibrary);
 
-    if (sameAsCloud) return;
+    // A cloud pull scheduled local setters in the preceding effect. Do not PUT
+    // the old render back over that pull before those setters have committed.
+    if (awaitingLocalRef.current) {
+      if (!cloudLibraryMatches(nextLibrary, awaitingLocalRef.current)) return;
+      awaitingLocalRef.current = null;
+    }
 
-    const timeout = window.setTimeout(() => {
-      void replaceCloudLibrary(nextLibrary);
-    }, CLOUD_LIBRARY_SYNC_DELAY_MS);
+    const previousSubmission = submittedLocalRef.current;
+    if (previousSubmission && cloudLibraryMatches(previousSubmission, nextLibrary)) return;
+    if (sameAsCloud && !previousSubmission) return;
 
-    return () => window.clearTimeout(timeout);
+    // Capture intent now, including an undo equal to the old cloud copy.
+    // Delaying capture by 1.4s let an older ACK resurrect the removed station.
+    // Session delays only network transmission and coalesces playback bursts;
+    // edits made during a PUT remain one subsequent write.
+    submittedLocalRef.current = nextLibrary;
+    void replaceCloudLibrary(nextLibrary, { defer: true });
   }, [
     alerts,
     cloudLibrary?.alerts,
