@@ -27,6 +27,7 @@ import {
   subscribeTelegramSdkReady
 } from '../lib/telegram';
 import { cloudLibraryMatches, resolveNextCloudLibrary } from './radio/helpers';
+import { rebaseCloudLibrary } from './radio/rebaseCloudLibrary';
 import type { StationLite } from '../types';
 
 type LibraryCounts = {
@@ -113,7 +114,7 @@ type SessionContextValue = {
   setBotOptIn: (
     optedIn: boolean
   ) => Promise<{ optedIn: boolean; hasTelegram: boolean; reachable: boolean }>;
-  replaceCloudLibrary: (library: Omit<CloudLibrary, 'updatedAt'>) => Promise<void>;
+  replaceCloudLibrary: (library: Omit<CloudLibrary, 'updatedAt'>, options?: { defer?: boolean }) => Promise<void>;
   updateCollections: (collections: UserCollection[]) => Promise<void>;
   updateFollows: (payload: {
     followedStations: FollowedStation[];
@@ -401,6 +402,23 @@ const setStoredToken = (token: string) => {
 
 type SessionTelemetryLibrary = Omit<CloudLibrary, 'updatedAt'> | CloudLibrary | null | undefined;
 
+type CloudWriteIntent = { base: CloudLibrary | null; steps: Array<Omit<CloudLibrary, 'updatedAt'>> };
+
+// Keep user-visible edits separate from transport snapshots: a conflict may
+// introduce remote additions the listener has not seen, and a failed response
+// does not prove whether the earlier write committed. Replay successive edits
+// over the latest cloud copy, including undo of an unacknowledged addition.
+const rebaseWriteIntent = (intent: CloudWriteIntent, remote: CloudLibrary | null) => {
+  if (!intent.base || !remote) return intent.steps[intent.steps.length - 1];
+  let previous = intent.base;
+  let result = remote;
+  for (const step of intent.steps) {
+    result = { ...rebaseCloudLibrary(previous, step, result), updatedAt: remote.updatedAt, revision: remote.revision };
+    previous = { ...step, updatedAt: previous.updatedAt };
+  }
+  return result;
+};
+
 const readLibraryTelemetryCounts = (library: SessionTelemetryLibrary) => ({
   favorites: library?.favorites.length || 0,
   recent: library?.recent.length || 0,
@@ -451,7 +469,14 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const canOpenTelegram = Boolean(import.meta.env.VITE_TG_BOT || telegramMiniApp);
   const profileRef = useRef(profile);
   const libraryRef = useRef(library);
+  const canonicalLibraryRef = useRef<CloudLibrary | null>(null);
+  const cloudSnapshotGenerationRef = useRef(0);
+  const cloudWriteGenerationRef = useRef(0);
   const queuedCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
+  const queuedCloudBaseRef = useRef<CloudLibrary | null>(null);
+  const queuedCloudIntentRef = useRef<CloudWriteIntent | null>(null);
+  const deferredCloudFlushRef = useRef<number | null>(null);
+  const failedCloudWriteRef = useRef<{ accountId: string; library: Omit<CloudLibrary, 'updatedAt'>; base: CloudLibrary | null; intent: CloudWriteIntent } | null>(null);
   const inFlightCloudLibraryRef = useRef<Omit<CloudLibrary, 'updatedAt'> | null>(null);
   const cloudLibrarySyncPromiseRef = useRef<Promise<void> | null>(null);
   // T_stability: a library change orphaned by a mid-flight token expiry (or a
@@ -463,6 +488,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const pendingReauthLibraryRef = useRef<{
     accountId: string;
     library: Omit<CloudLibrary, 'updatedAt'>;
+    base?: CloudLibrary | null;
+    intent?: CloudWriteIntent;
   } | null>(null);
   // Forward ref to flushCloudLibrarySync (defined far below) so applySessionPayload
   // can re-flush the orphaned change at the re-auth point.
@@ -568,7 +595,12 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const resetCloudLibrarySyncQueue = useCallback(() => {
+    if (deferredCloudFlushRef.current !== null) window.clearTimeout(deferredCloudFlushRef.current);
+    deferredCloudFlushRef.current = null;
+    cloudWriteGenerationRef.current += 1;
     queuedCloudLibraryRef.current = null;
+    queuedCloudBaseRef.current = null;
+    queuedCloudIntentRef.current = null;
     inFlightCloudLibraryRef.current = null;
     cloudLibrarySyncPromiseRef.current = null;
   }, []);
@@ -576,6 +608,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   const applySessionSnapshot = useCallback(
     (nextProfile: SessionPayload['profile'], nextAuditTrail?: SessionAuditEvent[]) => {
       const mappedProfile = mapProfile(nextProfile);
+      libraryRef.current = nextProfile.library;
+      canonicalLibraryRef.current = nextProfile.library;
+      cloudSnapshotGenerationRef.current += 1;
       const resolvedAuditTrail = nextAuditTrail || [];
       setProfile((previous) => (profilesMatch(previous, mappedProfile) ? previous : mappedProfile));
       // ⚠ NOT `cloudLibraryMatches(previous, next) ? previous : next` — that
@@ -621,7 +656,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     if (pendingReauth) {
       pendingReauthLibraryRef.current = null;
       if (pendingReauth.accountId === mappedProfile.id) {
-        queuedCloudLibraryRef.current = pendingReauth.library;
+        const intent = pendingReauth.intent ?? { base: pendingReauth.base ?? null, steps: [pendingReauth.library] };
+        queuedCloudLibraryRef.current = rebaseWriteIntent(intent, payload.profile.library);
+        queuedCloudBaseRef.current = payload.profile.library;
+        queuedCloudIntentRef.current = intent;
         flushCloudLibrarySyncRef.current();
       }
     }
@@ -1114,6 +1152,8 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     if (cloudLibrarySyncPromiseRef.current || !queuedCloudLibraryRef.current) {
       return cloudLibrarySyncPromiseRef.current ?? Promise.resolve();
     }
+    if (deferredCloudFlushRef.current !== null) window.clearTimeout(deferredCloudFlushRef.current);
+    deferredCloudFlushRef.current = null;
 
     const token = getStoredToken();
     if (!apiBase || !token || !profileRef.current) {
@@ -1124,16 +1164,24 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       if (!token && apiBase && profileRef.current && queuedCloudLibraryRef.current) {
         pendingReauthLibraryRef.current = {
           accountId: profileRef.current.id,
-          library: queuedCloudLibraryRef.current
+          library: queuedCloudLibraryRef.current,
+          base: queuedCloudBaseRef.current ?? libraryRef.current,
+          intent: queuedCloudIntentRef.current ?? undefined
         };
       }
       resetCloudLibrarySyncQueue();
       return;
     }
 
-    const requestLibrary = queuedCloudLibraryRef.current;
+    let requestLibrary = queuedCloudLibraryRef.current;
+    let requestBase = queuedCloudBaseRef.current ?? canonicalLibraryRef.current;
+    const requestIntent = queuedCloudIntentRef.current ?? { base: requestBase, steps: [requestLibrary] };
+    const requestAccountId = profileRef.current.id;
+    const requestGeneration = ++cloudWriteGenerationRef.current;
     queuedCloudLibraryRef.current = null;
-    inFlightCloudLibraryRef.current = requestLibrary;
+    queuedCloudBaseRef.current = null;
+    queuedCloudIntentRef.current = null;
+    inFlightCloudLibraryRef.current = requestIntent.steps[requestIntent.steps.length - 1];
     setSyncState('syncing');
     reportSessionEvent('session_sync_start', {
       detail: profileRef.current.id,
@@ -1150,14 +1198,27 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     const promise = (async () => {
       let authFailed = false;
       try {
-        const response = await fetch(`${apiBase}/me/library`, {
+        let response: Response;
+        for (let conflictAttempt = 0; ; conflictAttempt += 1) {
+          response = await fetch(`${apiBase}/me/library`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(requestLibrary)
-        });
+            body: JSON.stringify({ ...requestLibrary, ...(requestBase?.revision ? { baseRevision: requestBase.revision } : {}) })
+          });
+          if (getStoredToken() !== token || profileRef.current?.id !== requestAccountId) return;
+          if (response.status !== 409) break;
+          const conflict = await response.json() as { profile?: SessionPayload['profile'] };
+          if (!conflict.profile || conflict.profile.id !== requestAccountId || !requestBase) throw new Error('library conflict could not be resolved');
+          requestLibrary = rebaseWriteIntent(requestIntent, conflict.profile.library);
+          requestBase = conflict.profile.library;
+          // Keep the original user-visible intent as the baseline for edits
+          // made during this retry. Remote additions in requestLibrary have
+          // not reached RadioContext yet; their absence there is not deletion.
+          if (conflictAttempt >= 2) throw new Error('library keeps changing on another device; retry on return');
+        }
         if (!response.ok) {
           authFailed = response.status === 401 || response.status === 403;
           const failure = (await response.json().catch(() => null)) as { error?: string } | null;
@@ -1170,13 +1231,28 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         if (getStoredToken() !== token || !profileRef.current) {
           return;
         }
-        applySessionSnapshot(data.profile, data.auditTrail);
-        setSyncState('synced');
+        if (queuedCloudLibraryRef.current && queuedCloudBaseRef.current) {
+          const queuedIntent = queuedCloudIntentRef.current ?? { base: queuedCloudBaseRef.current, steps: [queuedCloudLibraryRef.current] };
+          queuedCloudLibraryRef.current = rebaseWriteIntent(queuedIntent, data.profile.library);
+          queuedCloudBaseRef.current = data.profile.library;
+          // Transport now uses the ACK's revision, but edits are still based
+          // on the last user-visible snapshot until the final ACK is published.
+          queuedCloudIntentRef.current = queuedIntent;
+        }
+        failedCloudWriteRef.current = null;
+        canonicalLibraryRef.current = data.profile.library;
+        cloudSnapshotGenerationRef.current += 1;
+        // An older acknowledged write is not the latest local intent (e.g.
+        // add then remove before the first response). Publish only the final
+        // snapshot; use this acknowledgement as the next CAS base internally.
+        const newerWrite = queuedCloudLibraryRef.current && !cloudLibraryMatches(queuedCloudLibraryRef.current, data.profile.library);
+        if (!newerWrite) applySessionSnapshot(data.profile, data.auditTrail);
+        setSyncState(newerWrite ? 'syncing' : 'synced');
         setError(null);
         reportSessionEvent('session_sync_success', {
           detail: data.profile.id,
           dedupeKey: `session_sync_success:${data.profile.id}:${data.profile.library.updatedAt}`,
-          nextSyncState: 'synced',
+          nextSyncState: newerWrite ? 'syncing' : 'synced',
           nextProfile: mapProfile(data.profile),
           nextLibrary: data.profile.library,
           queuedLibrary: queuedCloudLibraryRef.current,
@@ -1188,14 +1264,28 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           }
         });
       } catch (err) {
+        if (getStoredToken() !== token || profileRef.current?.id !== requestAccountId) return;
         // T_stability: an auth failure (likely an expired token mid-flight) must
         // not lose the change — preserve it for the re-auth effect to re-flush.
         // Do NOT retry here → no 401 spin-loop.
+        const pendingIntent: CloudWriteIntent = {
+          base: requestIntent.base,
+          steps: [...requestIntent.steps, ...(queuedCloudIntentRef.current?.steps ?? [])]
+        };
+        const pendingLibrary = rebaseWriteIntent(pendingIntent, requestBase);
         if (authFailed && profileRef.current) {
           pendingReauthLibraryRef.current = {
             accountId: profileRef.current.id,
-            library: queuedCloudLibraryRef.current ?? requestLibrary
+            library: pendingLibrary,
+            base: requestBase,
+            intent: pendingIntent
           };
+        }
+        if (!authFailed) {
+          failedCloudWriteRef.current = { accountId: requestAccountId, library: pendingLibrary, base: requestBase, intent: pendingIntent };
+          queuedCloudLibraryRef.current = null;
+          queuedCloudBaseRef.current = null;
+          queuedCloudIntentRef.current = null;
         }
         setSyncState('error');
         const message = err instanceof Error ? err.message : 'library sync failed';
@@ -1212,6 +1302,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
           }
         });
       } finally {
+        // A re-authentication can have started a new request while this old
+        // token's request was still pending. Only its current owner may drain.
+        if (cloudWriteGenerationRef.current !== requestGeneration) return;
         inFlightCloudLibraryRef.current = null;
         cloudLibrarySyncPromiseRef.current = null;
 
@@ -1219,8 +1312,10 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         if (!queuedLibrary) {
           return;
         }
-        if (cloudLibraryMatches(libraryRef.current, queuedLibrary)) {
+        if (cloudLibraryMatches(canonicalLibraryRef.current, queuedLibrary)) {
           queuedCloudLibraryRef.current = null;
+          queuedCloudBaseRef.current = null;
+          queuedCloudIntentRef.current = null;
           reportSessionEvent('session_sync_noop', {
             dedupeKey: `session_sync_noop:${profileRef.current?.id || 'guest'}:${buildLibraryTelemetrySignature(queuedLibrary)}`,
             dedupeMs: 10_000,
@@ -1245,6 +1340,11 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   // T_stability: keep a ref to flushCloudLibrarySync so applySessionPayload
   // (defined earlier) can drive the re-auth re-flush without a forward reference.
   flushCloudLibrarySyncRef.current = flushCloudLibrarySync;
+
+  useEffect(() => () => {
+    if (deferredCloudFlushRef.current !== null) window.clearTimeout(deferredCloudFlushRef.current);
+    deferredCloudFlushRef.current = null;
+  }, []);
 
   const setBotOptIn = useCallback(
     async (optedIn: boolean) => {
@@ -1283,7 +1383,7 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const replaceCloudLibrary = useCallback(
-    async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>) => {
+    async (nextLibrary: Omit<CloudLibrary, 'updatedAt'>, options?: { defer?: boolean }) => {
       const token = getStoredToken();
       if (!apiBase || !token || !profileRef.current) {
         // T_stability: the token is already gone (expired before we could sync) —
@@ -1294,15 +1394,18 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         if (!token && apiBase && profileRef.current) {
           pendingReauthLibraryRef.current = {
             accountId: profileRef.current.id,
-            library: nextLibrary
+            library: nextLibrary,
+            base: libraryRef.current
           };
         }
         return;
       }
+      const failedWrite = failedCloudWriteRef.current?.accountId === profileRef.current.id
+        ? failedCloudWriteRef.current : null;
       if (
-        cloudLibraryMatches(libraryRef.current, nextLibrary) ||
-        cloudLibraryMatches(queuedCloudLibraryRef.current, nextLibrary) ||
-        cloudLibraryMatches(inFlightCloudLibraryRef.current, nextLibrary)
+        (!failedWrite && !inFlightCloudLibraryRef.current && !queuedCloudLibraryRef.current && cloudLibraryMatches(canonicalLibraryRef.current, nextLibrary)) ||
+        (queuedCloudLibraryRef.current !== null && cloudLibraryMatches(queuedCloudLibraryRef.current, nextLibrary)) ||
+        (queuedCloudLibraryRef.current === null && inFlightCloudLibraryRef.current !== null && cloudLibraryMatches(inFlightCloudLibraryRef.current, nextLibrary))
       ) {
         reportSessionEvent('session_sync_skipped', {
           dedupeKey: `session_sync_skipped:${profileRef.current.id}:${buildLibraryTelemetrySignature(nextLibrary)}`,
@@ -1312,6 +1415,21 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
         return cloudLibrarySyncPromiseRef.current ?? Promise.resolve();
       }
       queuedCloudLibraryRef.current = nextLibrary;
+      queuedCloudBaseRef.current = inFlightCloudLibraryRef.current
+        ? { ...inFlightCloudLibraryRef.current, updatedAt: canonicalLibraryRef.current?.updatedAt ?? 0, revision: canonicalLibraryRef.current?.revision }
+        : failedWrite?.base ?? canonicalLibraryRef.current;
+      queuedCloudIntentRef.current = failedWrite
+        ? { base: failedWrite.intent.base, steps: [...failedWrite.intent.steps, nextLibrary] }
+        : { base: queuedCloudBaseRef.current, steps: [nextLibrary] };
+      if (failedWrite) queuedCloudLibraryRef.current = rebaseWriteIntent(queuedCloudIntentRef.current, queuedCloudBaseRef.current);
+      failedCloudWriteRef.current = null;
+      // Debounce transmission, never capture of user intent. Playback bursts
+      // stay one save while an undo is already known when an older ACK arrives.
+      if (options?.defer && !cloudLibrarySyncPromiseRef.current) {
+        if (deferredCloudFlushRef.current !== null) window.clearTimeout(deferredCloudFlushRef.current);
+        deferredCloudFlushRef.current = window.setTimeout(() => { void flushCloudLibrarySync(); }, 1_400);
+        return;
+      }
       return flushCloudLibrarySync();
     },
     [apiBase, flushCloudLibrarySync, reportSessionEvent]
@@ -1469,6 +1587,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     // T_stability: a real sign-out discards any orphaned-for-re-auth change so it
     // never flushes into a later (possibly different) session.
     pendingReauthLibraryRef.current = null;
+    failedCloudWriteRef.current = null;
+    canonicalLibraryRef.current = null;
+    cloudSnapshotGenerationRef.current += 1;
     setStoredToken('');
     setProfile(null);
     setLibrary(null);
@@ -1531,6 +1652,60 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     if (!token) return false;
     return fetchProfile(token);
   }, [fetchProfile]);
+
+  // Fetch on foreground and occasionally while visible. This is a library pull,
+  // not reauthentication: network failure must not log the listener out or clear
+  // pending writes. Background playback does not depend on this timer.
+  useEffect(() => {
+    if (status !== 'authenticated' || !apiBase || !profile?.id) return;
+    let active = true;
+    let pulling = false;
+    let lastPull = 0;
+    const pull = async () => {
+      if (!active || pulling || document.visibilityState === 'hidden' || Date.now() - lastPull < 5_000 || cloudLibrarySyncPromiseRef.current || queuedCloudLibraryRef.current) return;
+      const token = getStoredToken();
+      const accountId = profileRef.current?.id;
+      const generation = cloudSnapshotGenerationRef.current;
+      if (!token || !accountId) return;
+      pulling = true;
+      lastPull = Date.now();
+      try {
+        const failed = failedCloudWriteRef.current;
+        if (failed?.accountId === accountId) {
+          queuedCloudLibraryRef.current = failed.library;
+          queuedCloudBaseRef.current = failed.base;
+          queuedCloudIntentRef.current = failed.intent;
+          await flushCloudLibrarySync();
+          return;
+        }
+        const response = await fetch(`${apiBase}/me`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+        if (!active || getStoredToken() !== token || profileRef.current?.id !== accountId) return;
+        if (!response.ok) return;
+        const data = await response.json() as { profile: SessionPayload['profile']; auditTrail?: SessionAuditEvent[] };
+        if (!active || getStoredToken() !== token || profileRef.current?.id !== accountId || data.profile.id !== accountId) return;
+        // A local edit may have started while GET was in flight. Its CAS write
+        // will reconcile with the server; don't apply an older GET over it.
+        if (cloudLibrarySyncPromiseRef.current || queuedCloudLibraryRef.current || cloudSnapshotGenerationRef.current !== generation) return;
+        applySessionSnapshot(data.profile, data.auditTrail);
+      } catch {
+        // Keep the authenticated, locally persisted library on offline return.
+      } finally { pulling = false; }
+    };
+    const onReturn = () => { void pull(); };
+    document.addEventListener('visibilitychange', onReturn);
+    window.addEventListener('focus', onReturn);
+    window.addEventListener('pageshow', onReturn);
+    window.addEventListener('online', onReturn);
+    const timer = window.setInterval(onReturn, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onReturn);
+      window.removeEventListener('focus', onReturn);
+      window.removeEventListener('pageshow', onReturn);
+      window.removeEventListener('online', onReturn);
+    };
+  }, [apiBase, status, profile?.id, applySessionSnapshot, flushCloudLibrarySync]);
 
   const fetchProfileRef = useRef(fetchProfile);
   const signInWithTelegramRef = useRef(signInWithTelegram);

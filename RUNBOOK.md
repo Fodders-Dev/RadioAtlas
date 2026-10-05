@@ -527,6 +527,35 @@ Android is an independent platform check, never evidence that iPhone passes.
 Connected Samsung ADB was detected but unauthorized; no device inspection has
 been performed until the owner approves its USB debugging prompt.
 
+### Local repair on 2026-10-05; physical acceptance still open
+
+`docs/RELIABILITY-2026-10-05.md` records three related repairs. Native pause now
+holds the current station/source and explicit-resume debt; automatic error/ended
+recovery cannot undo it. Explicit Play reconnects an unpaused but interrupted
+stalled stream and resumes an interrupted AudioContext, guarded against a newer
+pause/switch. Apple mobile WebKit uses native audio even with Chrome/Firefox/Edge
+branding. Unit and registered-handler browser tests do not establish that iOS
+delivers an actual car/headphone command. Follow the parked trace procedure above;
+do not mark the owner's iPhone report fixed without that trial.
+
+### Cross-device library repair on 2026-10-05
+
+New `/me` profile libraries include a content revision (SHA256 of sanitized
+persisted library; regenerated read `updatedAt` is excluded). New clients send
+`baseRevision` with `/me/library`; stale writes return409 with the authenticated
+account's latest profile. Compare and persist happen without an intervening
+await after obtaining the DB. No database migration or clock synchronization.
+Old clients remain compatible without a revision but do not get CAS protection.
+
+Visible authenticated clients pull on return/online and every60s, with a5s
+duplicate throttle; hidden clients do not poll. Library pulls and writes never
+change playback/queue. Offline failures retain authentication/local data; pending
+same-account writes retry on return/online. Local edit sequences are separate
+from server/rebased payloads so undo and failure/reauth do not discard newer
+intent. They are in-memory; restart-before-save/offline tombstones remain open.
+Explicit saved queues no longer have the120 ceiling; automatic personal-radio
+refill still does. Existing cloud favorites200/collection128 limits remain.
+
 ## iPhone background buffering: stale waiting timers (2026-09-08)
 
 24/7 Chiptune Radio (MP3 station `197e37b1-57ee-436c-a5d7-587716508893`)

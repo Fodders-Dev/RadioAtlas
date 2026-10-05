@@ -40,6 +40,11 @@ const library = (overrides: Partial<CloudLibrary> = {}): CloudLibrary =>
   }) as CloudLibrary;
 
 describe('the library a session holds after the server answers', () => {
+  it('accepts a new server revision even when its visible contents are unchanged', () => {
+    const previous = library({ revision: 'old' });
+    const next = library({ revision: 'new' });
+    expect(resolveNextCloudLibrary(previous, next)).toBe(next);
+  });
   it('takes the server copy when there was none, even though it is empty', () => {
     // ⚠ THE defect. An empty server library is not "no library": it is the
     // starting point every account has, and the object has to exist before

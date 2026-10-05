@@ -1,5 +1,6 @@
 import type express from 'express';
 import { telegramApiRoot } from './telegramApiRoot.js';
+import { libraryRevision } from './account/core/libraryRevision.js';
 import {
   getAccountAuditTrail,
   getBotOptInForAccount,
@@ -34,7 +35,7 @@ export const toClientProfile = (account: StoredAccount) => ({
   billingProvider: account.billingProvider,
   linkedProviders: account.providers.map((provider) => provider.kind),
   providers: account.providers,
-  library: account.library
+  library: { ...account.library, revision: libraryRevision(account.library) }
 });
 
 export const buildSessionEnvelope = async (token: string, account: StoredAccount) => ({

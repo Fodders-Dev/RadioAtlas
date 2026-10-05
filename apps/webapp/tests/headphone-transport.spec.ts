@@ -79,6 +79,11 @@ const command = (page: Page, action: MediaSessionAction) => page.evaluate((actio
   void handler({ action });
 }, action);
 const audio = (page: Page) => page.locator('audio.audio-hidden');
+// Once track metadata arrives, the station moves from title to artist.
+const mediaIdentity = (page: Page) => page.evaluate(() => {
+  const metadata = navigator.mediaSession.metadata;
+  return `${metadata?.title ?? ''}\n${metadata?.artist ?? ''}`;
+});
 
 test('headphone pause/play are idempotent and reopen the stream while still hidden', async ({ page }) => {
   await setup(page);
@@ -102,7 +107,7 @@ test('headphone Next walks past an unavailable station and retains OS controls',
   await command(page, 'nexttrack');
   await expect(audio(page)).toHaveAttribute('src', /kyoto/);
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
-  await expect.poll(() => page.evaluate(() => navigator.mediaSession.metadata?.title)).toContain('Kyoto');
+  await expect.poll(() => mediaIdentity(page)).toContain('Kyoto');
   await command(page, 'pause');
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'paused');
   await command(page, 'play');
@@ -118,14 +123,14 @@ test('another headphone Next skips a hung station; duplicate Play cannot restart
   });
   await command(page, 'nexttrack');
   await expect(audio(page)).toHaveAttribute('src', /osaka/);
-  await expect.poll(() => page.evaluate(() => navigator.mediaSession.metadata?.title)).toContain('Osaka');
+  await expect.poll(() => mediaIdentity(page)).toContain('Osaka');
   const before = await page.evaluate(() => (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe.plays.length);
   await command(page, 'play');
   expect(await page.evaluate(() => (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe.plays.length)).toBe(before);
   await command(page, 'nexttrack');
   await expect(audio(page)).toHaveAttribute('src', /kyoto/);
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
-  await expect.poll(() => page.evaluate(() => navigator.mediaSession.metadata?.title)).toContain('Kyoto');
+  await expect.poll(() => mediaIdentity(page)).toContain('Kyoto');
   await expect(page.locator('.toast').filter({ hasText: 'В каталоге не нашлось рабочей станции' })).toHaveCount(0);
 });
 

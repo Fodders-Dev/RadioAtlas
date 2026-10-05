@@ -6,16 +6,18 @@ type FeedMediaSessionProbe = {
 };
 
 const openCurrentMore = async (page: Page) => {
+  await waitForAnimationsToSettle(page, '.station-feed-overlay');
   const focusedContent = page.locator('.station-feed-card-content[data-focus="true"]');
   await expect(focusedContent).toBeVisible();
   const target = page.locator('.station-feed-card').filter({ has: focusedContent });
   await expect(target).toHaveAttribute('data-feed-station', /.+/);
   const stationId = await target.getAttribute('data-feed-station');
   expect(stationId).toBeTruthy();
-  await focusedContent.locator('[data-feed-action="expand"]').click();
+  const selected = page.locator(`.station-feed-card[data-feed-station="${stationId}"]`);
+  await selected.locator('[data-feed-action="expand"]').click();
   const tools = page.locator('.feed-player-tools');
   await expect(tools).toBeVisible();
-  return { target, stationId: stationId!, tools };
+  return { target: selected, stationId: stationId!, tools };
 };
 
 const mediaSessionCommand = (page: Page, action: MediaSessionAction) => page.evaluate(async (requestedAction) => {
@@ -201,6 +203,33 @@ test('Feed More adds its selected card to a playlist without changing the live p
   expect(afterShuffle.queue.items[afterShuffle.queue.currentIndex]).toBe(beforeShuffle.queue.items[beforeShuffle.queue.currentIndex]);
   expect([...afterShuffle.queue.items.slice(afterShuffle.queue.currentIndex + 1)].sort()).toEqual([...beforeShuffle.queue.items.slice(beforeShuffle.queue.currentIndex + 1)].sort());
   expect(afterShuffle.audio).toEqual(beforeShuffle.audio);
+});
+
+test('More keeps OS selection when the covered pager moves, including after closing', async ({ page }) => {
+  await seedRadioState(page, { activeSection: 'feed', queue: stations.slice(0, 8), queueCurrentIndex: 0,
+    queueSourceId: 'feed-playlist-test', stationCache: stations });
+  await page.goto('/?calm=1');
+  await waitForAnimationsToSettle(page, '.station-feed-overlay');
+  await page.locator('.station-feed-card[data-feed-index="0"] [data-feed-action="play"]').click();
+  await expect(page.locator('audio')).toHaveAttribute('data-ra-state', 'playing');
+  const { tools } = await openCurrentMore(page);
+  await expect(tools.locator('header h2')).toHaveText(stations[0].name);
+  await mediaSessionCommand(page, 'nexttrack');
+  await expect.poll(() => playerSnapshot(page).then(snapshot => snapshot.queue.currentIndex)).toBe(1);
+  const before = await playerSnapshot(page);
+  await page.locator('.station-feed-scroller').evaluate(el => { el.scrollTop = el.clientHeight * 2; });
+  // Outlast the pager's debounce: covered layout/scroll activity is not a swipe.
+  await page.waitForTimeout(600);
+  expect(await playerSnapshot(page)).toEqual(before);
+  await expect(tools.locator('header h2')).toHaveText(stations[0].name);
+  await page.keyboard.press('Escape');
+  await expect(tools).toHaveCount(0);
+  await page.waitForTimeout(600);
+  expect(await playerSnapshot(page)).toEqual(before);
+  await page.keyboard.press('PageDown');
+  await expect(page.locator('.station-feed-card[data-feed-index="1"] .station-feed-card-content')).toHaveAttribute('data-focus', 'true');
+  await page.keyboard.press('PageDown');
+  await expect.poll(() => playerSnapshot(page).then(snapshot => snapshot.queue.currentIndex)).toBe(2);
 });
 
 test('Feed playlist picker keeps More open on cancel and Escape, blocks blank names, and creates trimmed names', async ({ page }) => {

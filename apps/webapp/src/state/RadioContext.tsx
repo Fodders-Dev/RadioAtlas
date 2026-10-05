@@ -108,7 +108,7 @@ import {
   DEFAULT_LIBRARY_STATE,
   DEFAULT_PLAYER_STATE,
   DEFAULT_SHELL_STATE,
-  MAX_QUEUE_ITEMS,
+  MAX_PERSONAL_RADIO_ITEMS,
   MAX_PLAYBACK_HISTORY,
   MAX_RECENT,
 } from './radio/defaults';
@@ -1697,7 +1697,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (currentQueue.sourceId !== 'personal-radio') return;
     if (currentQueue.currentIndex < 0 || !currentQueue.items.length) return;
     const remainingAfterCurrent = currentQueue.items.length - currentQueue.currentIndex - 1;
-    if (remainingAfterCurrent > 4 || currentQueue.items.length >= MAX_QUEUE_ITEMS) return;
+    if (remainingAfterCurrent > 4 || currentQueue.items.length >= MAX_PERSONAL_RADIO_ITEMS) return;
 
     const signature = [
       currentQueue.currentIndex,
@@ -1747,7 +1747,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       currentIndex: currentQueue.currentIndex,
       candidates: generatedQueue.stations,
       tailSize: PERSONAL_RADIO_QUEUE_LIMIT,
-      maxItems: MAX_QUEUE_ITEMS
+      maxItems: MAX_PERSONAL_RADIO_ITEMS
     });
     if (nextItems.length <= currentQueue.items.length) return;
 

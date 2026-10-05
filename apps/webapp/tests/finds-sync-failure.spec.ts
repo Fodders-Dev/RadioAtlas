@@ -130,8 +130,8 @@ test('a find already on the device survives a failed sync and reaches the cloud 
     attempts += 1;
     if (attempts === 1) {
       // A server that is up and refusing, which is the ordinary shape of this:
-      // a 500 is retried, unlike a 401, which the transport deliberately does
-      // not re-flush to avoid a spin-loop.
+      // a 500 is retained for the next change/return/online retry, unlike a
+      // 401, which requires re-authentication. Neither spins in the background.
       await route.fulfill({
         status: 500,
         contentType: 'application/json',
@@ -147,7 +147,7 @@ test('a find already on the device survives a failed sync and reaches the cloud 
   await expect(page.locator('.app-topbar-primary-cta')).toContainText('Аккаунт');
 
   // 1. The failure is reported once — and «once» is the assertion, because the
-  //    transport re-flushes after a 500 and a counter that fired per attempt
+  //    transport re-flushes on return/online after a 500, and a counter fired per attempt
   //    would say «мы теряем sync» far louder than the truth.
   await expect.poll(() => eventsNamed(page, 'find_sync_failed').then((e) => e.length), {
     timeout: 20_000
@@ -170,7 +170,10 @@ test('a find already on the device survives a failed sync and reaches the cloud 
   //    that failed may not cost somebody what they saved.
   expect(await storedFinds(page)).toHaveLength(1);
 
-  // 5. The next sync goes through, carrying the find that was waiting.
+  // 5. Restoring connectivity retries the retained write without another edit.
+  // Do not rely on a render causing repeated PUTs after failure: the new hook
+  // deduplicates intent, and Session owns explicit/foreground retry instead.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect.poll(() => syncedBodies.length, { timeout: 20_000 }).toBeGreaterThan(0);
   expect(syncedBodies.some((body) => body.includes('Seeded Artist - Seeded Title'))).toBe(true);
 

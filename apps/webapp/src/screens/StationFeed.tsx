@@ -456,6 +456,7 @@ export const StationFeed = () => {
   const { player, playStation, queue, nowPlaying, nowPlayingStatus, shareStation, copyTrack, sleepTimer } = usePlayback();
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   const [toolsStation, setToolsStation] = useState<StationLite | null>(null);
+  const toolsOpenRef = useRef(false);
   const [timerOpen, setTimerOpen] = useState(false);
   const [queuePeekOpen, setQueuePeekOpen] = useState(false);
   const queuePeekOpenRef = useRef(false);
@@ -778,7 +779,7 @@ export const StationFeed = () => {
       createAutoplaySettler({
         settleMs: SETTLE_MS,
         onSettle: (index) => {
-          if (queuePeekOpenRef.current) return;
+          if (queuePeekOpenRef.current || toolsOpenRef.current) return;
           const station = feedRef.current[index];
           if (!station) return;
           // Skip if this is ALREADY the current station — playing OR paused.
@@ -959,7 +960,7 @@ export const StationFeed = () => {
 
   const commitLandedIndex = useCallback(
     (landed: number) => {
-      if (queuePeekOpenRef.current) return;
+      if (queuePeekOpenRef.current || toolsOpenRef.current) return;
       const station = feedRef.current[landed];
       if (!station) return;
       setVisibleIndex(landed);
@@ -1103,8 +1104,18 @@ export const StationFeed = () => {
       ? { playlist: personalQueue.items, sourceId: personalQueue.sourceId ?? undefined, sourceLabel: personalQueue.sourceLabel ?? undefined }
       : { playlist: visibleFeedStations, sourceId: FEED_SOURCE_ID, sourceLabel };
   playContextRef.current = playContext;
+  const closeTools = () => {
+    settler.cancel();
+    settler.seedPlayed(visibleIndexRef.current);
+    // A covered pager can reflow. Restore its visible card before releasing
+    // autoplay, so closing More cannot undo a headphone selection.
+    const scroller = scrollerRef.current;
+    if (scroller) scroller.scrollTop = visibleIndexRef.current * scroller.clientHeight;
+    toolsOpenRef.current = false;
+    setToolsStation(null);
+  };
   const handleOpenPlayer = (station: StationLite) => {
-    if (CALM_PREVIEW) { settler.cancel(); setToolsStation(station); return; }
+    if (CALM_PREVIEW) { settler.cancel(); toolsOpenRef.current = true; setToolsStation(station); return; }
     if (player.current?.stationuuid !== station.stationuuid) {
       playStation(station, playContext());
     }
@@ -1555,5 +1566,5 @@ export const StationFeed = () => {
     onSelect={handleQueuePeekSelect}
     onEditQueue={openLibraryQueue}
     restoreFocusTo={restoreQueuePeekFocus}
-  />}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={() => setToolsStation(null)} filters={CALM_PREVIEW ? { chips: contextChips, active: activeContextChip, label: t('journal.feedFilters'), onSelect: (id) => { setToolsStation(null); onContextChip(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
+  />}{toolsStation && <FeedPlayerTools station={toolsStation} onClose={closeTools} filters={CALM_PREVIEW ? { chips: contextChips, active: activeContextChip, label: t('journal.feedFilters'), onSelect: (id) => { closeTools(); onContextChip(id); } } : undefined} />}{timerOpen && <CalmTimerSheet onClose={() => setTimerOpen(false)} />}</>;
 };

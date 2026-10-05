@@ -1,11 +1,17 @@
 import type { BillingProvider, PremiumStatus, SessionEntitlement, StoredAccount, SupporterTier, SyncedLibrary } from './types.js';
 import { sanitizeLibrary, serializeLibrary } from './helpers.js';
 import { applyEntitlementPreset, getAccountByIdSync, getDb, recordAuditEventSync, saveAccount } from './repository.js';
+import { libraryRevision } from './libraryRevision.js';
 
-export const updateAccountLibrary = async (accountId: string, library: unknown) => {
+export const updateAccountLibrary = async (accountId: string, library: unknown, expectedRevision?: string) => {
   const db = await getDb();
   const current = getAccountByIdSync(db, accountId);
   if (!current) return null;
+  if (expectedRevision !== undefined && libraryRevision(current.library) !== expectedRevision) {
+    const conflict = new Error('library changed on another device');
+    Object.assign(conflict, { statusCode: 409 });
+    throw conflict;
+  }
   const nextLibrary = sanitizeLibrary(library);
   if (serializeLibrary(current.library) === serializeLibrary(nextLibrary)) {
     return current;

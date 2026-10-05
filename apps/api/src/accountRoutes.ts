@@ -68,9 +68,14 @@ export const registerAccountRoutes = (app: express.Express) => {
     }
 
     try {
+      const expectedRevision = req.body?.baseRevision;
+      if (expectedRevision !== undefined && (typeof expectedRevision !== 'string' || !/^[a-f0-9]{64}$/.test(expectedRevision))) {
+        res.status(400).json({ error: 'invalid library revision' });
+        return;
+      }
       const dedupeKey = `${account.id}:${JSON.stringify(req.body || null)}`;
       const result = await librarySyncGuard.run(dedupeKey, async () => {
-        const nextAccount = await updateAccountLibrary(account.id, req.body);
+        const nextAccount = await updateAccountLibrary(account.id, req.body, expectedRevision);
         if (!nextAccount) {
           const notFound = new Error('account not found');
           (notFound as Error & { statusCode?: number }).statusCode = 404;
@@ -89,6 +94,11 @@ export const registerAccountRoutes = (app: express.Express) => {
         return;
       }
       const statusCode = (error as Error & { statusCode?: number } | undefined)?.statusCode;
+      if (statusCode === 409) {
+        const latest = await getAccountByToken(token);
+        res.status(409).json({ error: 'library changed on another device', ...(latest ? { profile: toClientProfile(latest) } : {}) });
+        return;
+      }
       res.status(statusCode || 500).json({
         error: error instanceof Error ? error.message : 'library sync failed'
       });
