@@ -16,10 +16,10 @@ const seed = async (page: Page, ids: string[] = [], favorites = stations.slice(0
   await mockStations(page);
   await page.addInitScript(() => {
     (window as unknown as { __pickerPlayCalls: number }).__pickerPlayCalls = 0;
+    const mockPlay = HTMLMediaElement.prototype.play;
     HTMLMediaElement.prototype.play = function () {
       (window as unknown as { __pickerPlayCalls: number }).__pickerPlayCalls += 1;
-      this.dispatchEvent(new Event('playing'));
-      return Promise.resolve();
+      return mockPlay.call(this);
     };
   });
   await seedRadioState(page, {
@@ -41,7 +41,9 @@ const reply = (items: typeof stations, nextCursor: string | null = null) => ({
 test('several additions stay in the playlist, preserve live playback, and return focus after its first station', async ({ page }) => {
   await seed(page);
   await openLibraryCategory(page, 'queue');
-  await page.locator('.calm-queue-play-icon').first().click();
+  await page.locator('.library-queue-stage-primary').click();
+  await expect(page.locator('[data-queue-current]')).toHaveAttribute('data-stage-status', 'playing');
+  await expect(page.locator('audio').first()).toHaveAttribute('data-ra-state', 'playing');
   await expect.poll(async () => (await readTransport(page)).calls).toBeGreaterThan(0);
   await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Моё', exact: true }).click();
   const before = await readTransport(page);

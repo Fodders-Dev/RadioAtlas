@@ -31,6 +31,7 @@ import { useMobileLayout } from '../lib/useMobileLayout';
 import { usePointerReorder } from '../lib/usePointerReorder';
 import { useLocale } from '../state/LocaleContext';
 import { FindsList } from '../components/FindsList';
+import { LibraryQueueStage, type LibraryQueueStageStatus } from './LibraryQueueStage';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { useSession } from '../state/SessionContext';
 import { CALM_PREVIEW } from '../lib/calmPreview';
@@ -223,13 +224,6 @@ export const Library = () => {
     setBotOptIn
   } = useSession();
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
-  const queueReturnStation = player.current ?? player.pending;
-  const returnToPlayer = () => {
-    if (!queueReturnStation) return;
-    setFeedEntryStation(queueReturnStation);
-    rerollFeedSeed();
-    setActiveSection('feed');
-  };
   // R1 (PR-A): after toggling opt-in we learn whether the user is reachable
   // (has started the bot). If opted-in but not reachable, we point them to it.
   const [botReachable, setBotReachable] = useState<boolean | null>(null);
@@ -289,6 +283,10 @@ export const Library = () => {
     Partial<Record<VisibleLibraryTab, HTMLButtonElement | null>>
   >({});
   const queuePanelRef = useRef<HTMLDivElement>(null);
+  const queueCategoryBackRef = useRef<HTMLButtonElement>(null);
+  const queueEntryFromLibraryRef = useRef(false);
+  const queueOverviewScrollYRef = useRef(0);
+  const pendingQueueHomeScrollRef = useRef<number | null>(null);
   const isMobileLayout = useMobileLayout();
   const collectionScrollYRef = useRef(0);
   const collectionBackButtonRef = useRef<HTMLButtonElement>(null);
@@ -650,25 +648,34 @@ export const Library = () => {
     setRenamingCollectionId(null);
     setCollectionRenameDraft('');
     setCollectionReorderMode(false);
+    setQueueEditMode(false);
+    setQueueEarlierOpen(false);
+    setQueueToolsOpen(false);
     setDetailActionsOpen(false);
     setCollectionActionsId(null);
     setDeleteArmedCollectionId(null);
     setLibraryHomeOpen(CALM_PREVIEW && request.tab === null);
     if (request.tab !== null) {
+      if (request.tab === 'queue') queueEntryFromLibraryRef.current = false;
       setLibraryTab(request.tab);
       if (request.tab === 'queue') setQueueFocusRequest((value) => value + 1);
     }
     consumeLibraryEntryRequest(request.id);
   }, [libraryEntryRequest, consumeLibraryEntryRequest, setLibraryTab]);
-  useEffect(() => {
-    if (!CALM_PREVIEW || activeLibraryTab !== 'queue') return;
-    const panel = queuePanelRef.current;
-    if (!panel) return;
-    panel.focus({ preventScroll: true });
-    panel.scrollIntoView({ behavior: 'auto', block: 'start' });
-  }, [activeLibraryTab, queueFocusRequest, libraryHomeOpen]);
   const findsTabActive = activeLibraryTab === 'tracks';
   const showLibraryHome = Boolean(CALM_PREVIEW && libraryHomeOpen && !selectedCollection);
+  useLayoutEffect(() => {
+    if (!CALM_PREVIEW || activeLibraryTab !== 'queue' || showLibraryHome || selectedCollection) return;
+    queueCategoryBackRef.current?.focus({ preventScroll: true });
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [activeLibraryTab, queueFocusRequest, showLibraryHome, selectedCollection]);
+  useLayoutEffect(() => {
+    if (!showLibraryHome || pendingQueueHomeScrollRef.current === null) return;
+    const top = pendingQueueHomeScrollRef.current;
+    pendingQueueHomeScrollRef.current = null;
+    document.querySelector<HTMLButtonElement>('[data-library-home] .library-preview-queue')?.focus({ preventScroll: true });
+    window.scrollTo({ top, behavior: 'auto' });
+  }, [showLibraryHome]);
   const libraryTabId = (tab: VisibleLibraryTab) => `${libraryTabsId}-tab-${tab}`;
   const libraryPanelId = (tab: VisibleLibraryTab) => `${libraryTabsId}-panel-${tab}`;
   const handleLibraryTabKeyDown = (
@@ -711,6 +718,32 @@ export const Library = () => {
     collections: collections.length,
     settings: 0
   };
+  const renderLibraryTabs = () => (
+    <div className="library-tab-strip" role="tablist" aria-label={t('library.title')}>
+      {TAB_ORDER.map((tab) => (
+        <button
+          key={tab}
+          ref={(element) => { libraryTabRefs.current[tab] = element; }}
+          className={`chip library-tab-chip ${activeLibraryTab === tab ? 'active' : ''}`}
+          type="button"
+          id={libraryTabId(tab)}
+          role="tab"
+          aria-selected={activeLibraryTab === tab}
+          aria-controls={libraryPanelId(tab)}
+          tabIndex={activeLibraryTab === tab ? 0 : -1}
+          onClick={() => {
+            if (CALM_PREVIEW && tab !== 'queue') setQueueEditMode(false);
+            setLibraryTab(tab);
+          }}
+          onKeyDown={(event) => handleLibraryTabKeyDown(event, tab)}
+        >
+          <span className="library-tab-icon" aria-hidden="true">{TAB_ICONS[tab]}</span>
+          <span className="library-tab-label">{t(`library.tabs.${tab}`)}</span>
+          <strong className="library-tab-count">{tabCounts[tab]}</strong>
+        </button>
+      ))}
+    </div>
+  );
   const returnToAirStations = libraryFeed.returnToAir;
 
   const beginCreateCollection = () => {
@@ -774,8 +807,26 @@ export const Library = () => {
     if (CALM_PREVIEW && collectionDetailReturnHomeRef.current) setLibraryHomeOpen(true);
   };
   const openLibraryCategory = (tab: LibraryTab) => {
+    if (CALM_PREVIEW && tab === 'queue') {
+      queueEntryFromLibraryRef.current = libraryHomeOpen;
+      queueOverviewScrollYRef.current = libraryHomeOpen ? window.scrollY : 0;
+      setQueueEditMode(false);
+      setQueueEarlierOpen(false);
+      setQueueToolsOpen(false);
+      setLibrarySearch('');
+      setQueueFocusRequest((value) => value + 1);
+    }
     setLibraryTab(tab);
     setLibraryHomeOpen(false);
+  };
+  const backFromCalmQueue = () => {
+    pendingQueueHomeScrollRef.current = queueEntryFromLibraryRef.current ? queueOverviewScrollYRef.current : 0;
+    queueEntryFromLibraryRef.current = false;
+    setQueueEditMode(false);
+    setQueueEarlierOpen(false);
+    setQueueToolsOpen(false);
+    setLibrarySearch('');
+    setLibraryHomeOpen(true);
   };
   const startPreviewCreate = () => {
     beginCreateCollection();
@@ -959,12 +1010,36 @@ export const Library = () => {
   );
   const queueSourceLabel = queue.sourceLabel || t('radio.queueDefault');
   const calmQueue = CALM_PREVIEW && activeLibraryTab === 'queue';
+  const queueStageIndex = queue.currentIndex >= 0 ? queue.currentIndex : 0;
+  const queueStageStation = queue.items[queueStageIndex] ?? null;
+  const queueStageStatus: LibraryQueueStageStatus = (() => {
+    if (!queueStageStation) return 'ready';
+    const stationId = queueStageStation.stationuuid;
+    if (player.pending?.stationuuid === stationId && player.status === 'buffering') return 'buffering';
+    if (player.current?.stationuuid === stationId) {
+      if (player.isPlaying) return 'playing';
+      if (player.status === 'error') return 'error';
+      return 'paused';
+    }
+    return queue.currentIndex < 0 ? 'start' : 'ready';
+  })();
+  const queueStageNowPlaying = queueStageStation && player.current?.stationuuid === queueStageStation.stationuuid
+    ? nowPlaying?.trim() || null
+    : null;
+  const queueStagePosition = t('library.queuePosition', {
+    current: queue.currentIndex >= 0 ? queue.currentIndex + 1 : 1,
+    total: queue.items.length
+  });
+  const queueUpcomingEntries = queue.items
+    .map((station, index) => ({ station, index }))
+    .filter(({ index }) => index > queueStageIndex);
+  const queueUpcomingCount = queueUpcomingEntries.length;
   const earlierQueueEntries = queue.items
     .map((station, index) => ({ station, index }))
     .filter(({ index }) => queue.currentIndex >= 0 && index < queue.currentIndex);
   const visibleQueueEntries = queue.items
     .map((station, index) => ({ station, index }))
-    .filter(({ index }) => queue.currentIndex < 0 || index >= queue.currentIndex);
+    .filter(({ index }) => index > queueStageIndex);
   const recentSessionPreview = recentStations.slice(0, 4);
   const trackJournalPreview = trackHistory.slice(0, 4);
   const playHistoryStation = (station: StationLite) => {
@@ -1126,7 +1201,7 @@ export const Library = () => {
     </>
   );
 
-  const renderQueueRow = (station: StationLite, index: number) => {
+  const renderQueueRow = (station: StationLite, index: number, queueRow = true) => {
     const currentPlaybackMatches = player.current?.stationuuid === station.stationuuid;
     const active =
       (index === queue.currentIndex && currentPlaybackMatches) ||
@@ -1142,7 +1217,7 @@ export const Library = () => {
     return (
       <div
         key={station.stationuuid}
-        data-queue-row
+        data-queue-row={queueRow ? '' : undefined}
         className={`playlist-row library-queue-row ${active ? 'active' : ''} ${dragging ? 'dragging' : ''} ${dropTarget ? 'drop-target' : ''}`}
       >
         {calmQueue ? (
@@ -1260,6 +1335,23 @@ export const Library = () => {
     );
   };
 
+  const renderQueueRows = () => (
+    <div className={`playlist-list library-queue-list ${calmQueue ? `calm-queue-list${queueEditMode ? ' editing' : ''}` : ''}`} ref={queueReorder.containerRef}>
+      {calmQueue && queueEditMode
+        ? queue.items.map((station, index) => renderQueueRow(station, index))
+        : (calmQueue ? visibleQueueEntries : queue.items.map((station, index) => ({ station, index })))
+          .map(({ station, index }) => renderQueueRow(station, index))}
+      {calmQueue && !queueEditMode && earlierQueueEntries.length ? (
+        <details className="calm-queue-earlier" open={queueEarlierOpen} onToggle={(event) => setQueueEarlierOpen(event.currentTarget.open)}>
+          <summary>{t('library.queueEarlier', { count: earlierQueueEntries.length })}</summary>
+          <div className="calm-queue-earlier-rows">
+            {earlierQueueEntries.map(({ station, index }) => renderQueueRow(station, index, false))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  );
+
   const renderCollectionAddCandidateList = () => (
     <div className="library-collection-picker-list">
       {collectionAddCandidates.map((station) => (
@@ -1290,6 +1382,9 @@ export const Library = () => {
           stationFor={(id) => stationMap.get(id)}
           finds={trackHistory}
           queueCount={queue.items.length}
+          recent={recentStations}
+          queueStations={queue.items}
+          queueCurrentIndex={queue.currentIndex}
           search={librarySearch}
           searchResults={librarySearchResults.map((entry) => ({ station: entry.station, source: librarySearchSourceLabel(entry.source) }))}
           createOpen={isCreatingCollection}
@@ -1321,9 +1416,14 @@ export const Library = () => {
         />
       ) : (
       <>
-      {CALM_PREVIEW && !selectedCollection ? <header className="calm-library-category-head">
-        <button type="button" onClick={() => { setLibrarySearch(''); setLibraryHomeOpen(true); }}>{t('common.back')}</button>
+      {CALM_PREVIEW && !selectedCollection ? <header className={`calm-library-category-head${calmQueue ? ' calm-library-queue-category-head' : ''}`}>
+        <button ref={calmQueue ? queueCategoryBackRef : undefined} type="button" onClick={calmQueue ? backFromCalmQueue : () => { setLibrarySearch(''); setLibraryHomeOpen(true); }}>{t('common.back')}</button>
         <h1>{t(`library.tabs.${activeLibraryTab}`)}</h1>
+        {calmQueue && queue.items.length ? (
+          <button className="calm-library-queue-edit-toggle" type="button" aria-pressed={queueEditMode} onClick={() => setQueueEditMode((editing) => !editing)}>
+            {queueEditMode ? t('library.queueDone') : t('library.queueEdit')}
+          </button>
+        ) : null}
       </header> : null}
       {CALM_PREVIEW && selectedCollection ? <header className="calm-library-category-head">
         <button ref={collectionBackButtonRef} type="button" onClick={closeCollectionDetail}>{t('common.back')}</button>
@@ -1397,6 +1497,7 @@ export const Library = () => {
         <details className="calm-queue-tools" open={queueToolsOpen || Boolean(librarySearch)} onToggle={(event) => setQueueToolsOpen(event.currentTarget.open)}>
           <summary>{t('library.queueTools')}</summary>
           {renderLibrarySearchAndActions()}
+          {renderLibraryTabs()}
         </details>
       ) : null}
 
@@ -1447,29 +1548,7 @@ export const Library = () => {
         </div>
       ) : (
         <>
-      <div className="library-tab-strip" role="tablist" aria-label={t('library.title')}>
-        {TAB_ORDER.map((tab) => (
-          <button
-            key={tab}
-            ref={(element) => {
-              libraryTabRefs.current[tab] = element;
-            }}
-            className={`chip library-tab-chip ${activeLibraryTab === tab ? 'active' : ''}`}
-            type="button"
-            id={libraryTabId(tab)}
-            role="tab"
-            aria-selected={activeLibraryTab === tab}
-            aria-controls={libraryPanelId(tab)}
-            tabIndex={activeLibraryTab === tab ? 0 : -1}
-            onClick={() => setLibraryTab(tab)}
-            onKeyDown={(event) => handleLibraryTabKeyDown(event, tab)}
-          >
-            <span className="library-tab-icon" aria-hidden="true">{TAB_ICONS[tab]}</span>
-            <span className="library-tab-label">{t(`library.tabs.${tab}`)}</span>
-            <strong className="library-tab-count">{tabCounts[tab]}</strong>
-          </button>
-        ))}
-      </div>
+      {!calmQueue ? renderLibraryTabs() : null}
 
       <LibraryTabPanel
         activeTab={activeLibraryTab}
@@ -1523,38 +1602,19 @@ export const Library = () => {
         panelId={libraryPanelId('queue')}
         className={`glass-card library-queue-shell ${calmQueue ? 'calm-queue-shell' : ''}`}
         panelRef={queuePanelRef}
+        panelRole={calmQueue ? 'region' : 'tabpanel'}
+        panelLabel={calmQueue ? t('library.tabs.queue') : undefined}
       >
-          <div className="library-section-head">
+          {!calmQueue ? <div className="library-section-head">
             <div>
               <div className="section-title">{t('playlist.title')}</div>
               <div className="section-subtitle">
-                {calmQueue && queue.items.length
-                  ? t('library.queuePosition', {
-                      current: Math.max(queue.currentIndex + 1, 1),
-                      total: queue.items.length
-                    })
-                  : queueSourceLabel}
-                {calmQueue && queue.items.length ? ` · ${queueSourceLabel}` : ''}
+                {queueSourceLabel}
               </div>
             </div>
             <div className="calm-queue-head-actions">
-              {calmQueue && queue.items.length ? (
-                <button
-                  className="chip calm-queue-edit-toggle"
-                  type="button"
-                  aria-pressed={queueEditMode}
-                  onClick={() => setQueueEditMode((editing) => !editing)}
-                >
-                  {queueEditMode ? t('library.queueDone') : t('library.queueEdit')}
-                </button>
-              ) : null}
-              {CALM_PREVIEW && queueReturnStation ? (
-                <button className="chip calm-library-queue-return" type="button" onClick={returnToPlayer}>
-                  {t('library.openPlayerAction')}
-                </button>
-              ) : null}
             </div>
-          </div>
+          </div> : null}
           {isSavingQueue ? (
             <form
               className="library-create-collection-row library-save-queue-row"
@@ -1579,7 +1639,25 @@ export const Library = () => {
             </form>
           ) : null}
           {queue.items.length ? (
-            <div className="library-queue-layout">
+            <div className={`library-queue-layout${calmQueue ? ` calm-queue-layout${queueEditMode ? ' editing' : ''}` : ''}`}>
+              {calmQueue && !queueEditMode && queueStageStation ? (
+                <LibraryQueueStage
+                  station={queueStageStation}
+                  status={queueStageStatus}
+                  nowPlaying={queueStageNowPlaying}
+                  source={queue.sourceLabel || t('library.queueStageManual')}
+                  position={queueStagePosition}
+                  onPlay={() => queue.playAtIndex(queueStageIndex)}
+                  onPause={() => {
+                    if (player.current?.stationuuid === queueStageStation.stationuuid && player.isPlaying) player.pause();
+                  }}
+                  onFeed={() => {
+                    setFeedEntryStation(queueStageStation);
+                    rerollFeedSeed();
+                    setActiveSection('feed');
+                  }}
+                />
+              ) : null}
               <div className="library-queue-main">
                 {!calmQueue ? <div className="library-queue-now-card">
                   <div className="shell-kicker">{player.current ? t('dock.liveNow') : t('common.resume')}</div>
@@ -1651,29 +1729,39 @@ export const Library = () => {
                   </div>
                 ) : null}
 
-                <div className={`playlist-list library-queue-list ${calmQueue ? `calm-queue-list${queueEditMode ? ' editing' : ''}` : ''}`} ref={queueReorder.containerRef}>
-                  {calmQueue && queueEditMode ? queue.items.map((station, index) => ({ station, index })).map(({ station, index }) => {
-                    return renderQueueRow(station, index);
-                  }) : (calmQueue ? visibleQueueEntries : queue.items.map((station, index) => ({ station, index }))).map(({ station, index }) => {
-                    return renderQueueRow(station, index);
-                  })}
-                  {calmQueue && !queueEditMode && earlierQueueEntries.length ? (
-                    <details className="calm-queue-earlier" open={queueEarlierOpen} onToggle={(event) => setQueueEarlierOpen(event.currentTarget.open)}>
-                      <summary>{t('library.queueEarlier', { count: earlierQueueEntries.length })}</summary>
-                      <div className="calm-queue-earlier-rows">
-                        {earlierQueueEntries.map(({ station, index }) => renderQueueRow(station, index))}
+                {calmQueue ? (
+                  <div className={`library-queue-tail${queueEditMode ? ' editing' : ''}`}>
+                    {!queueEditMode ? (
+                      <div className="library-queue-tail-heading">
+                        <h2>{t('library.queueNextTitle')}</h2>
+                        <span>{queueUpcomingCount}</span>
                       </div>
-                    </details>
-                  ) : null}
-                  {/* row renderer below preserves original queue indices in callbacks */}
-                </div>
+                    ) : null}
+                    {renderQueueRows()}
+                    {!queueEditMode && queueUpcomingCount === 0 ? (
+                      <div className="library-queue-end-state">
+                        <p>{t('library.queueStageEnd')}</p>
+                        <div className="library-queue-end-actions">
+                          {queueStageStation ? (
+                            <button className="chip active" type="button" onClick={() => {
+                              setFeedEntryStation(queueStageStation);
+                              rerollFeedSeed();
+                              setActiveSection('feed');
+                            }}>{t('library.queueStageFeed')}</button>
+                          ) : null}
+                          <button className="chip" type="button" onClick={() => setActiveSection('globe')}>{t('home.openGlobe')}</button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : renderQueueRows()}
               </div>
 
               {/* Desktop side column only. ≤720px the same context lives in
                   dedicated tabs now — station history in «Недавнее», the copied
                   track journal in «Треки» — so the queue tab stays a clean
                   hero + actions + list with no extra rail/sheet. */}
-              {!isMobileLayout ? (
+              {!calmQueue && !isMobileLayout ? (
                 <div className="library-queue-rail">{renderQueueRailCards()}</div>
               ) : null}
             </div>

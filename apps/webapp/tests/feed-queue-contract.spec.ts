@@ -216,9 +216,11 @@ test('Calm Feed queue entry opens a local chooser and keeps Library editing expl
   await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
   const queuePanel = page.locator('.library-queue-shell');
   await expect(queuePanel).toBeVisible();
-  await expect(queuePanel).toBeFocused();
-  await expect(page.getByRole('button', { name: 'К плееру', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'К плееру', exact: true }).click();
+  await expect(page.locator('.calm-library-category-head').getByRole('button', { name: 'Назад', exact: true })).toBeFocused();
+  const selectedQueue = page.locator('[data-queue-current]');
+  await expect(selectedQueue).toHaveAttribute('data-queue-current', queue[1].stationuuid);
+  await expect(selectedQueue.getByRole('button', { name: 'В Ленту', exact: true })).toBeVisible();
+  await selectedQueue.getByRole('button', { name: 'В Ленту', exact: true }).click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   await expect(page.locator('.station-feed-card:has(.station-feed-card-content[data-focus="true"])')).toHaveAttribute('data-feed-station', queue[1].stationuuid);
   expect(await queueState(page)).toEqual(beforeQueue);
@@ -320,6 +322,9 @@ test('discovery chooser names its deck and keeps the personal queue editor disti
   expect(await chooser.locator('[data-feed-queue-row]').count()).toBeGreaterThan(1);
   await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
   await expect(page.locator('.library-queue-shell')).toBeVisible();
+  await expect(page.locator('[data-queue-current]')).toHaveAttribute('data-queue-current', stations[1].stationuuid);
+  await expect(page.locator('.calm-queue-earlier-rows [data-queue-row]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Изменить', exact: true }).click();
   await expect(page.locator('[data-queue-row]')).toHaveCount(2);
   expect(await queueState(page)).toMatchObject({ items: stations.slice(0, 2), currentIndex: 1 });
 });
@@ -339,8 +344,8 @@ test('a paused singleton opens its chooser without starting playback', async ({ 
   expect(await audioState(page)).toEqual(beforeAudio);
   await chooser.getByRole('button', { name: 'Редактировать очередь' }).click();
   await expect(page.locator('.library-queue-shell')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'К плееру', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'К плееру', exact: true }).click();
+  await expect(page.locator('[data-queue-current]').getByRole('button', { name: 'В Ленту', exact: true })).toBeVisible();
+  await page.locator('[data-queue-current]').getByRole('button', { name: 'В Ленту', exact: true }).click();
   await expect(page.locator('.station-feed-overlay')).toBeVisible();
   expect(await playCalls(page)).toBe(0);
   expect(await queueState(page)).toEqual(beforeQueue);

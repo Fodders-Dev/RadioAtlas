@@ -6,7 +6,7 @@ export const openLibraryCategory = async (page: Page, tab: 'favorites' | 'queue'
   const home = page.locator('[data-library-home]');
   if (await home.isVisible()) {
     const destinations = {
-      favorites: '.library-preview-favorites .library-preview-section-head button',
+      favorites: '.library-preview-favorite-open',
       queue: '.library-preview-queue',
       recent: '.library-preview-recent',
       tracks: '.library-preview-find',
@@ -14,6 +14,10 @@ export const openLibraryCategory = async (page: Page, tab: 'favorites' | 'queue'
     };
     await home.locator(destinations[tab]).click();
   } else {
+    const queueTools = page.locator('.calm-queue-tools');
+    if (await queueTools.isVisible() && !(await queueTools.evaluate(element => (element as HTMLDetailsElement).open))) {
+      await queueTools.locator('summary').click();
+    }
     const names = { favorites: 'Избранное', queue: 'Очередь', recent: 'Недавнее', tracks: 'Находки', collections: 'Плейлисты' };
     await page.getByRole('tab', { name: names[tab] }).click();
   }
