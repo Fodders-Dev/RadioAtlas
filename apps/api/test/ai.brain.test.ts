@@ -1957,10 +1957,12 @@ test('ERA REFINEMENT: the prior radio request stays a recommendation, searches t
   assert.doesNotMatch(first.reply, /Synth Circuit|synthwave|Germany/);
 
   const rejected90s = station({
-    stationuuid: '22222222-2222-4222-8222-222222222222', name: 'Nineties Pop', tags: ['90s', '2000s'], country: 'France'
+    stationuuid: '22222222-2222-4222-8222-222222222222', name: 'Nineties Pop', tags: ['90s', '2000s'], country: 'France',
+    url_resolved: 'https://audio.example/nineties-pop'
   });
   const inRange = station({
-    stationuuid: '33333333-3333-4333-8333-333333333333', name: 'New Century Wave', tags: ['2000s', 'synthwave'], country: 'Japan'
+    stationuuid: '33333333-3333-4333-8333-333333333333', name: 'New Century Wave', tags: ['2000s', 'synthwave'], country: 'Japan',
+    url_resolved: 'https://audio.example/new-century-wave'
   });
   const catalogRows: CatalogStation[] = [
     {stationuuid:rejected90s.stationuuid,name:rejected90s.name,url:rejected90s.url_resolved,url_resolved:rejected90s.url_resolved,homepage:'',favicon:'',tags:'90s,2000s,synthwave',country:'France',countrycode:'FR',state:'',language:'English',codec:'AAC',bitrate:128,geo_lat:null,geo_long:null,lastcheckok:1},
