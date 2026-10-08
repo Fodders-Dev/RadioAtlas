@@ -27,7 +27,7 @@ import { useLocale } from './state/LocaleContext';
 import { useCatalog } from './state/CatalogContext';
 import { usePlayback, useShell } from './state/RadioContext';
 import { useSession } from './state/SessionContext';
-import type { AppSection } from './types';
+import type { AppSection, StationLite } from './types';
 
 const HomeScreen = lazy(loadHomeScreen);
 const FeedScreen = lazy(loadFeedScreen);
@@ -339,7 +339,7 @@ const App = () => {
     else delete document.documentElement.dataset.calmMini;
   }, [calmMiniVisible]);
 
-  const handleSectionChange = (section: AppSection) => {
+  const handleSectionChange = (section: AppSection, feedEntryStation?: StationLite) => {
     // Лира is a section of the calm shell: choosing another destination in the
     // nav leaves it the way it leaves any other screen.
     if (CALM_PREVIEW && (chatOpen || chatRequest)) {
@@ -349,13 +349,18 @@ const App = () => {
     // The calm nav is also the return path from Globe/Library. Resume a matching
     // transient browse visit; only a fresh/invalid entry pins the current source.
     if (CALM_PREVIEW && section === 'feed' && activeSection !== 'feed') {
-      const visit = getFeedBrowseVisit();
-      const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
-      const playbackQueueIds = queue.items.map((station) => station.stationuuid);
-      const canResume = isFeedBrowseVisitCompatible(visit, queue.sourceId, currentStationId, playbackQueueIds);
-      if (!canResume) {
-        setFeedEntryStation(player.current ?? player.pending ?? null);
+      if (feedEntryStation) {
+        setFeedEntryStation(feedEntryStation);
         rerollFeedSeed();
+      } else {
+        const visit = getFeedBrowseVisit();
+        const currentStationId = (player.current ?? player.pending)?.stationuuid ?? null;
+        const playbackQueueIds = queue.items.map((station) => station.stationuuid);
+        const canResume = isFeedBrowseVisitCompatible(visit, queue.sourceId, currentStationId, playbackQueueIds);
+        if (!canResume) {
+          setFeedEntryStation(player.current ?? player.pending ?? null);
+          rerollFeedSeed();
+        }
       }
     }
     if (section === 'library') openLibraryOverview();
@@ -599,7 +604,7 @@ const App = () => {
       </div>
 
       <Suspense fallback={null}>
-        <MiniPlayerDockLazy />
+        <MiniPlayerDockLazy onOpenFeedPlayer={(station) => handleSectionChange('feed', station)} />
       </Suspense>
       {detailsOpen ? (
         <Suspense fallback={null}>

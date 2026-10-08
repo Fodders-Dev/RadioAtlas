@@ -392,8 +392,7 @@ test('catalogue formats cannot become unsupported promises about live programme 
     assert.equal(assertsUnverifiedProgram(reply),true);
     const h=harness({planner:[recommendation],reply});
     const r=await chatWithAssistant(ask('Хочется скоростного как sonic, без новостей'),h.deps);
-    assert.match(r.reply,/Fast/);
-    assert.match(r.reply,/По тегам каталога/);
+    assert.doesNotMatch(r.reply,/без новостей|без рекламы|без ведущих|только поток|сейчас играет/i);
     assert.equal(assertsUnverifiedProgram(r.reply),false);
     assert.equal(r.stations.length,2);
   }
@@ -406,8 +405,10 @@ test('ordinary recommendations use bounded own evidence instead of unsupported m
   for(const reply of ['Bass One — чистый нонстоп без лишних разговоров. Night Two быстрее и лучше всех.',json]) {
     const h=harness({planner:[recommendation],rows,reply});
     const r=await chatWithAssistant(ask('Хочется скоростного как sonic. Поясни каждый, не включай.'),h.deps);
-    assert.match(r.reply,/«Bass One» — drum and bass, jungle/);
-    assert.match(r.reply,/«Night Two» — drum and bass, downtempo/);
+    assert.match(r.reply,/плотный басовый ритм/);
+    assert.match(r.reply,/быстрые ломаные ритмы/);
+    assert.match(r.reply,/неторопливый, спокойный характер/);
+    assert.doesNotMatch(r.reply,/Bass One|Night Two|drum and bass|jungle|downtempo/);
     assert.doesNotMatch(r.reply,/нонстоп|разговоров|быстрее|лучше всех/);
     assert.ok(r.actions.every(a=>a.kind!=='play'));
     assert.equal(h.requests.length,2);
@@ -418,8 +419,8 @@ test('ordinary recommendations use bounded own evidence instead of unsupported m
 test('an unavailable composer keeps usable verified recommendations and reports the provider failure',async()=>{
   const h=harness({planner:[recommendation],composerStatus:429});
   const r=await chatWithAssistant(ask('Хочется скоростного как sonic. Не включай.'),h.deps);
-  assert.match(r.reply,/По тегам каталога/);
-  assert.match(r.reply,/Fast a/);
+  assert.match(r.reply,/плотный басовый ритм/);
+  assert.doesNotMatch(r.reply,/сейчас играет|эфир сейчас/i);
   assert.doesNotMatch(r.reply,/замечталась|шум пластинки/);
   assert.deepEqual(r.modelErrors,['rate_limit']);
   assert.equal(h.requests.length,2);
@@ -433,8 +434,9 @@ test('a genre matching an excluded station name cannot restore arbitrary tags th
   const input=ask('Хочу музыку. Два варианта, не включай.');
   input.userTaste={hiddenStationIds:['hidden']};
   const r=await chatWithAssistant(input,h.deps);
-  assert.match(r.reply,/«Piano Window» — classical/);
-  assert.match(r.reply,/«Unprofiled Window» — жанровых данных в каталоге не хватает/);
+  assert.match(r.reply,/классическое направление/);
+  assert.match(r.reply,/Для части вариантов в каталоге мало данных/);
+  assert.doesNotMatch(r.reply,/Piano Window|Unprofiled Window|classical/);
   assert.doesNotMatch(r.reply,/no ads/);
 });
 
@@ -443,9 +445,10 @@ test('positional genre descriptions are replaced with facts attached to their ac
     station('b',{name:'Trance Window',tags:['trance']}),station('c',{name:'Bass Window',tags:['drum and bass']})];
   const h=harness({planner:[recommendation],rows,reply:'Вторая — drum and bass, а первая — trance.'});
   const r=await chatWithAssistant(ask('Хочется скоростного как sonic'),h.deps);
-  assert.match(r.reply,/«House Window» — house/);
-  assert.match(r.reply,/«Trance Window» — trance/);
-  assert.match(r.reply,/«Bass Window» — drum and bass/);
+  assert.match(r.reply,/ритмичное танцевальное направление/);
+  assert.match(r.reply,/плотный басовый ритм/);
+  assert.match(r.reply,/пульсирующее танцевальное направление/);
+  assert.doesNotMatch(r.reply,/House Window|Trance Window|Bass Window|house|trance|drum and bass/);
   assert.doesNotMatch(r.reply,/вторая|первая/i);
   const compose=h.requests.at(-1);
   const grounding=compose.messages.find((m:any)=>m.role === 'system' && m.content.startsWith('Проверенные факты'));
@@ -528,7 +531,8 @@ test('a repeat cannot describe the previous verified slate while showing differe
   const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Brokenbeats подойдёт.'}]),
     userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
   assert.deepEqual(r.stations.map(s=>s.stationuuid),['fresh']);
-  assert.match(r.reply,/«HouseTime.FM» — house/);
+  assert.match(r.reply,/ритмичное танцевальное направление/);
+  assert.doesNotMatch(r.reply,/HouseTime.FM|house/);
   assert.doesNotMatch(r.reply,/Brokenbeats|выше/);
 });
 
@@ -539,11 +543,13 @@ test('short repairs explain the new cards instead of telling the listener to rea
   h.deps.tools.getStation=async id=>id === 'shown' ? previous : null;
   const r=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic. Поясни варианты.'},{role:'assistant',text:'Вот.'}]),
     userTaste:{lastRecommendedStationIds:['shown']}},h.deps);
-  assert.match(r.reply,/«HouseTime.FM» — house/);
+  assert.match(r.reply,/ритмичное танцевальное направление/);
+  assert.doesNotMatch(r.reply,/HouseTime.FM|house/);
   assert.doesNotMatch(r.reply,/уже там/);
   assert.ok(r.actions.every(a=>a.kind !== 'play'));
   h.deps.tools.getStation=async()=>null;
   const withoutAnchor=await chatWithAssistant({...ask('и?',[{role:'user',text:'Хочется скоростного как sonic'},{role:'assistant',text:'Вот.'}]),
     userTaste:{lastRecommendedStationIds:['gone']}},h.deps);
-  assert.match(withoutAnchor.reply,/«HouseTime.FM» — house/,'fresh-card explanations survive a missing past row');
+  assert.match(withoutAnchor.reply,/ритмичное танцевальное направление/,'fresh-card explanations survive a missing past row');
+  assert.doesNotMatch(withoutAnchor.reply,/HouseTime.FM|house/);
 });

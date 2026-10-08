@@ -14,11 +14,14 @@ import {
 } from '../src/ai/brain.js';
 import { ALL_MUSIC_SERVICES } from '../src/ai/musicLinks.js';
 import { createCatalogToolProvider } from '../src/ai/catalogToolProvider.js';
+import type { CatalogServiceLike } from '../src/ai/catalogToolProvider.js';
+import { attachSearchIndex, buildSearchResponse, type CatalogStation } from '../src/catalog/service.js';
 import type {
   AssistantDeps,
   ChatInput,
   CuratedArtistHit,
   DeepseekConfig,
+  SearchStationsArgs,
   ToolProvider,
   WebSearchProvider,
   WebSource,
@@ -161,7 +164,8 @@ test('composer cannot promote a removed candidate in prose while cards show anot
   const r=await chatWithAssistant(ask('Подбери джаз без металла. Не включай.'),makeDeps(fetchImpl,{tools:{...stubTools,searchStations:async()=>[station(),station({stationuuid:'bad',name:'Forbidden Metal',tags:['metal']})]}}));
   assert.deepEqual(r.stations.map(s=>s.stationuuid),['uuid-jazz']);
   assert.doesNotMatch(r.reply,/Forbidden Metal/);
-  assert.match(r.reply,/Paris Jazz/);
+  assert.match(r.reply,/джазовая сторона/);
+  assert.doesNotMatch(r.reply,/Paris Jazz|Forbidden Metal|France/);
 });
 
 test('live-audit: recording cannot claim a file was sent, including a follow-up', async () => {
@@ -431,7 +435,7 @@ test('explicit “without” constraints remove contradictory station names and 
 });
 
 test('Russian 2010s lane scopes catalogue searches and falls back cleanly when exclusions remove every card', async () => {
-  const searches: Array<{ query: string; language?: string; tag?: string }> = [];
+  const searches: SearchStationsArgs[] = [];
   const tools: ToolProvider = {
     ...stubTools,
     searchStations: async (args) => {
@@ -449,6 +453,7 @@ test('Russian 2010s lane scopes catalogue searches and falls back cleanly when e
   );
 
   assert.equal(searches[0]?.query, 'russian pop');
+  assert.ok(searches[0]?.catalogEraTags?.includes('2010s'));
   assert.equal(searches[0]?.language, 'russian');
   assert.equal(searches[0]?.tag, 'russian pop');
   assert.deepEqual(result.stations, []);
@@ -457,7 +462,7 @@ test('Russian 2010s lane scopes catalogue searches and falls back cleanly when e
 });
 
 test('Russian 2010s lane drops retro/programming cards and continues to a modern search step', async () => {
-  const searches: Array<{ query: string; language?: string; tag?: string }> = [];
+  const searches: SearchStationsArgs[] = [];
   const tools: ToolProvider = {
     ...stubTools,
     searchStations: async (args) => {
@@ -1876,7 +1881,7 @@ test('DESCRIPTOR BACKSTOP: planner defers on «электроника 90х» →
   const { fetchImpl, calls } = makeFetch({ planner: ['{"action":"final"}'], vibeTags: 'downtempo', compose: 'Лови.' });
   const result = await chatWithAssistant(ask('меланхоличная электроника 90х'), makeDeps(fetchImpl, { tools }));
   assert.ok(calls.some((c) => c.phase === 'vibe-tags'), 'descriptor backstop ran');
-  assert.ok(searchQueries.includes('downtempo'), `searched [${searchQueries.join(', ')}]`);
+  assert.ok(searchQueries.some(query => query === 'downtempo' || query === 'downtempo 90s'), `searched [${searchQueries.join(', ')}]`);
   assert.ok(result.stations.length > 0);
 });
 
@@ -1931,6 +1936,83 @@ test('FOLLOW-UP RECOMMENDATION: typo «Даш радио?» reuses the previous 
   assert.ok(String(vibeUserMessage || '').includes('Заебало все'), 'previous mood was passed to vibe mapper');
   assert.deepEqual(searchQueries, ['ambient']);
   assert.ok(result.stations.length > 0);
+});
+
+test('ERA REFINEMENT: the prior radio request stays a recommendation, searches the requested span, and removes rejected 90s cards', async () => {
+  const original = 'А теперь радио, знаешь, как у дяди в нулевых с этой пахучкой в машине';
+  const firstStation = station({
+    stationuuid: '11111111-1111-4111-8111-111111111111', name: 'Synth Circuit', tags: ['synthwave'], country: 'Germany'
+  });
+  const initialSearchArgs: any[] = [];
+  const { fetchImpl: firstFetch } = makeFetch({
+    planner: ['{"action":"use_tool","intent":"recommend","tool":"search_stations","args":{"query":"synthwave","tag":"synthwave"},"continuity":{"mode":"new"}}']
+  });
+  const first = await chatWithAssistant(ask(original), makeDeps(firstFetch, {
+    tools: { ...stubTools, searchStations: async args => { initialSearchArgs.push(args); return [firstStation]; } }
+  }));
+  assert.deepEqual(first.stations.map(row => row.stationuuid), [firstStation.stationuuid]);
+  assert.ok(initialSearchArgs.some(args => args.query === 'synthwave' && args.catalogEraTags?.includes('2000s')),
+    `initial era was not carried as catalogue evidence: ${JSON.stringify(initialSearchArgs)}`);
+  assert.match(first.reply, /ретро-электронное настроение/);
+  assert.doesNotMatch(first.reply, /Synth Circuit|synthwave|Germany/);
+
+  const rejected90s = station({
+    stationuuid: '22222222-2222-4222-8222-222222222222', name: 'Nineties Pop', tags: ['90s', '2000s'], country: 'France'
+  });
+  const inRange = station({
+    stationuuid: '33333333-3333-4333-8333-333333333333', name: 'New Century Wave', tags: ['2000s', 'synthwave'], country: 'Japan'
+  });
+  const catalogRows: CatalogStation[] = [
+    {stationuuid:rejected90s.stationuuid,name:rejected90s.name,url:rejected90s.url_resolved,url_resolved:rejected90s.url_resolved,homepage:'',favicon:'',tags:'90s,2000s,synthwave',country:'France',countrycode:'FR',state:'',language:'English',codec:'AAC',bitrate:128,geo_lat:null,geo_long:null,lastcheckok:1},
+    {stationuuid:inRange.stationuuid,name:inRange.name,url:inRange.url_resolved,url_resolved:inRange.url_resolved,homepage:'',favicon:'',tags:'2000s,synthwave',country:'Japan',countrycode:'JP',state:'',language:'English',codec:'AAC',bitrate:128,geo_lat:null,geo_long:null,lastcheckok:1},
+    {stationuuid:'44444444-4444-4444-8444-444444444444',name:'Later Wave',url:'https://audio.example/later',url_resolved:'https://audio.example/later',homepage:'',favicon:'',tags:'2010s,synthwave',country:'Sweden',countrycode:'SE',state:'',language:'English',codec:'AAC',bitrate:128,geo_lat:null,geo_long:null,lastcheckok:1}
+  ];
+  const indexedCatalogRows = attachSearchIndex(catalogRows);
+  const catalog: CatalogServiceLike = {
+    search: async filters => {
+      const response = buildSearchResponse(indexedCatalogRows, filters as Parameters<typeof buildSearchResponse>[1]);
+      return {items:response.items, nextCursor:response.nextCursor};
+    },
+    getStationById: async id => catalogRows.find(row => row.stationuuid === id) || null,
+    getSummary: async () => ({}),
+    getCatalog: async () => catalogRows
+  };
+  const seenArgs: any[] = [];
+  const { fetchImpl, calls } = makeFetch({
+    planner: ['{"action":"use_tool","intent":"recommend","tool":"search_stations","args":{"query":"2000–2014","tag":"2000s"},"continuity":{"mode":"continue","fromUserTurnId":"u0"}}']
+  });
+  const refined = await chatWithAssistant(ask('не 90-ые, а что-то с 2000 по 2014', {
+    history: [
+      { role: 'user', text: original },
+      { role: 'assistant', text: first.reply }
+    ]
+  }), makeDeps(fetchImpl, {
+    tools: { ...createCatalogToolProvider(catalog), searchStations: async args => {
+      seenArgs.push(args);
+      return createCatalogToolProvider(catalog).searchStations(args);
+    } }
+  }));
+  assert.ok(calls.length > 0, `expected planner/composer calls; got phases ${calls.map(call => call.phase).join(',')}`);
+  assert.ok(seenArgs.some(args => args.query === '' && args.catalogEraTags?.includes('2000s') && args.catalogEraTags?.includes('2010s')),
+    `requested era was not carried as catalogue evidence: ${JSON.stringify(seenArgs)}`);
+  assert.deepEqual(new Set(refined.stations.map(row => row.stationuuid)), new Set([inRange.stationuuid,'44444444-4444-4444-8444-444444444444']), JSON.stringify({seenArgs, era:seenArgs[0]?.catalogEra}));
+  assert.ok(refined.constraintFilter?.matchedIds.includes('90s'));
+  assert.ok(refined.actions.every(action => action.kind !== 'play'));
+  assert.doesNotMatch(refined.reply, /New Century Wave|2000s|Japan/);
+  assert.match(refined.reply,/ретро-электронное настроение с отсылкой к звучанию нулевых/);
+  assert.ok(calls.some(call => call.phase === 'compose'), 'the accepted recommendation was composed');
+});
+
+test('FACTUAL TURN: assistant suggestions and an earlier radio request do not carry station cards into an unrelated question', async () => {
+  const { fetchImpl } = makeFetch({ planner: ['{"action":"final","intent":"knowledge"}'], compose: 'Amiga — это семейство компьютеров.' });
+  const result = await chatWithAssistant(ask('Что такое Amiga?', {
+    history: [
+      { role: 'user', text: 'Подбери радио с synthwave.' },
+      { role: 'assistant', text: 'Могу ещё подобрать похожие станции.' }
+    ]
+  }), makeDeps(fetchImpl));
+  assert.deepEqual(result.stations, []);
+  assert.ok(result.actions.every(action => action.kind !== 'play'));
 });
 
 test('DESCRIPTOR BACKSTOP excludes trivia — «расскажи про рок 90х» keeps its honesty path (no forced cards)', async () => {

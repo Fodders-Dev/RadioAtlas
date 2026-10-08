@@ -263,6 +263,9 @@ export type SearchStationsArgs = {
   // Validated semantic search only; spellings matched before the ranked cap.
   semanticGenre?: string;
   semanticExcludeTags?: readonly string[];
+  // Trusted period evidence derived from the bounded user selection, never the model schema.
+  catalogEraTags?: readonly string[];
+  catalogEra?: { fromYear: number; toYear: number };
   // Trusted current-source lane only. Full bounded evidence remains internal.
   nearSource?: { stationuuid: string; url_resolved: string; tags: readonly string[]; name?: string; country?: string };
   excludeStationIds?: string[];

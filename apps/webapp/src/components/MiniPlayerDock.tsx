@@ -13,6 +13,7 @@ import { ThemeActionIcon } from './ThemeActionIcon';
 import './MiniPlayerDock.css';
 import { CALM_PREVIEW } from '../lib/calmPreview';
 import { CalmMiniPlayer } from './CalmMiniPlayer';
+import type { StationLite } from '../types';
 
 type DockTrayMode = 'queue' | 'volume' | 'more' | null;
 
@@ -34,7 +35,7 @@ const MORE_ICON = {
   sleep: 'M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z'
 } as const;
 
-export const MiniPlayerDock = () => {
+export const MiniPlayerDock = ({ onOpenFeedPlayer }: { onOpenFeedPlayer: (station: StationLite) => void }) => {
   const { t } = useLocale();
   const {
     player,
@@ -325,7 +326,7 @@ export const MiniPlayerDock = () => {
   // player bar only while something is on air, so the dormant dock renders
   // nothing at all. Playback starts from the hero/cards, which then mounts it.
   // NB: this sits after every hook, so the hook order stays stable.
-  if (CALM_PREVIEW) return <CalmMiniPlayer />;
+  if (CALM_PREVIEW) return <CalmMiniPlayer onOpenFeedPlayer={onOpenFeedPlayer} />;
 
   if (isDormantDock) {
     return null;

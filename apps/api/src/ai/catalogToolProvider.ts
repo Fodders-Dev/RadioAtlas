@@ -7,6 +7,7 @@ import { artistTokensMatch, normalizeArtist } from './curatedArtistIndex.js';
 import { placeMatchesQuery } from '../catalog/service.js';
 import { knownSourceCountry, matchesForeignSource, sourceGenres } from './currentSourceDiscovery.js';
 import { parseCatalogueTagEvidence, registerCatalogueTagEvidence } from './catalogueTagEvidence.js';
+import { stationMatchesRequestedEra } from './selectionContext.js';
 import { stationStreamIdentity } from './stationStreamIdentity.js';
 import { compareNearScores, createNearSourceScorer, isDistinctNearSource, nearStationIdentity, type NearSourceScore } from './sourceAlternatives.js';
 import { createStationExclusionMatcher, MAX_EXCLUDED_IDS, type StationExclusionRow } from './stationExclusions.js';
@@ -151,6 +152,10 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     const semanticGenre = parsedSemantic?.tags[0];
     const semanticSpellings = semanticGenre ? semanticTagSpellings(semanticGenre) : [];
     const semanticSearch = semanticSpellings.length ? semanticGenre : undefined;
+    const eraTagAliases = semanticSearch || args.tag ? [] : [...new Set(args.catalogEraTags || [])];
+    const matchesEra = (station: CatalogStationLite) => !args.catalogEra || stationMatchesRequestedEra(
+      [station.name || '', ...parseCatalogueTagEvidence(station.tags)], args.catalogEra
+    );
     const semanticExclusions = parsedSemantic?.excludeTags || [];
     const matchesSemanticStation = (station: CatalogStationLite): boolean =>
       !semanticSearch || semanticSpellings.some(spelling => matchesSemanticTag(toRef(station), spelling)) &&
@@ -260,7 +265,7 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
         if (!station.url_resolved || ids.has(station.stationuuid) || isExcluded(station) ||
             !matchesSemanticStation(station) ||
             (!wantsTalk && isTalkFormat(station)) ||
-            (canonicalCountry && knownSourceCountry(station.country || '') !== canonicalCountry)) return false;
+            (canonicalCountry && knownSourceCountry(station.country || '') !== canonicalCountry) || !matchesEra(station)) return false;
         ids.add(station.stationuuid);
         const stream = stationStreamIdentity({ url_resolved: station.url_resolved });
         const name = collectorStationNameKey(station.name || '');
@@ -284,14 +289,14 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
     // aliases after a global capped page cannot recover hidden local stations.
     const searches = await Promise.all((countryLabels.length ? countryLabels : [args.country || '']).map(async country => {
       const pages: CatalogStationLite[] = [];
-      const needsRefill = Boolean(excludedIds.length || semanticExclusions.length);
+      const needsRefill = Boolean(excludedIds.length || semanticExclusions.length || args.catalogEra);
       const maxPages = needsRefill ? 3 : 1;
       let cursor = 0;
       for (let page = 0; page < maxPages; page += 1) {
         const response = await catalog.search({
           q: semanticSearch ? '' : args.query || '', country, language: args.language || '',
-          tag: semanticSearch || args.tag || '',
-          ...(semanticSearch ? {tagAliases:semanticSpellings} : {}),
+          tag: semanticSearch || (eraTagAliases.length ? '' : args.tag || ''),
+          ...(semanticSearch ? {tagAliases:semanticSpellings} : eraTagAliases.length ? {tagAliases:eraTagAliases} : {}),
           continent: '', limit: fetchLimit, cursor,
           // Лира ranks by genre relevance (not popularity-only) so a bare-genre ask
           // returns actual genre stations instead of the most-voted substring match.
@@ -313,7 +318,8 @@ export const createCatalogToolProvider = (catalog: CatalogServiceLike): ToolProv
         return !canonicalCountry || knownSourceCountry(station.country || '') === canonicalCountry;
       })
       .filter((station) => station.url_resolved)
-      .filter((station) => wantsTalk || !isTalkFormat(station));
+      .filter((station) => wantsTalk || !isTalkFormat(station))
+      .filter(matchesEra);
     // Geography: when the query names a place and stations located there
     // exist, a station that only carries the word in its NAME and sits in
     // another country is dropped — «Radio Art — Tokyo» (Greece) is not a

@@ -37,7 +37,7 @@ import { recommendationEvidence, RECOMMENDATION_EVIDENCE_SCHEMA, renderRecommend
 import { buildSystemPrompt } from './persona.js';
 import { hasPlayIntent } from './playbackIntent.js';
 import { requestedStationCount } from './recommendationCount.js';
-import { boundedSelectionUserTurns, resolveSelectionContext, stripExplicitExclusionReleases, type SelectionContext } from './selectionContext.js';
+import { boundedSelectionUserTurns, parseRequestedEra, requestedEraCatalogueTags, resolveSelectionContext, stationMatchesRequestedEra, stripExplicitExclusionReleases, type SelectionContext } from './selectionContext.js';
 import { answerCatalogueQuestion } from './catalogueQuestions.js';
 import { catalogueTagEvidence } from './catalogueTagEvidence.js';
 import { buildMusicFactQuery, isGeneratedMusicWidgetSource, resolveMusicQuestionContext, type MusicQuestionContext } from './musicQuestionContext.js';
@@ -362,6 +362,12 @@ const isRepairFollowup = (message: string): boolean =>
 // interpreted by the planner; only USER turns can carry a prior constraint.
 const isGoalCorrection = (message: string): boolean =>
   /(?:страну.{0,15}сохран|сохран[иь].{0,15}(?:стран|огранич)|same\s+(?:country|constraints)|keep\s+(?:the\s+)?(?:country|constraints))/iu.test(message);
+// A year-range correction is a selection refinement when it explicitly
+// contrasts a rejected period with the replacement. Keep this narrow: a bare
+// date range can be factual history and must not inherit an old recommendation.
+const isEraCorrection = (message: string): boolean =>
+  /(?:^|[^\d])(?:19|20)\d{2}\s*(?:[-–—]|по|до|to|through)\s*(?:19|20)\d{2}(?:$|[^\d])/iu.test(message) &&
+  /(?:^|[,.!?\s])(?:не|not)\s+[^.!?\n]{0,100}?(?:,\s*а\s+|\s+а\s+|\s+but\s+)/iu.test(message);
 const isPureContinuation = (message: string): boolean =>
   isRepairFollowup(message) || isRejectRefreshIntent(message) ||
   /^(?:ещ[её]|еще|more|another)(?:\s+(?:один|одну|два|две|три|четыре|пять|[1-5]))?(?:\s+(?:вариант[а-яё]*|станци[а-яё]*|эфир[а-яё]*))?[.!?\s]*$/iu.test(message.trim());
@@ -373,6 +379,7 @@ const isFollowupRecommendationIntent = (message: string): boolean =>
   (!isKnowledgeQuestion(message) && /(?:с\s+теми\s+же\s+жанр|жанры.{0,15}сохран|страну.{0,15}сохран|сохран[иь].{0,15}стран)/i.test(message)) ||
   (FOLLOWUP_RECOMMEND_INTENT.test(message.trim()) && !isKnowledgeQuestion(message)) ||
   isRejectRefreshIntent(message) ||
+  (!isKnowledgeQuestion(message) && isEraCorrection(message)) ||
   (!isKnowledgeQuestion(message) && isGoalCorrection(message)) ||
   (!isKnowledgeQuestion(message) && REJECT_REFRESH_TOKEN.test(message) &&
     /(?:не\s+то|а\s+теперь|ещ[её]|друго[ейё])/.test(message.toLowerCase()) &&
@@ -1346,7 +1353,9 @@ const EXPLICIT_STATION_EXCLUSIONS: ExplicitStationExclusion[] = [
   { id: 'folk', requestPattern: /(?:^|[^a-zа-яё])(?:фолк[а-яё]*|folk)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:фолк[а-яё]*|folk)(?![a-zа-яё])/i },
   { id: 'country', requestPattern: /(?:^|[^a-zа-яё])(?:кантри|country)(?![a-zа-яё])/i, stationPattern: /(?:^|[^a-zа-яё])(?:кантри|country)(?![a-zа-яё])/i },
   { id: 'reggae', requestPattern: /(?:reggae|регги)/i, stationPattern: /(?:reggae|регги)/i },
-  { id: 'classical', requestPattern: /(?:классическ|classical)/i, stationPattern: /(?:классическ|classical)/i }
+  { id: 'classical', requestPattern: /(?:классическ|classical)/i, stationPattern: /(?:классическ|classical)/i },
+  { id: '90s', requestPattern: /(?:90\s*[-\s]*(?:['’]?s|er|х|ых|ые|е)|1990(?:['’]?s|s)|девяност\p{L}*|nineties)/iu,
+    stationPattern: /(?:90\s*[-\s]*(?:['’]?s|er|х|ых|ые|е)|1990(?:['’]?s|s)|девяност\p{L}*|nineties)/iu }
 ];
 
 const EXCLUSION_CLAUSE_SOURCE =
@@ -1359,10 +1368,15 @@ const explicitExclusionClauses = (message: string): string[] =>
 
 export const explicitStationExclusionIds = (message: string): string[] => {
   const clauses = explicitExclusionClauses(message);
-  if (!clauses.length) return [];
-  return EXPLICIT_STATION_EXCLUSIONS
+  const matched = EXPLICIT_STATION_EXCLUSIONS
     .filter((constraint) => clauses.some((clause) => constraint.requestPattern.test(clause)))
     .map((constraint) => constraint.id);
+  // Listeners commonly correct a period directly («not the 90s, try 2000–14»)
+  // instead of using the usual «без X» exclusion syntax.
+  if (/(?:^|[\s,.;!?])(?:не|not)\s+(?:90\s*[-\s]*(?:['’]?s|er|х|ых|ые|е)|1990(?:['’]?s|s)|девяност\p{L}*|nineties)/iu.test(message)) {
+    matched.push('90s');
+  }
+  return [...new Set(matched)];
 };
 
 export const stripExplicitExclusionClauses = (message: string): string =>
@@ -2126,7 +2140,9 @@ export const chatWithAssistant = async (
   // The old admission predicate also accepts "хочется пиццы". It is useful
   // for routing to the planner, never sufficient to certify a music anchor.
   const isSelectionAnchor = (text: string) => !isSelectionBarrier(text) && !MUSIC_DISLIKE.test(text) && hasSelectionEvidence(text) &&
-    (isExplicitMusicRequest(text) || Boolean(requestedGenreRefinement(text)) || Boolean(requestedGenreRefinement(`Теперь ${text}`)));
+    (isExplicitMusicRequest(text) ||
+      (/(?:радио|станци[а-яё]*|\bradio\b|\bstations?\b)/iu.test(text) && /(?:как|в\s+духе|в\s+стиле|для|like|in\s+the\s+style\s+of)/iu.test(text) && !isKnowledgeQuestion(text)) ||
+      Boolean(requestedGenreRefinement(text)) || Boolean(requestedGenreRefinement(`Теперь ${text}`)));
   const contextOptions = {isMusicRequest:isSelectionAnchor, isBarrier:isSelectionBarrier, exclusionIds:explicitStationExclusionIds};
   const candidateUserTurns = boundedSelectionUserTurns(history);
   let lastBarrier = -1;
@@ -2189,16 +2205,32 @@ export const chatWithAssistant = async (
     })();
     const filter = async (stations: VerifiedStationRef[]) => {
       const local = countryScope ? stations.filter(station=>matchesRequestedCountry(station.country,countryScope!)) : stations;
-      if (!repeatDiscovery || !repeatIds.length) return local;
+      const eraFiltered = selectionContext.era
+        ? local.filter(station => stationMatchesRequestedEra([station.name, ...catalogueTagEvidence(station)], selectionContext.era!))
+        : local;
+      if (!repeatDiscovery || !repeatIds.length) return eraFiltered;
       const blocked = await matcher();
-      return local.filter(station => !blocked(station));
+      return eraFiltered.filter(station => !blocked(station));
     };
+    const stripEraFromQuery = (value: string) => value
+      .replace(/(?:19|20)\d{2}\s*(?:[-–—]|по|до|to|through)\s*(?:19|20)\d{2}/giu, ' ')
+      .replace(/(?:нулев\p{L}*|двухтысячн\p{L}*|девяност\p{L}*|nineties|восьмидесят\p{L}*|eighties|(?:19|20)?(?:00|60|70|80|90|10|20)\s*(?:['’]?s|er|[-–—]?(?:х|ых|ые|е)))/giu, ' ')
+      .replace(/\s+/gu, ' ').replace(/^[\s,.;:–—-]+|[\s,.;:–—-]+$/gu, '').trim();
+    const isPeriodTag = (value: unknown) => typeof value === 'string' && Boolean(parseRequestedEra(value));
     deps = {...deps, tools: {
       ...baseTools,
-      searchStations: async args => filter(await baseTools.searchStations({...args,
+      searchStations: async args => {
+        const activeEra = selectionContext.era;
+        const catalogEraTags = activeEra ? requestedEraCatalogueTags(activeEra) : [];
+        const query = catalogEraTags.length ? stripEraFromQuery(args.query || '') : args.query;
+        return filter(await baseTools.searchStations({...args,
+        ...(query !== undefined ? {query} : {}),
+        ...(catalogEraTags.length && isPeriodTag(args.tag) ? {tag:''} : {}),
+        ...(catalogEraTags.length ? {catalogEraTags, catalogEra:activeEra} : {}),
         ...(countryScope || selectionFrozen || selectionContext.countrySpecified ? {country:countryScope} : {}),
         ...(selectionContext.count ? {limit:Math.min(8,Math.max(args.limit || 8,selectionContext.count))} : {}),
-        ...(repeatDiscovery && repeatIds.length ? {excludeStationIds:[...new Set([...repeatIds,...(args.excludeStationIds || [])])]} : {})})),
+        ...(repeatDiscovery && repeatIds.length ? {excludeStationIds:[...new Set([...repeatIds,...(args.excludeStationIds || [])])]} : {})}));
+      },
       getStation: async id => {
         const station = await baseTools.getStation(id);
         return station ? (await filter([station]))[0] || null : null;
@@ -2337,7 +2369,7 @@ export const chatWithAssistant = async (
     }
     transcript.push({role:'system',content:`RESOLVED SELECTION CONTEXT ${JSON.stringify({
       continuing:selectionContext.continuing,country:countryScope || null,count:selectionContext.count || null,
-      exclusionIds:selectionContext.exclusionIds,latestReaction:userMessage.slice(0,1000)
+      exclusionIds:selectionContext.exclusionIds,era:selectionContext.era || null,latestReaction:userMessage.slice(0,1000)
     })}. USER constraints only; historical playback permission is never renewed.`});
     if (countryScope) transcript.push({role:'system',content:`Обязательная страна станций: ${countryScope}. Только для уже запрошенного подбора; не предлагай радио в беседе или справке.`});
     return decision;
