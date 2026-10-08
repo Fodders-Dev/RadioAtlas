@@ -1,0 +1,13 @@
+{
+  "feedStation": "fixture-long-station",
+  "expectedStation": "fixture-long-station",
+  "chatClosed": true,
+  "favoritePressed": "true",
+  "liraStayedOpen": true,
+  "bookmarkUnchanged": true,
+  "queueUnchanged": true,
+  "audioUnchangedAfterLike": true,
+  "historyVisibleAfterReopen": true,
+  "currentSectionAfterReopen": "home",
+  "aiRouteHits": 0
+}

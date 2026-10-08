@@ -1,6 +1,11 @@
 # RUNBOOK
 ## 2026-10-08 — reliability publication and Lira repair
 
+Lira/client repair27f5760 published: CI37760938571 gating jobs success,
+deploy37760938753 success, RU current and public radio-state-BDhiJDGD.js
+marker27f5760/health confirmed. First6036036 never deployed: malformed
+test fixtures shared a stream URL; independent streams fixed without runtime change.
+
 Deploy37369724539 for a653d54 initially failed before deploy: GitHub could not
 acquire a hosted runner. CI37369724677 was green. Re-running only failed deploy
 jobs on08.10 passed the same-SHA gate and deployment; RU release symlink,
