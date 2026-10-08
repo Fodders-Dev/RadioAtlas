@@ -1,4 +1,14 @@
 # RUNBOOK
+## 2026-10-08 — reliability publication and Lira repair
+
+Deploy37369724539 for a653d54 initially failed before deploy: GitHub could not
+acquire a hosted runner. CI37369724677 was green. Re-running only failed deploy
+jobs on08.10 passed the same-SHA gate and deployment; RU release symlink,
+public/api health and public bundle marker confirmed a653d54. Do not describe
+an unacquired runner as an application crash or queued deploy as publication.
+Lira repair uses a separate master-based backport, not the unaccepted calm-home
+composition. See docs/LIRA-REPAIR-2026-10-08.md for tests and inspected captures.
+Current slice made no billable model calls; all earlier paid journals stay closed.
 
 ## 2026-10-03 — optional Tavily fallback through the Telegram relay
 

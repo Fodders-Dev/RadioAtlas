@@ -1,6 +1,12 @@
 # Shared workflow — Codex and Claude
 
-## Owner's Codex workflow (updated 2026-09-30)
+## Owner's Codex workflow (updated 2026-10-08)
+
+08.10 owner explicitly asked for GPT-6 Luna for coding, replacing GPT-5.6
+Luna. For the current fixes, the main agent diagnoses, specifies, independently
+checks and coordinates release; GPT-6 Luna implements bounded changes. Do not
+silently use 5.6 or substitute another coding model. Keep file ownership and
+the review/test requirements below. This preference persists across sessions.
 
 The owner adopted GPT-6.1 Sol as the main developer and coordinator, replacing
 the mandatory Astra-to-Luna split. Sol handles a bounded task end to end:

@@ -3,8 +3,10 @@ import test from 'node:test';
 
 import {
   boundedSelectionUserTurns,
+  parseRequestedEra,
   parseSelectionContinuity,
   resolveSelectionContext,
+  stationMatchesRequestedEra,
   stripExplicitExclusionReleases
 } from '../src/ai/selectionContext.js';
 import { parsePlannerDecision } from '../src/ai/tools.js';
@@ -14,6 +16,22 @@ const isMusicRequest = (text: string) => /подбери|recommend|radio/iu.test
 const isBarrier = (text: string) => /пицц|экзамен|weather/iu.test(text);
 const exclusionIds = (text: string) => /без\s+новост|no news/iu.test(text) ? ['news'] : [];
 const opts = { isMusicRequest, isBarrier, exclusionIds };
+
+test('requested era keeps positive period intent, ignores a rejected decade, and leaves unknown catalogue dates eligible', () => {
+  assert.deepEqual(parseRequestedEra('как у дяди в нулевых'), {fromYear:2000,toYear:2009});
+  assert.deepEqual(parseRequestedEra('не 90-ые, а что-то с 2000 по 2014'), {fromYear:2000,toYear:2014});
+  assert.deepEqual(parseRequestedEra('что-то из 2010s'), {fromYear:2010,toYear:2019});
+  assert.deepEqual(parseRequestedEra('2020s'), {fromYear:2020,toYear:2029});
+  assert.equal(parseRequestedEra('не 90-ые'), undefined);
+  assert.equal(parseRequestedEra('без нулевых'), undefined);
+  assert.equal(parseRequestedEra('not the 90s'), undefined);
+  assert.deepEqual(parseRequestedEra('не с 2000 по 2014, а 2010s'), {fromYear:2010,toYear:2019});
+  assert.deepEqual(parseRequestedEra('с 2000 по 2014, точнее 2010s'), {fromYear:2010,toYear:2019});
+  assert.equal(stationMatchesRequestedEra(['90s'], {fromYear:2000,toYear:2014}), false);
+  assert.equal(stationMatchesRequestedEra(['2000s'], {fromYear:2000,toYear:2014}), true);
+  assert.equal(stationMatchesRequestedEra([], {fromYear:2000,toYear:2014}), true);
+  assert.equal(stationMatchesRequestedEra(['80s 90s'], {fromYear:1980,toYear:1989}), true);
+});
 
 test('continuity parser accepts only the two closed forms and bounded user ids', () => {
   assert.deepEqual(parseSelectionContinuity({ mode: 'new' }), { mode: 'new' });

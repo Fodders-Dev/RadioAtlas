@@ -405,6 +405,8 @@
 .calm-capture { color: var(--calm-ink); }
 .calm-capture[aria-pressed='true'] { color: var(--accent); }
 .calm-capture[aria-pressed='true'] svg { fill: currentColor; }
+.calm-mini-favorite[aria-pressed='true'] { color: var(--accent); }
+.calm-mini-favorite[aria-pressed='true'] svg { fill: currentColor; }
 .calm-mini-play { color: var(--accent); }
 .calm-mini-play svg, .calm-mini-next svg { fill: currentColor; stroke: none; }
 .app-shell-v2[data-calm='true'] > .toast { top: auto; bottom: calc(var(--calm-player-bottom) + 76px); color: var(--calm-ink); background: var(--calm-solid); border-color: var(--calm-line); box-shadow: 0 6px 18px #0003; }

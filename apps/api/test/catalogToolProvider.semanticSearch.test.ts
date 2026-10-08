@@ -110,6 +110,80 @@ test('semantic exact evidence filtering rejects compound-tag and name-only looka
   assert.equal(calls[0]?.q, '');
 });
 
+test('trusted era aliases use real catalogue tag filtering without forcing dates into exact-match q', async () => {
+  const rows = [
+    row({stationuuid:'only-90s', name:'Nineties Signal', tags:'90s,synthwave'}),
+    row({stationuuid:'00s', name:'New Century Signal', tags:'2000s,synthwave'}),
+    row({stationuuid:'10s', name:'Later Signal', tags:'2010s,synthwave'})
+  ];
+  const {catalog,calls} = catalogFor(rows);
+  const found = await createCatalogToolProvider(catalog).searchStations({
+    query:'synthwave', tag:'', catalogEraTags:['00s','2000s','10s','2010s'], limit:8
+  });
+  assert.deepEqual(found.map(station => station.stationuuid), ['00s','10s']);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0]?.q,'synthwave');
+  assert.equal(calls[0]?.tag,'');
+  assert.deepEqual(calls[0]?.tagAliases,['00s','2000s','10s','2010s']);
+});
+
+test('era constraints intersect with ordinary and semantic genre evidence before the provider cap', async () => {
+  const rows = [
+    row({stationuuid:'old-jazz', name:'Old Jazz Signal', tags:'90s,jazz'}),
+    row({stationuuid:'new-jazz', name:'New Jazz Signal', tags:'2000s,jazz'})
+  ];
+  const ordinary = catalogFor(rows);
+  const ordinaryHits = await createCatalogToolProvider(ordinary.catalog).searchStations({
+    query:'', tag:'jazz', catalogEraTags:['00s','2000s'], catalogEra:{fromYear:2000,toYear:2014}, limit:8
+  });
+  assert.deepEqual(ordinaryHits.map(station => station.stationuuid), ['new-jazz']);
+  assert.equal(ordinary.calls[0]?.tag,'jazz');
+  assert.equal(ordinary.calls[0]?.tagAliases,undefined);
+
+  const semantic = catalogFor(rows);
+  const semanticHits = await createCatalogToolProvider(semantic.catalog).searchStations({
+    query:'', tag:'jazz', semanticGenre:'jazz', catalogEraTags:['00s','2000s'],
+    catalogEra:{fromYear:2000,toYear:2014}, limit:8
+  });
+  assert.deepEqual(semanticHits.map(station => station.stationuuid), ['new-jazz']);
+  assert.equal(semantic.calls[0]?.tag,'jazz');
+  assert.ok(semantic.calls[0]?.tagAliases?.length);
+});
+
+test('brain carries a range-only refinement into a genre search and refills past earlier decades', async () => {
+  const rows = Array.from({length:30}, (_,index) => row({
+    stationuuid:`old-${index}`, name:`Old Jazz ${index}`, tags:'90s,jazz', votes:100
+  }));
+  rows.push(row({stationuuid:'valid-2000s',name:'Valid Jazz',tags:'2000s,jazz'}));
+  const {catalog,calls} = catalogFor(rows);
+  let plannerCalls = 0;
+  const result = await chatWithAssistant({
+    userMessage:'Не 90-ые, а что-то с 2000 по 2014.',
+    history:[{role:'user',text:'Подбери радио с джазом.'},{role:'assistant',text:'Вот подборка.'}],
+    surface:'miniapp',locale:'ru'
+  }, {
+    model:{enabled:true,apiKey:'stub',baseUrl:'https://model.example',model:'deepseek-v4-pro',timeoutSec:8,maxOutputTokens:1000},
+    tools:createCatalogToolProvider(catalog),musicServices:[],now:()=>5,log:()=>{},
+    fetch:(async(_url,init)=>{
+      const body=JSON.parse(String(init?.body));
+      const planner=body.messages.some((message:any)=>message.content.includes('PLANNER MODE'));
+      const content=planner
+        ? (plannerCalls++ === 0 ? JSON.stringify({action:'use_tool',intent:'recommend',tool:'search_stations',
+          args:{query:'2000–2014',tag:'jazz'},continuity:{mode:'continue',fromUserTurnId:'u0'}})
+          : JSON.stringify({action:'final',intent:'recommend'}))
+        : JSON.stringify({v:1,cards:[]});
+      return new Response(JSON.stringify({choices:[{message:{content}}],usage:{prompt_tokens:10,completion_tokens:10}}),{status:200});
+    }) as typeof fetch
+  });
+  assert.deepEqual(result.stations.map(station=>station.stationuuid),['valid-2000s']);
+  assert.ok(calls.length >= 2,'the era-aware provider refilled after the 90s page');
+  assert.equal(calls[0]?.q,'');
+  assert.equal(calls[0]?.tag,'jazz');
+  assert.ok(calls[1]!.cursor > 0);
+  assert.ok(result.actions.every(action=>action.kind !== 'play'));
+  assert.doesNotMatch(result.reply,/Old Jazz|Valid Jazz|2000s|Canada/);
+});
+
 test('semantic search keeps country and repeat exclusions, while ordinary literal search stays literal', async () => {
   const played = row({stationuuid:'played', name:'Known Lo Fi', tags:'lo-fi'});
   const mirror = row({stationuuid:'mirror', name:'Known Lo-Fi AAC', tags:'lo fi', url_resolved:'https://stream.example/mirror'});

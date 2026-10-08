@@ -83,8 +83,9 @@ explicit allow-list of fields, never a provider key or raw provider data.
 ## Commands
 
 Shared Codex/Claude workflow: read `.claude/rules/collaboration.md`.
-Owner's standing Codex preference (updated 2026-09-30): GPT-6.1 Sol handles
-tasks end to end; Luna implements small bounded tasks when useful; Astra handles
+Owner's standing Codex preference (updated 2026-10-08): the main agent
+plans, diagnoses, checks and coordinates release; GPT-6 Luna implements the
+current bounded coding tasks (replacing 5.6). Astra handles
 important decisions, difficult diagnosis and independent review. Read the workflow
 section before coding. This preference persists across sessions.
 Current checkout map and next slice: `docs/WORKING-SETUP.md`.
