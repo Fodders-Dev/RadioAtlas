@@ -251,6 +251,12 @@ export type LibraryContextValue = {
   clearTrackHistory: () => void;
   removeTrackHistoryItem: (trackId: string) => void;
   createCollection: (name: string) => string | null;
+  copySharedCollection: (input: {
+    name: string;
+    description: string | null;
+    stationIds: string[];
+    stations: StationLite[];
+  }) => boolean;
   saveQueueAsCollection: (name: string) => void;
   addStationToNewCollection: (name: string, station: Station | StationLite) => void;
   deleteCollection: (collectionId: string) => void;

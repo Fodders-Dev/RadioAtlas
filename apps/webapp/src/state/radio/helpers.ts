@@ -8,7 +8,7 @@ import type {
 import { toLite } from '../../lib/stationUtils';
 import { tasteProfilesMatch } from '../../lib/tasteProfile';
 import type { Station, StationLite } from '../../types';
-import type { QueueSnapshot, TrackHistoryItem } from './types';
+import type { QueueSnapshot, StoredLibraryState, TrackHistoryItem } from './types';
 
 export const mergeUniqueStations = (...groups: Array<Array<StationLite | null | undefined>>) => {
   const merged: StationLite[] = [];
@@ -289,4 +289,29 @@ export const mergeStationCache = (
     changed = true;
   });
   return changed ? nextCache : cache;
+};
+
+export const addSharedCollectionCopy = (
+  state: StoredLibraryState,
+  input: { name: string; description: string | null; stationIds: string[]; stations: StationLite[] },
+  id: string,
+  now: number
+): StoredLibraryState | null => {
+  const stationIds = input.stationIds.slice(0, 128);
+  if (!stationIds.length || state.collections.length >= 24) return null;
+  const collection: UserCollection = {
+    id,
+    name: input.name.trim().slice(0, 48) || 'Shared playlist',
+    description: input.description,
+    stationIds,
+    isPublic: false,
+    updatedAt: now,
+    createdAt: now,
+    pinned: false
+  };
+  return {
+    ...state,
+    collections: [collection, ...state.collections],
+    stationCache: mergeStationCache(state.stationCache, input.stations)
+  };
 };

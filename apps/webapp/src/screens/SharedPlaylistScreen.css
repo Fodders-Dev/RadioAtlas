@@ -1,0 +1,52 @@
+.shared-playlist-screen { min-height: 100%; padding: clamp(14px, 3vw, 28px); color: var(--calm-ink, var(--theme-text, #f5fbff)); }
+.shared-playlist-topbar { display: flex; align-items: center; gap: 12px; margin: 0 auto 26px; max-width: 1040px; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 13px; }
+.shared-playlist-back { min-height: 44px; padding: 0 12px; border: 1px solid var(--calm-line, var(--line, #ffffff24)); border-radius: 999px; background: var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))); color: var(--calm-ink, var(--theme-text, #f5fbff)); font: inherit; font-weight: 700; cursor: pointer; }
+.shared-playlist-content { max-width: 1040px; margin: 0 auto; }
+.shared-playlist-heading { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); align-items: start; gap: clamp(20px, 4vw, 42px); padding: clamp(18px, 4vw, 32px); border: 1px solid color-mix(in srgb, var(--calm-ink, var(--theme-text, #f5fbff)) 15%, transparent); border-radius: 24px; background: var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))); box-shadow: 0 16px 50px rgb(40 43 37 / 7%); }
+.shared-playlist-sleeve { box-sizing: border-box; display: flex; width: 100%; height: auto; aspect-ratio: 1 / 1; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 5px; align-self: start; padding: clamp(10px, 1.5vw, 18px); grid-row: 1 / span 2; border-radius: 16px; overflow: hidden; box-shadow: 0 16px 38px rgb(41 35 29 / 17%); }
+.shared-playlist-sleeve .library-sleeve-title { font-size: clamp(12px, 2.1vw, 23px); }
+.shared-playlist-copy { min-width: 0; }
+.shared-playlist-eyebrow { margin: 0 0 10px; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 11px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.shared-playlist-copy h1 { margin: 0; font-size: clamp(30px, 6vw, 54px); line-height: 1.02; letter-spacing: -.04em; overflow-wrap: anywhere; }
+.shared-playlist-description { max-width: 620px; margin: 14px 0 0; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 16px; line-height: 1.55; }
+.shared-playlist-count { margin: 12px 0 0; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 14px; }
+.shared-playlist-actions { grid-column: 2; grid-row: 2; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.shared-playlist-button { min-height: 46px; padding: 0 17px; border: 1px solid var(--calm-line, var(--line, #ffffff24)); border-radius: 13px; background: var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))); color: var(--calm-ink, var(--theme-text, #f5fbff)); font: inherit; font-weight: 750; cursor: pointer; }
+.shared-playlist-button.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink, #08121d); }
+.shared-playlist-button:disabled { opacity: .5; cursor: not-allowed; }
+.shared-playlist-rows { display: grid; gap: 7px; margin: 20px 0 0; padding: 0; list-style: none; }
+.shared-playlist-row { display: grid; grid-template-columns: 36px 42px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 62px; padding: 8px 14px; border: 1px solid color-mix(in srgb, var(--calm-ink, var(--theme-text, #f5fbff)) 12%, transparent); border-radius: 14px; background: var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))); }
+.shared-playlist-order { color: var(--calm-secondary, var(--muted, #7a7c74)); font-size: 12px; font-variant-numeric: tabular-nums; text-align: center; }
+.shared-playlist-station-copy { display: grid; gap: 4px; min-width: 0; }
+.shared-playlist-station-name { overflow: hidden; font-weight: 720; text-overflow: ellipsis; white-space: nowrap; }
+.shared-playlist-station-location { overflow: hidden; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.shared-playlist-station-missing { grid-column: 2 / -1; color: var(--calm-secondary, var(--muted, #686b63)); font-size: 14px; }
+.shared-playlist-row-play { min-height: 44px; padding: 0 12px; border: 1px solid var(--calm-line, var(--line, #ffffff24)); border-radius: 10px; background: var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))); color: var(--calm-ink, var(--theme-text, #f5fbff)); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.shared-playlist-row.is-unavailable { background: color-mix(in srgb, var(--calm-surface, var(--theme-surface, rgba(17, 25, 38, 0.56))) 92%, var(--calm-ink, var(--theme-text, #f5fbff))); }
+.shared-playlist-state { display: grid; justify-items: center; align-content: center; min-height: min(56vh, 520px); text-align: center; }
+.shared-playlist-state h1 { margin: 0 0 8px; font-size: clamp(24px, 5vw, 36px); }
+.shared-playlist-state p { max-width: 420px; color: var(--calm-secondary, var(--muted, #686b63)); line-height: 1.6; }
+.shared-playlist-error { color: var(--calm-ink, var(--theme-text, #f5fbff)); }
+.shared-playlist-screen button:focus-visible { outline: 3px solid var(--accent, #596c4e); outline-offset: 3px; }
+
+:root[data-theme^='custom-'] .shared-playlist-screen { color: var(--calm-ink); }
+:root[data-theme^='custom-'] .shared-playlist-heading,
+:root[data-theme^='custom-'] .shared-playlist-row,
+:root[data-theme^='custom-'] .shared-playlist-back { background: var(--calm-solid); color: var(--calm-ink); }
+:root[data-theme^='custom-'] .shared-playlist-button:not(.is-primary),
+:root[data-theme^='custom-'] .shared-playlist-row-play { border-color: var(--calm-edge); background: var(--calm-solid); color: var(--calm-ink); }
+:root[data-theme^='custom-'] .shared-playlist-button.is-primary { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+
+@media (max-width: 640px) {
+  .shared-playlist-screen { padding: 12px; }
+  .shared-playlist-topbar { margin-bottom: 14px; }
+  .shared-playlist-heading { grid-template-columns: 86px minmax(0, 1fr); gap: 15px; padding: 16px; border-radius: 19px; }
+  .shared-playlist-sleeve { grid-row: 1; border-radius: 12px; }
+  .shared-playlist-copy h1 { font-size: clamp(23px, 7vw, 32px); }
+  .shared-playlist-description { grid-column: 1 / -1; margin-top: 9px; font-size: 14px; }
+  .shared-playlist-actions { grid-column: 1 / -1; grid-row: auto; margin-top: 0; }
+  .shared-playlist-error { grid-column: 1 / -1; margin: 0; }
+  .shared-playlist-button { flex: 1 1 auto; }
+  .shared-playlist-row { grid-template-columns: 26px 38px minmax(0, 1fr) auto; gap: 9px; min-height: 56px; padding: 7px 10px; }
+  .shared-playlist-row-play { min-height: 44px; padding: 0 9px; }
+}

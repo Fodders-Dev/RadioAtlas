@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { latestTrackForStation } from './helpers';
+import { addSharedCollectionCopy, latestTrackForStation } from './helpers';
 import type { TrackHistoryItem } from './types';
+import { DEFAULT_LIBRARY_STATE } from './defaults';
+import type { StationLite } from '../../types';
 
 const item = (over: Partial<TrackHistoryItem>): TrackHistoryItem => ({
   id: 'id',
@@ -18,6 +20,43 @@ const history: TrackHistoryItem[] = [
   item({ id: 'b', stationId: 's1', track: 'Latest - For S1', timestamp: 40 }),
   item({ id: 'c', stationId: 's1', track: 'Older - For S1', timestamp: 20 })
 ];
+
+describe('adding a shared playlist copy', () => {
+  const station = { stationuuid: 'available', name: 'Available', url_resolved: 'https://stream.example/' } as StationLite;
+  const input = {
+    name: 'Shared set',
+    description: null,
+    stationIds: ['available', 'unavailable'],
+    stations: [station]
+  };
+
+  it('preserves ordered unavailable ids while caching available stations in the same state update', () => {
+    const next = addSharedCollectionCopy(DEFAULT_LIBRARY_STATE, input, 'copy-1', 10);
+    expect(next?.collections[0]?.stationIds).toEqual(input.stationIds);
+    expect(next?.collections[0]?.isPublic).toBe(false);
+    expect(next?.stationCache.available?.name).toBe('Available');
+    expect(next?.stationCache.unavailable).toBeUndefined();
+  });
+
+  it('accepts a pending write up to 24 playlists and rejects the next copy', () => {
+    const current = {
+      ...DEFAULT_LIBRARY_STATE,
+      collections: Array.from({ length: 23 }, (_, index) => ({
+        id: `existing-${index}`,
+        name: `Existing ${index}`,
+        description: null,
+        stationIds: [],
+        isPublic: false,
+        updatedAt: 1,
+        createdAt: 1,
+        pinned: false
+      }))
+    };
+    const pending = addSharedCollectionCopy(current, input, 'copy-1', 10);
+    expect(pending?.collections).toHaveLength(24);
+    expect(addSharedCollectionCopy(pending!, input, 'copy-2', 11)).toBeNull();
+  });
+});
 
 describe('latestTrackForStation', () => {
   it('returns the most recent (first) entry for the station', () => {
@@ -48,7 +87,6 @@ describe('latestTrackForStation', () => {
 });
 
 import { normalizeStations, reorderQueueItems } from './helpers';
-import type { StationLite } from '../../types';
 
 const qs = (id: string): StationLite =>
   ({ stationuuid: id, name: id, url_resolved: '', tags: '' }) as unknown as StationLite;

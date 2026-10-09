@@ -37,7 +37,9 @@ export const normalizePath = (path: string) =>
     .replace(/\/areas\/[^/]+/g, '/areas/:id')
     .replace(/\/artwork\/scene\/[^/]+/g, '/artwork/scene/:id')
     .replace(/\/artwork\/scenes\/[^/]+/g, '/artwork/scenes/:file')
-    .replace(/\/share\/story\/[^/]+/g, '/share/story/:slug');
+    .replace(/\/share\/story\/[^/]+/g, '/share/story/:slug')
+    .replace(/\/share\/collections(?:\/.*)?$/gi, '/share/collections/:token')
+    .replace(/\/me\/collection-shares(?:\/.*)?$/gi, '/me/collection-shares/:collectionId');
 
 export const recordCatalogFallback = (source: 'snapshot' | 'artifact') => {
   bumpCounter(`catalog_fallback:${source}`);

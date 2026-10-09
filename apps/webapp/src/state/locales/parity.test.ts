@@ -42,6 +42,13 @@ describe('locale dictionaries', () => {
     expect([...enPaths].sort()).toEqual([...ruPaths].sort());
   });
 
+  it('defines visible labels for the playlist share controls', () => {
+    expect(en.collectionShare.copy).toBe('Copy link');
+    expect(en.collectionShare.native).toBe('Share…');
+    expect(ru.collectionShare.copy).toBe('Скопировать ссылку');
+    expect(ru.collectionShare.native).toBe('Отправить…');
+  });
+
   it('agree on the placeholder tokens in every string', () => {
     const mismatched = ruPaths
       .map((path) => ({ path, ru: tokensOf(at(ru as Tree, path)), en: tokensOf(at(en as Tree, path)) }))

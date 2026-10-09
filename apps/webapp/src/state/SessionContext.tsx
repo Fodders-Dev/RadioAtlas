@@ -5,6 +5,7 @@ import type {
   BillingProduct,
   BillingProductId,
   CloudLibrary,
+  CollectionShare,
   LibraryMergeStrategy,
   MergePreview,
   ProviderAvailability,
@@ -121,6 +122,14 @@ type SessionContextValue = {
     followedRegions: FollowedRegion[];
   }) => Promise<void>;
   updateAlerts: (alerts: ListenerAlert[]) => Promise<void>;
+  getCollectionShare: (collectionId: string) => Promise<CollectionShare | null>;
+  publishCollectionShare: (collection: {
+    id: string;
+    name: string;
+    description: string | null;
+    stationIds: string[];
+  }) => Promise<CollectionShare>;
+  revokeCollectionShare: (collectionId: string) => Promise<void>;
   createTelegramInvoice: (
     productId: BillingProductId,
     recipientAccountId?: string | null
@@ -1540,6 +1549,92 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
     [apiBase, profile]
   );
 
+  const getCollectionShare = useCallback(
+    async (collectionId: string): Promise<CollectionShare | null> => {
+      const token = getStoredToken();
+      const accountId = profileRef.current?.id;
+      if (!apiBase || !token || !accountId) throw new Error('Sign in to manage playlist links.');
+      const assertCurrent = () => {
+        if (getStoredToken() !== token || profileRef.current?.id !== accountId) {
+          throw new Error('Account changed while loading playlist link.');
+        }
+      };
+      const response = await fetch(
+        `${apiBase}/me/collection-shares/${encodeURIComponent(collectionId)}`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+      );
+      assertCurrent();
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Playlist link could not be loaded (${response.status}).`);
+      const data = (await response.json()) as { share?: CollectionShare };
+      assertCurrent();
+      if (!data.share || typeof data.share.token !== 'string') {
+        throw new Error('Playlist link response was incomplete.');
+      }
+      return data.share;
+    },
+    [apiBase]
+  );
+
+  const publishCollectionShare = useCallback(
+    async (collection: { id: string; name: string; description: string | null; stationIds: string[] }) => {
+      const token = getStoredToken();
+      const accountId = profileRef.current?.id;
+      if (!apiBase || !token || !accountId) throw new Error('Sign in to share a playlist.');
+      const assertCurrent = () => {
+        if (getStoredToken() !== token || profileRef.current?.id !== accountId) {
+          throw new Error('Account changed while publishing playlist link.');
+        }
+      };
+      const response = await fetch(`${apiBase}/me/collection-shares`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          collection: {
+            id: collection.id,
+            name: collection.name,
+            description: collection.description ?? '',
+            stationIds: collection.stationIds.slice(0, 128)
+          }
+        })
+      });
+      assertCurrent();
+      if (!response.ok) throw new Error(`Playlist link could not be published (${response.status}).`);
+      const data = (await response.json()) as { share?: CollectionShare };
+      assertCurrent();
+      if (!data.share || typeof data.share.token !== 'string') {
+        throw new Error('Playlist link response was incomplete.');
+      }
+      return data.share;
+    },
+    [apiBase]
+  );
+
+  const revokeCollectionShare = useCallback(
+    async (collectionId: string) => {
+      const token = getStoredToken();
+      const accountId = profileRef.current?.id;
+      if (!apiBase || !token || !accountId) throw new Error('Sign in to manage playlist links.');
+      const assertCurrent = () => {
+        if (getStoredToken() !== token || profileRef.current?.id !== accountId) {
+          throw new Error('Account changed while revoking playlist link.');
+        }
+      };
+      const response = await fetch(
+        `${apiBase}/me/collection-shares/${encodeURIComponent(collectionId)}`,
+        { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }
+      );
+      assertCurrent();
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Playlist link could not be revoked (${response.status}).`);
+      }
+    },
+    [apiBase]
+  );
+
   const createTelegramInvoice = useCallback(
     async (productId: BillingProductId, recipientAccountId?: string | null) => {
       if (!shouldExposeProductSurface('billing') || !shouldExposeProductSurface('stars')) {
@@ -2051,6 +2146,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       updateCollections,
       updateFollows,
       updateAlerts,
+      getCollectionShare,
+      publishCollectionShare,
+      revokeCollectionShare,
       createTelegramInvoice,
       refreshSession,
       openTelegramAccess,
@@ -2092,6 +2190,9 @@ export const SessionProvider = ({ children }: { children: ReactNode }) => {
       updateCollections,
       updateFollows,
       updateAlerts,
+      getCollectionShare,
+      publishCollectionShare,
+      revokeCollectionShare,
       createTelegramInvoice,
       refreshSession,
       openTelegramAccess

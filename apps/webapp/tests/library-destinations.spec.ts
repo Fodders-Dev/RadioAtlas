@@ -37,10 +37,24 @@ for (const width of [320, 390, 834, 1440]) {
       const dock = document.querySelector('[data-calm-player]')?.getBoundingClientRect();
       const nav = document.querySelector('.app-navigation-mobile')?.getBoundingClientRect();
       const bottoms = [dock?.top, nav?.height ? nav.top : undefined, window.innerHeight].filter((value): value is number => value !== undefined && value > 0);
-      return { destinations, safeBottom: Math.min(...bottoms), playlistsTop: element.querySelector('.library-preview-a-layout')!.getBoundingClientRect().top, overflow: document.documentElement.scrollWidth > window.innerWidth };
+      const featured = element.querySelector('.library-preview-featured')!.getBoundingClientRect();
+      const featureArtTop = element.querySelector('.library-preview-feature-art')!.getBoundingClientRect().top;
+      const playlists = element.querySelector('.library-preview-playlists')!.getBoundingClientRect();
+      return {
+        destinations,
+        safeBottom: Math.min(...bottoms),
+        playlistsTop: element.querySelector('.library-preview-a-layout')!.getBoundingClientRect().top,
+        featuredHeight: featured.height,
+        featuredContentGap: featureArtTop - featured.top,
+        playlistsHeight: playlists.height,
+        overflow: document.documentElement.scrollWidth > window.innerWidth
+      };
     });
     expect(geometry.destinations).toHaveLength(4);
     expect(geometry.overflow).toBe(false);
+    expect(geometry.featuredHeight).toBeLessThanOrEqual(380);
+    expect(geometry.featuredContentGap).toBeLessThanOrEqual(100);
+    expect(geometry.featuredHeight).toBeLessThan(geometry.playlistsHeight - 80);
     for (const bounds of geometry.destinations) {
       expect(bounds.top).toBeGreaterThanOrEqual(0);
       expect(bounds.bottom).toBeLessThan(geometry.safeBottom);

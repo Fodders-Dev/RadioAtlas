@@ -14,7 +14,7 @@ type RateLimitBucket = {
 type ProtectedRouteOptions = {
   // 'ai-chat' joins the shared concurrency pool so the (slow) assistant route
   // can't starve the media routes — and vice versa.
-  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library' | 'ai-chat' | 'ai-music-image';
+  routeName: 'metadata' | 'fetch' | 'stream' | 'image' | 'library' | 'collection-share' | 'ai-chat' | 'ai-music-image';
   maxConcurrency: number;
   sharedMaxConcurrency: number;
   rateLimitPerWindow: number;

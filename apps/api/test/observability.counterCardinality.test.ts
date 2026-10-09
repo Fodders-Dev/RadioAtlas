@@ -30,6 +30,11 @@ test('paths carrying an identifier collapse to a single counter key', () => {
   );
   assert.equal(normalizePath('/artwork/scenes/tokyo-jazz-3f9a.png'), '/artwork/scenes/:file');
   assert.equal(normalizePath('/share/story/abc123xyz'), '/share/story/:slug');
+  assert.equal(normalizePath('/share/collections/any-token-value'), '/share/collections/:token');
+  assert.equal(normalizePath('/share/collections/%2Fmalformed-token'), '/share/collections/:token');
+  assert.equal(normalizePath('/SHARE/COLLECTIONS/Malformed-token/extra-suffix'), '/share/collections/:token');
+  assert.equal(normalizePath('/me/collection-shares/user-chosen-id'), '/me/collection-shares/:collectionId');
+  assert.equal(normalizePath('/ME/COLLECTION-SHARES/ID/extra'), '/me/collection-shares/:collectionId');
 
   // The two that were always covered, including through their /catalog prefix —
   // these are substring replacements, which is why the prefixed forms work.

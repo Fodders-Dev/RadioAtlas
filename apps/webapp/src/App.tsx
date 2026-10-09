@@ -7,6 +7,7 @@ import { ThemeDecorations } from './components/ThemeDecorations';
 import { Toast } from './components/Toast';
 import { buildLabel } from './lib/buildInfo';
 import { isFeedBrowseVisitCompatible } from './lib/feedBrowseVisit';
+import { readSharedPlaylistToken } from './lib/collectionShare';
 import { isAiAssistantEnabled } from './lib/aiChat';
 import { getDeviceProfile } from './lib/deviceProfile';
 import { reportProductEvent } from './lib/productAnalytics';
@@ -34,6 +35,9 @@ const FeedScreen = lazy(loadFeedScreen);
 const SearchScreen = lazy(loadSearchScreen);
 const GlobeScreenLazy = lazy(loadGlobeScreen);
 const LibraryScreen = lazy(loadLibraryScreen);
+const SharedPlaylistScreenLazy = lazy(() =>
+  import('./screens/SharedPlaylistScreen').then((mod) => ({ default: mod.SharedPlaylistScreen }))
+);
 const SettingsScreen = lazy(loadSettingsScreen);
 const AppNavigationLazy = lazy(() =>
   import('./components/AppNavigation').then((mod) => ({ default: mod.AppNavigation }))
@@ -98,6 +102,9 @@ const App = () => {
   // any screen. Gated on VITE_AI_ENABLED (same flag as the rest of the feature).
   const aiAssistantEnabled = isAiAssistantEnabled();
   const [chatOpen, setChatOpen] = useState(false);
+  const [sharedPlaylistToken, setSharedPlaylistToken] = useState(() =>
+    typeof window === 'undefined' ? null : readSharedPlaylistToken(window.location.search, getStartParam())
+  );
   const [sectionMotionTick, setSectionMotionTick] = useState(0);
   const startHandledRef = useRef(false);
   // T_deeplink_lifecycle_fix: the deep-link effect runs once on mount (deps []),
@@ -209,6 +216,7 @@ const App = () => {
     startHandledRef.current = true;
 
     const startParam = getStartParam();
+    if (typeof window !== 'undefined' && readSharedPlaylistToken(window.location.search, startParam)) return;
     // T_deeplink_telemetry (lean funnel): enter (a real deep-link open) -> play
     // {stationId} on success; deeplink_error{reason} on a terminal fail so a
     // broken Story-widget deep link stays visible. No start param = a normal app
@@ -339,7 +347,28 @@ const App = () => {
     else delete document.documentElement.dataset.calmMini;
   }, [calmMiniVisible]);
 
+  const closeSharedPlaylist = () => {
+    setSharedPlaylistToken(null);
+    if (isInsideTelegramClient()) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('playlist');
+      for (const key of ['startapp', 'start_param', 'tgWebAppStartParam']) {
+        if (url.searchParams.get(key)?.startsWith('playlist_')) url.searchParams.delete(key);
+      }
+      const hash = new URLSearchParams(url.hash.replace(/^#\??/, ''));
+      for (const key of ['startapp', 'start_param', 'tgWebAppStartParam', 'playlist']) {
+        const value = hash.get(key);
+        if (key === 'playlist' || value?.startsWith('playlist_')) hash.delete(key);
+      }
+      if (url.hash.startsWith('#?')) url.hash = hash.size ? `?${hash.toString()}` : '';
+      window.history.replaceState(window.history.state, '', url.toString());
+    } catch {
+      // The in-memory route still closes if the host blocks URL updates.
+    }
+  };
   const handleSectionChange = (section: AppSection, feedEntryStation?: StationLite) => {
+    if (sharedPlaylistToken) closeSharedPlaylist();
     // Лира is a section of the calm shell: choosing another destination in the
     // nav leaves it the way it leaves any other screen.
     if (CALM_PREVIEW && (chatOpen || chatRequest)) {
@@ -596,7 +625,11 @@ const App = () => {
             >
               <ErrorProbe />
               <Suspense fallback={screenFallback}>
-                <ActiveScreen />
+                {sharedPlaylistToken ? (
+                  <SharedPlaylistScreenLazy token={sharedPlaylistToken} onClose={closeSharedPlaylist} />
+                ) : (
+                  <ActiveScreen />
+                )}
               </Suspense>
             </ErrorBoundary>
           </div>

@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { CollectionArtwork } from '../components/CollectionArtwork';
+import { CollectionShareDialog } from '../components/CollectionShareDialog';
 import { CollectionStationPicker } from '../components/CollectionStationPicker';
 import { CollectionSleeve, LibraryCollectionHome } from './LibraryCollectionHome';
 import { RegionArtwork } from '../components/RegionArtwork';
@@ -26,6 +27,7 @@ import { stationsForRegions } from '../lib/regionRecommendations';
 import { shuffleStations, upcomingCount } from '../lib/shuffleStations';
 import { orderStationsByPlayability } from '../lib/stationPlayability';
 import { normalizeStationName, stationLocation } from '../lib/stationUtils';
+import { hasRememberedCollectionShare, rememberCollectionShareState } from '../lib/collectionShare';
 import { useDialog } from '../lib/useDialog';
 import { useMobileLayout } from '../lib/useMobileLayout';
 import { usePointerReorder } from '../lib/usePointerReorder';
@@ -33,6 +35,7 @@ import { useLocale } from '../state/LocaleContext';
 import { FindsList } from '../components/FindsList';
 import { LibraryQueueStage, type LibraryQueueStageStatus } from './LibraryQueueStage';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
+import { useCatalog } from '../state/CatalogContext';
 import { useSession } from '../state/SessionContext';
 import { CALM_PREVIEW } from '../lib/calmPreview';
 import type { LibraryTab, StationLite } from '../types';
@@ -185,6 +188,7 @@ const LibrarySheet = ({ sheetId, kicker, title, onClose, children }: LibraryShee
 export const Library = () => {
   const {
     knownStations,
+    rememberStations,
     favorites,
     playabilityProfile,
     stationHealthProfile,
@@ -213,6 +217,7 @@ export const Library = () => {
     markDigestRead,
     updateNotificationPreference
   } = useLibrary();
+  const { fetchStationById } = useCatalog();
   const { queue, player, nowPlaying, playStation, playStationQueue, playLast } = usePlayback();
   const { setActiveSection, setFeedEntryStation, rerollFeedSeed, libraryTab, setLibraryTab, libraryEntryRequest, consumeLibraryEntryRequest, setGlobeFocusRegionId, setSearchDraft, setSettingsOpen } =
     useShell();
@@ -221,8 +226,14 @@ export const Library = () => {
     profile,
     library: cloudLibrary,
     openAccountSheet,
-    setBotOptIn
+    setBotOptIn,
+    getCollectionShare,
+    revokeCollectionShare
   } = useSession();
+  const currentSessionRef = useRef({ accountId: profile?.id ?? null, status: sessionStatus });
+  currentSessionRef.current = { accountId: profile?.id ?? null, status: sessionStatus };
+  const rememberStationsRef = useRef(rememberStations);
+  rememberStationsRef.current = rememberStations;
   const queueEditBlocked = Boolean(player.pending && player.status === 'buffering');
   // R1 (PR-A): after toggling opt-in we learn whether the user is reachable
   // (has started the bot). If opted-in but not reachable, we point them to it.
@@ -238,6 +249,10 @@ export const Library = () => {
   );
   const [collectionSort, setCollectionSort] = useState<'pinned' | 'recent' | 'name'>('pinned');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
+  const selectedCollectionIdRef = useRef<string | null>(selectedCollectionId);
+  selectedCollectionIdRef.current = selectedCollectionId;
+  const [shareDialogCollectionId, setShareDialogCollectionId] = useState<string | null>(null);
+  const deletingCollectionRef = useRef<string | null>(null);
   const [stationPickerOpen, setStationPickerOpen] = useState(false);
   const [libraryHomeOpen, setLibraryHomeOpen] = useState(CALM_PREVIEW);
   const [queueFocusRequest, setQueueFocusRequest] = useState(0);
@@ -461,8 +476,17 @@ export const Library = () => {
 
   const compactRows = viewportWidth < 720;
   const stationMap = useMemo(
-    () => new Map(knownStations.map((station) => [station.stationuuid, station])),
-    [knownStations]
+    () => {
+      const stations = new Map<string, StationLite>();
+      knownStations.forEach((station) => stations.set(station.stationuuid, station));
+      for (const station of [...favorites, ...recent]) {
+        if (station?.stationuuid && !stations.has(station.stationuuid)) {
+          stations.set(station.stationuuid, station);
+        }
+      }
+      return stations;
+    },
+    [knownStations, favorites, recent]
   );
 
   // "Search my library" — a pure in-memory filter over the user's own union
@@ -583,12 +607,116 @@ export const Library = () => {
   }, [playbackHistory, player.current, recent]);
   const selectedCollection =
     selectedCollectionId ? collections.find((collection) => collection.id === selectedCollectionId) || null : null;
+  const selectedCollectionForResolutionRef = useRef(selectedCollection);
+  selectedCollectionForResolutionRef.current = selectedCollection;
+  const stationMapForResolutionRef = useRef(stationMap);
+  stationMapForResolutionRef.current = stationMap;
+  const shareDialogCollection = shareDialogCollectionId
+    ? collections.find((collection) => collection.id === shareDialogCollectionId) ?? null
+    : null;
+  const openCollectionShare = (collection: (typeof collections)[number]) => {
+    setCollectionDetailActionsOpen(false);
+    setDetailActionsOpen(false);
+    setShareDialogCollectionId(collection.id);
+  };
   const selectedCollectionStations = useMemo(() => {
     if (!selectedCollection) return [];
     return selectedCollection.stationIds
       .map((stationId) => stationMap.get(stationId))
       .filter(Boolean) as StationLite[];
   }, [selectedCollection, stationMap]);
+  const selectedCollectionStationIdsKey = selectedCollection
+    ? JSON.stringify(selectedCollection.stationIds)
+    : '';
+  const selectedCollectionResolutionKey = selectedCollection
+    ? `${profile?.id ?? 'guest'}:${selectedCollection.id}:${selectedCollectionStationIdsKey}`
+    : '';
+  const [completedCollectionResolutionKey, setCompletedCollectionResolutionKey] = useState<string | null>(null);
+  const collectionResolutionEpochRef = useRef(0);
+  const attemptedCollectionStationsRef = useRef<{ key: string; ids: Set<string> }>({ key: '', ids: new Set() });
+  const selectedCollectionUnavailableCount = selectedCollection
+    ? selectedCollection.stationIds.filter((stationId) => !stationMap.has(stationId)).length
+    : 0;
+
+  useEffect(() => {
+    const sequence = ++collectionResolutionEpochRef.current;
+    let active = true;
+    const collection = selectedCollectionForResolutionRef.current;
+    const collectionId = collection?.id ?? null;
+    const accountId = profile?.id ?? null;
+    const accountStatus = sessionStatus;
+    const idsKey = selectedCollectionStationIdsKey;
+    const resolutionKey = selectedCollectionResolutionKey;
+
+    if (!collection || !collectionId) {
+      attemptedCollectionStationsRef.current = { key: '', ids: new Set() };
+      return () => {
+        active = false;
+        if (collectionResolutionEpochRef.current === sequence) collectionResolutionEpochRef.current += 1;
+      };
+    }
+
+    if (attemptedCollectionStationsRef.current.key !== resolutionKey) {
+      attemptedCollectionStationsRef.current = { key: resolutionKey, ids: new Set() };
+    }
+    const attemptState = attemptedCollectionStationsRef.current;
+    const missingIds = collection.stationIds.filter(
+      (stationId) => !stationMapForResolutionRef.current.has(stationId) && !attemptState.ids.has(stationId)
+    );
+    if (!missingIds.length) {
+      return () => {
+        active = false;
+        if (collectionResolutionEpochRef.current === sequence) collectionResolutionEpochRef.current += 1;
+      };
+    }
+
+    const isCurrent = () =>
+      active &&
+      collectionResolutionEpochRef.current === sequence &&
+      selectedCollectionIdRef.current === collectionId &&
+      currentSessionRef.current.accountId === accountId &&
+      currentSessionRef.current.status === accountStatus &&
+      selectedCollectionResolutionKey === resolutionKey &&
+      selectedCollectionStationIdsKey === idsKey;
+
+    void (async () => {
+      let nextIndex = 0;
+      const workerCount = Math.min(4, missingIds.length);
+      await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (isCurrent()) {
+          const index = nextIndex++;
+          if (index >= missingIds.length) return;
+          const stationId = missingIds[index]!;
+          try {
+            const station = await fetchStationById(stationId);
+            if (station?.stationuuid === stationId && isCurrent()) {
+              // Persist each successful lookup promptly. One genuinely missing
+              // station must not hold the valid part of the playlist hostage.
+              rememberStationsRef.current([station]);
+            }
+          } catch {
+            // Keep the collection ID intact and display it as unavailable below.
+          }
+        }
+      }));
+
+      if (!isCurrent()) return;
+      missingIds.forEach((stationId) => attemptState.ids.add(stationId));
+      setCompletedCollectionResolutionKey(resolutionKey);
+    })();
+
+    return () => {
+      active = false;
+      if (collectionResolutionEpochRef.current === sequence) collectionResolutionEpochRef.current += 1;
+    };
+  }, [
+    fetchStationById,
+    profile?.id,
+    selectedCollectionId,
+    selectedCollectionResolutionKey,
+    selectedCollectionStationIdsKey,
+    sessionStatus
+  ]);
   // Quick-picker source: stations the user already has (favorites + recent) that
   // aren't in this playlist yet — so a new playlist is a two-tap fill, not a
   // dead-end that sends you to Search.
@@ -859,6 +987,17 @@ export const Library = () => {
       .map((stationId) => stationMap.get(stationId))
       .filter(Boolean) as StationLite[];
   const playCollection = (collection: (typeof collections)[number], shuffle = false) => {
+    const missingStation = collection.stationIds.some((stationId) => !stationMap.has(stationId));
+    const collectionResolutionKey = `${profile?.id ?? 'guest'}:${collection.id}:${JSON.stringify(collection.stationIds)}`;
+    const selectedCollectionResolved =
+      selectedCollectionId === collection.id && completedCollectionResolutionKey === collectionResolutionKey;
+    if (missingStation && !selectedCollectionResolved) {
+      // Home only has the in-memory library union; opening the detail is the
+      // bounded point where the selected playlist can resolve its missing IDs.
+      // Never silently start a partial queue or defer playback after loading.
+      openCollectionDetail(collection.id);
+      return;
+    }
     const collectionStations = resolveCollectionStations(collection);
     if (!collectionStations.length) return;
     // Shuffled: demote what we know is broken, same as the other shuffles.
@@ -962,26 +1101,59 @@ export const Library = () => {
     setCollectionNotice(t('library.collectionRenamed', { name }));
     cancelRenameCollection();
   };
-  // First tap arms the inline confirm; the second tap (while armed) commits.
-  const requestDeleteCollection = (collection: (typeof collections)[number]) => {
-    if (deleteArmedCollectionId !== collection.id) {
-      setDeleteArmedCollectionId(collection.id);
-      return;
-    }
+  const commitCollectionDelete = (collection: (typeof collections)[number]) => {
     const wasOpen = selectedCollectionId === collection.id;
     deleteCollection(collection.id);
-    // Clear every transient that points at the now-gone collection, or the
-    // detail / sheet would render against a missing id.
     setDeleteArmedCollectionId(null);
     setCollectionActionsId(null);
     setDetailActionsOpen(false);
     setRenamingCollectionId(null);
     setCollectionRenameDraft('');
     setCollectionReorderMode(false);
-    if (wasOpen) {
-      closeCollectionDetail();
-    }
+    if (wasOpen) closeCollectionDetail();
     setCollectionNotice(t('library.collectionDeleted', { name: collection.name }));
+  };
+  // First tap arms the inline confirm. The second tap revokes any active public
+  // link before removing the collection, so a failed request leaves it manageable.
+  const requestDeleteCollection = (collection: (typeof collections)[number]) => {
+    if (deleteArmedCollectionId !== collection.id) {
+      setDeleteArmedCollectionId(collection.id);
+      return;
+    }
+    const accountId = currentSessionRef.current.accountId;
+    const currentStatus = currentSessionRef.current.status;
+    const deleteKey = `${accountId ?? 'guest'}:${collection.id}`;
+    if (deletingCollectionRef.current === deleteKey) return;
+    if (currentStatus !== 'authenticated' || !accountId) {
+      if (hasRememberedCollectionShare(collection.id)) {
+        setCollectionNotice(t('collectionShare.signInBeforeDelete'));
+        openAccountSheet();
+        return;
+      }
+      commitCollectionDelete(collection);
+      return;
+    }
+    deletingCollectionRef.current = deleteKey;
+    void (async () => {
+      try {
+        const activeShare = await getCollectionShare(collection.id);
+        if (currentSessionRef.current.accountId !== accountId || currentSessionRef.current.status !== 'authenticated') return;
+        if (activeShare) await revokeCollectionShare(collection.id);
+        if (currentSessionRef.current.accountId !== accountId || currentSessionRef.current.status !== 'authenticated') return;
+        rememberCollectionShareState(accountId, collection.id, false);
+        if (hasRememberedCollectionShare(collection.id)) {
+          setCollectionNotice(t('collectionShare.signInBeforeDelete'));
+          return;
+        }
+        commitCollectionDelete(collection);
+      } catch {
+        if (currentSessionRef.current.accountId === accountId && currentSessionRef.current.status === 'authenticated') {
+          setCollectionNotice(t('collectionShare.deleteRevokeError'));
+        }
+      } finally {
+        if (deletingCollectionRef.current === deleteKey) deletingCollectionRef.current = null;
+      }
+    })();
   };
   // Rename from the «···» sheet: open the detail already in rename mode.
   const renameCollectionFromSheet = (collection: (typeof collections)[number]) => {
@@ -1924,6 +2096,7 @@ export const Library = () => {
                           <button
                             className="chip active library-collection-detail-play"
                             type="button"
+                            disabled={selectedCollectionUnavailableCount > 0 && completedCollectionResolutionKey !== selectedCollectionResolutionKey}
                             onClick={() => playCollection(selectedCollection)}
                           >
                             {t('library.playCollection')}
@@ -1931,12 +2104,16 @@ export const Library = () => {
                           <button
                             className="chip"
                             type="button"
+                            disabled={selectedCollectionUnavailableCount > 0 && completedCollectionResolutionKey !== selectedCollectionResolutionKey}
                             onClick={() => playCollection(selectedCollection, true)}
                           >
                             {t('library.shuffleCollection')}
                           </button>
                         </>
                       ) : null}
+                      <button className="chip" type="button" onClick={() => openCollectionShare(selectedCollection)}>
+                        {t('collectionShare.open')}
+                      </button>
                       {CALM_PREVIEW ? (
                         <div className="library-preview-detail-menu">
                           <button
@@ -1976,6 +2153,13 @@ export const Library = () => {
                               }}
                             >
                               {t('library.renameCollection')}
+                            </button>
+                            <button
+                              className="chip"
+                              type="button"
+                              onClick={() => openCollectionShare(selectedCollection)}
+                            >
+                              {t('collectionShare.open')}
                             </button>
                             <button
                               className={`chip ${selectedCollection.pinned ? 'active' : ''}`}
@@ -2106,6 +2290,13 @@ export const Library = () => {
                     + {t('library.addStationsToCollection')}
                   </button>
                 ) : null}
+                {selectedCollectionUnavailableCount > 0 ? (
+                  <div className="section-subtitle" role="status" data-library-collection-unavailable>
+                    {completedCollectionResolutionKey === selectedCollectionResolutionKey
+                      ? t('collectionShare.unavailableCount', { count: selectedCollectionUnavailableCount })
+                      : t('common.loading')}
+                  </div>
+                ) : null}
                 {selectedCollectionStations.length ? (
                   collectionReorderMode ? (
                     <div className="library-detail-station-list" data-editing="true">
@@ -2170,7 +2361,7 @@ export const Library = () => {
                       />
                     </div>
                   )
-                ) : (
+                ) : selectedCollection.stationIds.length === 0 ? (
                   <div className="empty-state library-empty-state">
                     <div className="section-subtitle">{t('library.collectionEmpty')}</div>
                     <div className="hero-chip-row">
@@ -2188,7 +2379,7 @@ export const Library = () => {
                       ) : null}
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
 
               {!CALM_PREVIEW && collectionAddCandidates.length ? (
@@ -2559,6 +2750,13 @@ export const Library = () => {
               {t('library.renameCollection')}
             </button>
             <button
+              className="library-sheet-action"
+              type="button"
+              onClick={() => openCollectionShare(selectedCollection)}
+            >
+              {t('collectionShare.open')}
+            </button>
+            <button
               className={`library-sheet-action ${selectedCollection.pinned ? 'active' : ''}`}
               type="button"
               onClick={() => {
@@ -2712,6 +2910,14 @@ export const Library = () => {
         onAdd={(station) => addStationToCollection(selectedCollection.id, station)}
         onClose={() => setStationPickerOpen(false)}
       /> : null}
+      {shareDialogCollection ? (
+        <CollectionShareDialog
+          collection={shareDialogCollection}
+          open
+          onClose={() => setShareDialogCollectionId(null)}
+          onLogin={openAccountSheet}
+        />
+      ) : null}
     </section>
   );
 };

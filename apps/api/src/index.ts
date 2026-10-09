@@ -26,6 +26,7 @@ import { registerMediaRoutes } from './mediaRoutes.js';
 import { createSceneArtworkService } from './sceneArtwork.js';
 import { registerSceneArtworkRoutes } from './sceneArtworkRoutes.js';
 import { registerShareRoutes } from './shareRoutes.js';
+import { registerCollectionShareRoutes } from './collectionShareRoutes.js';
 import { installObservability, recordCatalogFallback } from './observability.js';
 import { registerStationProfileRoutes } from './stationProfileRoutes.js';
 import { registerMusicImageRoutes } from './musicImageRoutes.js';
@@ -614,6 +615,7 @@ registerAuthRoutes(app, {
   nodeEnv: NODE_ENV
 });
 registerAccountRoutes(app);
+registerCollectionShareRoutes(app);
 registerBillingRoutes(app, {
   telegramBotToken: TELEGRAM_BOT_TOKEN,
   internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,

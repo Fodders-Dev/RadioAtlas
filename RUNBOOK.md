@@ -784,6 +784,20 @@ try {
 }
 ```
 
+Playlist sharing (09.10 implementation; not yet deployed): published snapshots
+live in `collection_shares` inside the existing ACCOUNT_STORE SQLite. Boot creates
+the table and unique owner/collection index idempotently; no separate persistent
+path or provider key is needed. Include it in the existing account database backup.
+The owner publishes/updates explicitly, and revoke deletes the row. Account deletion
+cascades to shares; merging away a source account also invalidates its links.
+There is no implicit publication from cloud library sync. Limits: 24 active links
+per account, 128 unique ordered station IDs per snapshot. Optional
+`COLLECTION_SHARE_CONCURRENCY=4` and `COLLECTION_SHARE_RATE_LIMIT_PER_WINDOW=90`
+use the existing `MEDIA_SHARED_CONCURRENCY` and `MEDIA_RATE_LIMIT_WINDOW_MS` guards.
+Public/owner routes are no-store. Never log raw share tokens; malformed encoded
+route parameters receive a generic response without Express's token-bearing error.
+Contract and verification: `docs/PLAYLIST-SHARING-2026-10-09.md`.
+
 Every part earns its place, and two of them were learned the hard way on
 2026-08-15:
 

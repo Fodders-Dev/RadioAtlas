@@ -266,6 +266,25 @@
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-now-card .section-title { color: var(--calm-ink); text-shadow: none; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-row .playlist-name { color: var(--calm-ink); text-shadow: none; }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .library-queue-shell .library-queue-row .playlist-meta { color: var(--calm-secondary); text-shadow: none; }
+/* Compact station rows on My use legacy dark-first metadata and play colors.
+   Keep the journal surface, but derive every row label and play affordance from
+   the active theme so light paper never inherits near-white text or glyphs. */
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-row,
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-title,
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-title .marquee-text { color: var(--calm-ink); }
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-location,
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-tags,
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-compact-tagline,
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-inline-flags { color: var(--calm-secondary); }
+.app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-compact-play { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); }
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-row,
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-title,
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-title .marquee-text { color: var(--calm-ink); }
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-location,
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-tags,
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-compact-tagline,
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-inline-flags { color: var(--calm-secondary); }
+:root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.library-design-active [role='tabpanel'] .station-table.compact .station-compact-play { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 :root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2 .calm-queue-tools { margin: 0 0 10px; padding-inline: 12px; border-radius: 16px; background: var(--calm-solid); color: var(--calm-ink); }
 :root[data-theme^='custom-'] .app-shell-v2[data-calm='true'] .screen-library-v2.calm-library-queue .library-tab-chip:not(.active) { background: var(--calm-solid); }
 .app-shell-v2[data-calm='true'] .screen-library-v2 .calm-queue-tools > summary,

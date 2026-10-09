@@ -161,6 +161,16 @@ export const getDb = async () => {
           FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS collection_shares (
+          token TEXT PRIMARY KEY,
+          owner_account_id TEXT NOT NULL,
+          collection_id TEXT NOT NULL,
+          payload_json TEXT NOT NULL,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          FOREIGN KEY (owner_account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS station_profiles (
           stationuuid TEXT PRIMARY KEY,
           owner_account_id TEXT,
@@ -205,6 +215,8 @@ export const getDb = async () => {
         );
 
         CREATE INDEX IF NOT EXISTS idx_billing_purchases_account_id ON billing_purchases(account_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_collection_shares_owner_collection
+          ON collection_shares(owner_account_id, collection_id);
         CREATE INDEX IF NOT EXISTS idx_station_profiles_owner ON station_profiles(owner_account_id);
         CREATE INDEX IF NOT EXISTS idx_promotion_events_station_created_at ON promotion_events(stationuuid, created_at DESC);
         CREATE INDEX IF NOT EXISTS idx_bot_subscriptions_account ON bot_subscriptions(account_id);

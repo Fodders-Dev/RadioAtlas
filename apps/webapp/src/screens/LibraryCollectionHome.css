@@ -33,7 +33,7 @@
 .library-preview-search svg { width: 21px; height: 21px; flex: 0 0 auto; fill: currentColor; opacity: .65; }
 .library-preview-search input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: inherit; font-size: 16px; }
 .library-preview-search input::placeholder { color: var(--preview-muted); }
-.library-preview-a-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(290px, .85fr); gap: 20px; }
+.library-preview-a-layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(290px, .85fr); align-items: start; gap: 20px; }
 .library-preview-empty-collections { min-height: 156px; max-height: 180px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 14px; padding: 20px 24px; border: 1px solid var(--preview-line); border-radius: 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--preview-sage) 12%, var(--preview-paper)), var(--preview-paper) 72%); }
 .library-preview-empty-collections h2 { margin: 5px 0 0; font-size: 19px; }
 .library-preview-featured, .library-preview-playlists, .library-preview-favorites, .library-preview-find, .library-preview-queue, .library-preview-recent { min-width: 0; border: 1px solid var(--preview-line); border-radius: 22px; background: var(--preview-paper); }
@@ -56,6 +56,7 @@
 .library-preview-featured-empty { min-height: 220px; grid-template-columns: 1fr; align-content: center; }
 .library-preview-featured-empty h2 { margin: 0; font-size: 23px; }
 .library-preview-playlists { padding: 18px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 10px; }
+.library-preview-a-layout > .library-preview-playlists:first-child { grid-column: 1 / -1; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); }
 .library-preview-section-head { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .library-preview-playlists > .library-preview-section-head { grid-column: 1 / -1; }
 .library-preview-section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.02em; }
@@ -99,7 +100,7 @@
 .library-sleeve { --sleeve-paper: #d8bda0; --sleeve-ink: #3f3028; --sleeve-accent: #8b5546; position: relative; display: block; width: 100%; height: 100%; overflow: hidden; background: var(--sleeve-paper) !important; color: var(--sleeve-ink); }
 .library-sleeve.library-preview-artwork { box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-end; gap: 5px; padding: clamp(14px, 1.5vw, 18px); box-shadow: 0 13px 27px rgb(37 36 28 / 18%); }
 .library-sleeve-title { position: relative; z-index: 1; max-width: 100%; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-family: Georgia, 'Times New Roman', serif; font-size: clamp(12px, 2.1vw, 23px); font-weight: 700; letter-spacing: -.035em; line-height: .98; overflow-wrap: anywhere; }
-.library-sleeve-label { position: relative; z-index: 1; max-width: 100%; overflow: hidden; color: var(--sleeve-accent); font-size: clamp(6px, .72vw, 9px); font-weight: 700; letter-spacing: .12em; white-space: nowrap; }
+.library-sleeve-label { position: relative; z-index: 1; max-width: 100%; overflow: hidden; color: var(--sleeve-ink); font-size: clamp(6px, .72vw, 9px); font-weight: 700; letter-spacing: .12em; white-space: nowrap; }
 .library-sleeve-motif { position: absolute; inset: 9%; border: 1px solid color-mix(in srgb, var(--sleeve-accent) 58%, transparent); opacity: .9; }
 .library-sleeve-motif.motif-0 { border-radius: 48% 48% 4px 4px; transform: rotate(12deg) scale(.82); }
 .library-sleeve-motif.motif-1 { inset: 5% 18%; border-width: 0 1px; transform: rotate(24deg); }

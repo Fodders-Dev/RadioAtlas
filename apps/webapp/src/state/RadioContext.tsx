@@ -113,6 +113,7 @@ import {
   MAX_RECENT,
 } from './radio/defaults';
 import {
+  addSharedCollectionCopy,
   clampQueueIndex,
   getQueueSourceLabel,
   mergeUniqueStations,
@@ -284,6 +285,8 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   const favorites = storedLibraryState.favorites;
   const recent = storedLibraryState.recent;
   const collections = storedLibraryState.collections;
+  const collectionsRef = useRef(collections);
+  collectionsRef.current = collections;
   const followedStations = storedLibraryState.followedStations;
   const followedRegions = storedLibraryState.followedRegions;
   const alerts = storedLibraryState.alerts;
@@ -2286,6 +2289,33 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     setLibraryTab('collections');
     return id;
   };
+  const copySharedCollection = (input: {
+    name: string;
+    description: string | null;
+    stationIds: string[];
+    stations: StationLite[];
+  }) => {
+    const stationIds = input.stationIds.slice(0, 128);
+    const currentCollections = collectionsRef.current;
+    if (!stationIds.length || currentCollections.length >= 24) return false;
+    const now = Date.now();
+    const id = `collection-${now}-${Math.random().toString(36).slice(2, 8)}`;
+    const normalizedInput = { ...input, stationIds };
+    const collection: UserCollection = {
+      id,
+      name: input.name.trim().slice(0, 48) || 'Shared playlist',
+      description: input.description,
+      stationIds,
+      isPublic: false,
+      updatedAt: now,
+      createdAt: now,
+      pinned: false
+    };
+    collectionsRef.current = [collection, ...currentCollections];
+    setStoredLibraryState((prev) => addSharedCollectionCopy(prev, normalizedInput, id, now) ?? prev);
+    setLibraryTab('collections');
+    return true;
+  };
   const saveQueueAsCollection = (name: string) => {
     const queueStations = queueRef.current.items;
     const now = Date.now();
@@ -3062,6 +3092,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       clearTrackHistory,
       removeTrackHistoryItem,
       createCollection,
+      copySharedCollection,
       saveQueueAsCollection,
       addStationToNewCollection,
       deleteCollection,
@@ -3087,6 +3118,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       removeTrackHistoryItem,
       collections,
       createCollection,
+      copySharedCollection,
       saveQueueAsCollection,
       addStationToNewCollection,
       deleteCollection,

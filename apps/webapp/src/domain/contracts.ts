@@ -75,6 +75,15 @@ export type UserCollection = {
   pinned: boolean;
 };
 
+export type CollectionShare = {
+  token: string;
+  collectionId: string;
+  name: string;
+  description: string | null;
+  stationIds: string[];
+  updatedAt: number;
+};
+
 export type FollowedStation = {
   stationId: string;
   stationName: string;
