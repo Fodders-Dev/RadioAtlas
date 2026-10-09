@@ -6,17 +6,18 @@ paths:
 
 # Working on the Playwright suite
 
-240 specs, ~3 minutes in parallel. CI runs a **non-gating** job — a red run
-never blocks a merge — because flakes in a blocking gate get the gate switched
-off. That makes it your job to run it locally for UI work, to read the CI job
-rather than the green tick, and to keep both trustworthy.
+CI has two separate browser jobs. Since 2026-09-04, **browser suite
+(functional, gates)** is required before production: it runs
+`npm --workspace apps/webapp run test:e2e:functional` with
+`PLAYWRIGHT_SKIP_PIXELS=1` and one worker. **Visual baselines (reports, does not
+gate)** reports pixel differences separately. Read its artifacts; reporting
+does not mean that visual failures are accepted. Test counts and timings in
+old reports are historical, not a current suite contract.
 
-CI runs `npm --workspace apps/webapp run test:e2e:ci` — the whole suite at
-`--workers=1`. Serial is the direct treatment for the documented flake cause
-(the same specs failed twice in one parallel run here and were 225/225 on two
-serial ones) and it is also what lets the screenshots capture: at the default
-worker count a 1440×1688 clip failed on a runner with
-`Protocol error (Page.captureScreenshot)`.
+Serial execution treats documented parallel-load flakes and screenshot
+capture failures. Run full functional suites one at a time on this machine;
+the API port is fixed at 4311. A local release verification can be requested
+with `npm run verify -- --profile release`; see docs/DEVELOPMENT-QUALITY.md.
 
 **Baselines are per platform.** Playwright appends `process.platform`, so every
 screenshot has a `-win32.png` and a `-linux.png` and they are NOT
@@ -26,10 +27,9 @@ workflow for Linux) and never hand-copy one platform's file to the other. A
 baseline with no spec referencing it is dead weight: two lived here for months
 after their spec was deleted.
 
-The job becomes a gate on evidence, not on optimism: twenty consecutive green
-runs on CI hardware with no spec failing twice on the same line. The criterion
-is written into `.github/workflows/ci.yml` next to the `continue-on-error` it
-would delete.
+Do not remove the functional gate or add retries/tolerance to hide failures.
+The old plan to wait for twenty green runs before enabling the gate is closed;
+the actual workflow and same-SHA deploy guard are the operational authority.
 
 ## Measuring geometry
 

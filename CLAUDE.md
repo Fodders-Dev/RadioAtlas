@@ -99,6 +99,8 @@ npm run typecheck:test     # test sources (separate, load-bearing) ~11s
 npm run test:api           # node:test, 527 tests             ~15s
 npm run test:bot           # node:test, 87 tests               ~2s
 npm run test:scripts       # ops, deploy and hook guards outside the workspaces ~2s
+npm run verify             # types + API/bot/scripts/webapp units; JSON/Markdown receipt
+npm run verify -- --profile release # fast + offline Lira + build + serial functional browser
 npm run eval:lira:offline  # fixture-only Lira contracts; no dotenv, keys or model calls
 npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
 npm run test:webapp        # Playwright, all 283 specs                    ~7min
@@ -115,6 +117,14 @@ both typechecks → api → bot → scripts → Playwright and skips webapp unit
 CI runs webapp units in its fast gate, functional Playwright in a separate
 blocking job, and pixel baselines in a reporting job. Run `test:unit` yourself
 for any webapp change. Test counts in old reports are historical, not assertions.
+
+The CI fast gate now uses `npm run verify -- --profile fast`; the same checks
+produce per-step logs plus a SHA/checkout receipt uploaded even on failure.
+`--dry-run` only records a plan. Release verification does not call paid models
+or deploy, and a green receipt does not prove device audio or design acceptance.
+See [docs/DEVELOPMENT-QUALITY.md](docs/DEVELOPMENT-QUALITY.md) for the real-user
+scenario map, evidence-based review and active-handoff rules. Keep
+`docs/WORKING-SETUP.md` short; its linked archive is history, not current scope.
 
 `seo:indexnow` is deliberately NOT part of the deploy. IndexNow is for URLs
 that changed, and resubmitting all 5 000 on every push is what the protocol asks

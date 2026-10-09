@@ -25,6 +25,7 @@ if (process.platform === 'win32') {
 
 const result = spawnSync(process.execPath, ['--test',
   'scripts/devLocal.test.mjs',
+  'scripts/verifyProject.test.mjs',
   'scripts/generateScenePack.test.mjs',
   'scripts/updateCatalog.test.mjs',
   'deploy/server/s3put.test.mjs',

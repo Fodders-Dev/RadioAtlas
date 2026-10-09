@@ -8,16 +8,16 @@ checks and coordinates release; GPT-6 Luna implements bounded changes. Do not
 silently use 5.6 or substitute another coding model. Keep file ownership and
 the review/test requirements below. This preference persists across sessions.
 
-The owner adopted GPT-6.1 Sol as the main developer and coordinator, replacing
-the mandatory Astra-to-Luna split. Sol handles a bounded task end to end:
-inspect, plan, implement, test, review the diff and rendered result, document.
-This authorizes purposeful delegation; it does not authorize uncontrolled
-fan-out or deployment.
+GPT-6.1 Sol may coordinate a bounded task end to end: inspect, plan, assign
+implementation, test, review the diff and rendered result, document. The newer
+08.10 owner instruction above assigns coding to GPT-6 Luna; the older Sol
+end-to-end arrangement does not override it. This authorizes purposeful
+delegation, not uncontrolled fan-out or deployment.
 
 - Use `gpt-6.1-sol` at High for ordinary multi-step development. Adjust effort
   to the task rather than automatically using Extra High.
-- Use `gpt-6-luna` at Medium/High for small, clear tasks when delegation saves
-  work. Give file ownership, expected behavior, preserved contracts and checks;
+- Use `gpt-6-luna` at Medium/High for bounded coding tasks. Give file ownership,
+  expected behavior, preserved contracts and checks;
   send relevant context rather than the whole conversation.
 - Use `gpt-6-astra` for important product/architecture decisions, difficult
   playback diagnosis or independent review of substantial changes. Do not
@@ -64,6 +64,10 @@ one client do not become instructions to invent equivalent tools in another.
   ```
   That script supplies `--workers=1`; do not append the worker flag to the root
   `npm run test:webapp` wrapper, which drops it before Playwright.
+- Apply docs/DEVELOPMENT-QUALITY.md: real scenario coverage, evidence-based
+  review and verification receipts. `npm run verify` defaults to the fast lane;
+  it does not run paid providers or authorize production. Keep WORKING-SETUP.md
+  short and current; historical success never certifies a new diff.
 - Handoff states: commit/branch, user-visible result, checks actually performed,
   known limitations and the single next action. A clean commit beats a long
   narrative; an incomplete slice must be labelled incomplete.

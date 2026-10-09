@@ -31,85 +31,20 @@ jobs:
 
       - run: npm ci
 
-      # tsx runs tests happily with type errors in them, so the typecheck of the
-      # TEST sources is a separate, load-bearing step — it has already caught
-      # wrong option names and an invalid route literal that the green test run
-      # sailed straight past.
-      - name: Typecheck sources
-        run: npm run typecheck
+      - name: Fast verification
+        run: npm run verify -- --profile fast --output .tmp/verification-ci
 
-      - name: Typecheck tests
-        run: npm run typecheck:test
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-report
+          path: .tmp/verification-ci/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 7
 
-      - name: API tests
-        run: npm run test:api
-
-      - name: Bot tests
-        run: npm run test:bot
-
-      - name: Webapp unit tests
-        run: npm --workspace apps/webapp run test:unit
-
-      # Ops scripts live outside every workspace, so nothing was running their
-      # tests — s3put.test.mjs (the backup signing) had never run in CI at all.
-      - name: Ops script tests
-        run: npm run test:scripts
-
-      # Playwright is DELIBERATELY not in this gate. Several specs flake under
-      # parallel load, and a blocking gate that goes red for no reason is a gate
-      # that gets switched off within a week. Browser coverage stays a local
-      # pre-merge step until the flakes are fixed; see e2e-fullsuite-flakes.
-      #
-      # It does run, though — as the separate non-blocking job below, which is
-      # how the flakes get measured on CI hardware instead of argued about.
-
-  # The browser suite, reporting but NOT gating.
-  #
-  # The reason it was kept out entirely was real: specs that fail under parallel
-  # load make a gate people learn to ignore. The reason to run it anyway is just
-  # as real — the unit suites never open a browser, so nothing else here would
-  # notice a screen that throws on mount, a route that 404s, or a control that
-  # stops being clickable.
-  #
-  # It runs the WHOLE suite, pixels included. That took three attempts to earn.
-  # The pixel specs were skipped at first because every baseline was a
-  # `-win32.png` and Playwright appends `process.platform`, so on ubuntu-latest
-  # they looked for `-linux.png` and failed on every run; `--ignore-snapshots`
-  # was not the answer either, because it skips the comparison and not the
-  # capture, and run 2 died on `page.screenshot: Protocol error
-  # (Page.captureScreenshot)` at the default worker count.
-  #
-  # Linux baselines now exist. They were drawn by `visual-baselines.yml`, a
-  # manual job that uploads and commits nothing, and a person looked at them
-  # before they were committed — which is the only part of this that cannot be
-  # automated, because the thing under test is what the product looks like.
-  #
-  # THIS JOB GATES, as of 2026-09-04, and the pixel split below is what made
-  # that possible.
-  #
-  # `continue-on-error` was meant to keep a flaky suite out of the merge path
-  # until it earned trust, and the bar written here was twenty consecutive green
-  # runs. What it actually bought was the opposite: this job was RED on every
-  # run from `2096836` (31.08) onward, more than twenty of them, while the
-  # workflow reported success and nobody read the job. A gate people learn to
-  # ignore was the thing to avoid; a red job nobody reads is worse, because it
-  # looks like evidence and is not.
-  #
-  # What was failing, once somebody looked:
-  #   - glass-legibility: a REAL shipped defect. Low power strips the chrome's
-  #     backdrop-filter, so the nav fill alone measured 3.31:1 against a 4.5
-  #     floor. A GitHub runner is low power for the same reason a mid-range
-  #     phone is (4 cores or less), so this was a listener's screen, not a
-  #     runner artifact. Fixed in styles.css; the spec now measures BOTH power
-  #     states by name instead of whichever one the hardware happens to produce.
-  #   - dock-while-connecting: quarantined with its diagnosis. It passes on its
-  #     own mutant now, so it was certifying something it cannot see.
-  #   - two home-shell baselines: stale since the same glass change, and they
-  #     live in the non-gating job below.
-  #
-  # A failure here is still a lead before it is a verdict: reproduce locally
-  # with `--repeat-each=12 --workers=6` before touching a spec, and never widen
-  # a threshold to make one pass.
+  # Functional browser checks gate CI; visual pixel comparisons report separately.
   browser:
     name: browser suite (functional, gates)
     runs-on: ubuntu-latest
