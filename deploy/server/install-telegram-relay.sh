@@ -15,6 +15,7 @@ NODE_BIN="${NODE_BIN:-$(command -v node)}"
 # The relay may have to live OUTSIDE a release directory: the foreign host is
 # the one that no longer receives deploys, which is half the reason this exists.
 RELAY_SCRIPT="${RELAY_SCRIPT:-$APP_ROOT/current/deploy/server/telegram-relay.mjs}"
+OPENAI_RELAY_MODULE="$(dirname "$RELAY_SCRIPT")/openai-relay.mjs"
 
 if [[ -z "$NODE_BIN" ]]; then
   echo "node not found on PATH; set NODE_BIN" >&2
@@ -23,6 +24,11 @@ fi
 
 if [[ ! -f "$RELAY_SCRIPT" ]]; then
   echo "relay script not found at $RELAY_SCRIPT; set RELAY_SCRIPT" >&2
+  exit 1
+fi
+
+if [[ ! -f "$OPENAI_RELAY_MODULE" ]]; then
+  echo "OpenAI relay module not found at $OPENAI_RELAY_MODULE; install the matching deploy/server files" >&2
   exit 1
 fi
 
@@ -51,7 +57,20 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now radioatlas-telegram-relay.service
+# `enable --now` leaves an already-active unit alone. The relay may have been
+# running an older entrypoint that does not import the new fixed routes.
+systemctl restart radioatlas-telegram-relay.service
 sleep 2
+
+# Credentialless method rejection proves the restarted process owns the
+# reserved OpenAI route without sending a key or contacting the provider.
+openai_code=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -X GET \
+  "http://127.0.0.1:$PORT/openai/responses" || echo 000)
+if [[ "$openai_code" != "405" ]]; then
+  echo "Relay restarted but OpenAI route is NOT ready (expected 405, got $openai_code)" >&2
+  systemctl status radioatlas-telegram-relay.service --no-pager | tail -5 >&2
+  exit 1
+fi
 
 # Prove it end to end with a DELIBERATELY INVALID token: Telegram answers 401,
 # which shows the whole path works without putting the real token anywhere.

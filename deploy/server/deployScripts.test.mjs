@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
@@ -23,6 +24,22 @@ const runShell = (name) =>
 test('prune_ffmpeg_download_cache and release retention hold', () => {
   const { status, stdout, stderr } = runShell('test-prune-caches.sh');
   assert.equal(status, 0, `${stdout}\n${stderr}`);
+});
+
+test('Telegram relay installer restarts the process and probes OpenAI without credentials', () => {
+  const source = readFileSync(script('install-telegram-relay.sh'), 'utf8');
+  const enable = source.indexOf('systemctl enable --now radioatlas-telegram-relay.service');
+  const restart = source.indexOf('systemctl restart radioatlas-telegram-relay.service');
+  const openAiProbe = source.indexOf('"http://127.0.0.1:$PORT/openai/responses"');
+  const telegramProbe = source.indexOf('"http://127.0.0.1:$PORT/bot123456:not-a-real-token/getMe"');
+  const openAiProbeScript = source.slice(source.indexOf('openai_code='), openAiProbe);
+
+  assert.ok(enable >= 0 && restart > enable, 'active relay must be restarted after enabling');
+  assert.ok(openAiProbe > restart && telegramProbe > openAiProbe, 'both readiness probes follow restart');
+  assert.match(openAiProbeScript, /-X GET/);
+  assert.match(source, /if \[\[ "\$openai_code" != "405" \]\]/);
+  assert.match(source, /if \[\[ "\$code" != "401" \]\]/);
+  assert.doesNotMatch(openAiProbeScript, /Authorization|Bearer/i);
 });
 
 test('preserve_previous_chunks fills deleted chunks without overwriting new ones', (t) => {
