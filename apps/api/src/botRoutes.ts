@@ -107,6 +107,8 @@ export const registerBotRoutes = (
     // endpoint so AI-off deploys are byte-identical (no endpoint at all). The
     // bot calls this; the selected model-provider key never leaves the api process.
     aiRuntime?: AssistantRuntime | null;
+    aiLunaPilotRuntime?: AssistantRuntime | null;
+    aiLunaPilotTelegramId?: string;
   }
 ) => {
   const gate = (req: express.Request, res: express.Response): boolean => {
@@ -160,7 +162,8 @@ export const registerBotRoutes = (
   // brain and never holds a model-provider key. (No account lookup: the brain does
   // not use an account id in v1, so a per-call DB hit would be wasted.)
   const aiRuntime = options.aiRuntime;
-  if (aiRuntime) {
+  const aiLunaPilotRuntime = options.aiLunaPilotRuntime;
+  if (aiRuntime || aiLunaPilotRuntime || options.aiLunaPilotTelegramId) {
     app.post('/internal/bot/ai-chat', async (req, res) => {
       if (!gate(req, res)) return;
       const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
@@ -172,17 +175,49 @@ export const registerBotRoutes = (
         typeof req.body?.telegramId === 'string' || typeof req.body?.telegramId === 'number'
           ? String(req.body.telegramId).trim()
           : '';
+      const selectedRuntime = selectBotAssistantRuntime({
+        telegramId,
+        pilotTelegramId: options.aiLunaPilotTelegramId || '',
+        defaultRuntime: aiRuntime,
+        pilotRuntime: aiLunaPilotRuntime
+      });
+      if (!selectedRuntime) {
+        if (options.aiLunaPilotTelegramId && telegramId === options.aiLunaPilotTelegramId) {
+          console.warn('[lira-luna-pilot] owner fallback: runtime unavailable');
+          res.json({
+            reply: 'Пробный режим GPT-6 Luna сейчас недоступен. Я не переключила запрос на другую модель; попробуй позже.',
+            stations: [], serviceLinks: [], sources: []
+          });
+        } else {
+          res.status(503).json({ error: 'chat unavailable' });
+        }
+        return;
+      }
       const history = parseChatHistory(req.body?.history);
       const startedAt = Date.now();
       try {
         const account = telegramId ? await getAccountByProvider('telegram', telegramId).catch(() => null) : null;
-        const result = await aiRuntime.chat({
+        const result = await selectedRuntime.chat({
           userMessage: text.slice(0, 2000),
           history,
           surface: 'telegram',
           userTaste: buildUserTasteContext(account?.library)
         });
         recordChatTelemetry('telegram', startedAt, result);
+        const pilotFallback = selectedRuntime === aiLunaPilotRuntime && Boolean(
+          result.modelErrors?.length || result.agentRun?.status === 'failed' || result.agentRun?.status === 'blocked'
+        );
+        if (selectedRuntime === aiLunaPilotRuntime && pilotFallback) {
+          console.warn(`[lira-luna-pilot] owner fallback: ${result.modelErrors?.length ? 'model request unavailable' : `run ${result.agentRun?.status || 'unknown'}`}`);
+          res.json({
+            reply: 'Пробный режим GPT-6 Luna не смог надёжно обработать запрос. Переключения на другую модель не было; попробуй позже.',
+            stations: [], serviceLinks: [], sources: []
+          });
+          return;
+        }
+        if (selectedRuntime === aiLunaPilotRuntime) {
+          console.info(`[lira-luna-pilot] owner response: model=gpt-6-luna status=${result.agentRun?.status || 'unknown'}`);
+        }
         res.json({
           reply: result.reply,
           stations: result.stations.map((station) => ({
@@ -202,4 +237,18 @@ export const registerBotRoutes = (
       }
     });
   }
+};
+
+export const selectBotAssistantRuntime = (options: {
+  telegramId: string;
+  pilotTelegramId: string;
+  defaultRuntime?: AssistantRuntime | null;
+  pilotRuntime?: AssistantRuntime | null;
+}): AssistantRuntime | null => {
+  const incoming = options.telegramId.trim();
+  const owner = options.pilotTelegramId.trim();
+  if (/^\d+$/.test(incoming) && /^\d+$/.test(owner) && incoming === owner) {
+    return options.pilotRuntime || null;
+  }
+  return options.defaultRuntime || null;
 };

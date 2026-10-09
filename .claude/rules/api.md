@@ -71,6 +71,17 @@ an **explicit allow-list** (`reply`, `stations`, `serviceLinks`, `sources`,
 adding it to that literal does. Operator-only signals (`modelErrors`,
 `cardGate`, `constraintFilter`, `webSearchStatuses`) must stay server-side.
 
+The opt-in GPT-6 Luna Telegram pilot is a second model configuration behind the
+same admission controls, selected only by the trusted internal bot's exact
+server-configured Telegram ID. Never expose a provider selector to the browser
+or switch other listeners as a side effect. Its dedicated key travels in memory
+through the loopback/SSH `/openai/responses` relay to a fixed OpenAI HTTPS URL;
+unknown Authorization-bearing relay routes must not fall through to Telegram.
+Pilot Tavily stays disabled. Preserve the lifetime comparison/trial budget
+ledger outside release directories; missing state must fail closed, never
+automatically recreate a fresh allowance. Model failures must not silently
+serve DeepSeek to the pilot owner. See docs/LIRA-LUNA-PILOT-2026-10-09.md.
+
 Raw web-search snippets and cleaned lyrics pages are grounding context, never
 response payload.
 

@@ -76,8 +76,11 @@ The API alone loads long-lived provider credentials and normally makes the
 provider requests (Radio Browser, DeepSeek, Tavily, Cloudflare). The optional
 Tavily egress fallback is the narrow exception: the API sends its bearer key in
 memory through the existing loopback/SSH path to the NL Telegram relay, which
-forwards only `/tavily/search` to the fixed Tavily HTTPS endpoint. The relay has
-no configured or persisted Tavily key and does not log it. The browser gets an
+forwards only `/tavily/search` to the fixed Tavily HTTPS endpoint. The optional
+owner-only GPT-6 Luna bot pilot uses the same transport for `/openai/responses`
+to the fixed OpenAI endpoint, with a separate server key and durable prepaid
+request reservations. Neither relay configures, persists or logs provider keys.
+The browser gets an
 explicit allow-list of fields, never a provider key or raw provider data.
 
 ## Commands

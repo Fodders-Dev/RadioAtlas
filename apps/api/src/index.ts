@@ -7,10 +7,16 @@ import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
 import { registerBotRoutes } from './botRoutes.js';
-import { createAssistantRuntime, registerAiRoutes } from './aiRoutes.js';
+import { createAssistantRuntime, createAssistantRuntimeAdmission, registerAiRoutes } from './aiRoutes.js';
 import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
-import type { AiModelProvider, ModelReasoningEffort } from './ai/types.js';
+import {
+  assertTrustedLoopbackRelay,
+  createBudgetedProviderFetch,
+  LIRA_PILOT_PRODUCTION_BUDGET_PATH,
+  openProviderBudgetLedger
+} from './ai/providerBudget.js';
+import type { AiModelConfig, AiModelProvider, ModelReasoningEffort } from './ai/types.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
 import { applyCuratedOverlay } from './catalog/curatedOverlay.js';
@@ -76,6 +82,7 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com';
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const LIRA_PILOT_OPENAI_API_KEY = process.env.LIRA_PILOT_OPENAI_API_KEY || '';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
@@ -180,6 +187,18 @@ if (NODE_ENV === 'production' && SCENE_ARTWORK_ENABLED && !SCENE_ARTWORK_DIR_RAW
 const AI_ACTIVE = AI_ENABLED && Boolean(AI_MODEL_API_KEY);
 // Web search is active only when AI is active AND its own flag AND a Tavily key.
 const AI_WEB_SEARCH_ACTIVE = AI_ACTIVE && AI_WEB_SEARCH_ENABLED && Boolean(TAVILY_API_KEY);
+const LIRA_PILOT_TELEGRAM_ID = (process.env.LIRA_PILOT_TELEGRAM_ID || '').trim();
+const LIRA_PILOT_TELEGRAM_ID_VALID = /^\d{5,20}$/.test(LIRA_PILOT_TELEGRAM_ID);
+const LIRA_PILOT_OPENAI_BASE_URL = process.env.LIRA_PILOT_OPENAI_BASE_URL || '';
+const LIRA_PILOT_BUDGET_DB_PATH = process.env.LIRA_PILOT_BUDGET_DB_PATH || '';
+const LIRA_PILOT_BUDGET_PATH_VALID = NODE_ENV !== 'production' ||
+  LIRA_PILOT_BUDGET_DB_PATH === LIRA_PILOT_PRODUCTION_BUDGET_PATH;
+const LIRA_PILOT_REQUESTED = Boolean(LIRA_PILOT_TELEGRAM_ID);
+const LIRA_PILOT_CONFIGURED = Boolean(
+  AI_ACTIVE && LIRA_PILOT_OPENAI_API_KEY &&
+  LIRA_PILOT_TELEGRAM_ID_VALID &&
+  LIRA_PILOT_OPENAI_BASE_URL && LIRA_PILOT_BUDGET_DB_PATH && LIRA_PILOT_BUDGET_PATH_VALID
+);
 
 const ALLOWED_ORIGINS = (() => {
   const parsed = ALLOWED_ORIGINS_RAW
@@ -623,23 +642,28 @@ registerSceneArtworkRoutes(app, {
   },
   internalToken: INTERNAL_WEBHOOK_TOKEN
 });
-// Build the assistant runtime BEFORE registerBotRoutes so the internal bot
-// AI endpoint can share the same warm in-process catalog + model client. Null
-// when AI is off → no /ai/chat route, no internal endpoint, no bot
-// handler (byte-identical to today).
-const aiRuntime = AI_ACTIVE
+// Build assistant runtimes before routes so both share the warm catalogue and
+// one admission guard. The default model stays process-wide; only an explicitly
+// configured Telegram ID can enter the budgeted Luna runtime.
+const aiModelConfig: AiModelConfig | null = AI_ACTIVE
+  ? {
+      provider: AI_PROVIDER,
+      enabled: true,
+      apiKey: AI_MODEL_API_KEY,
+      baseUrl: AI_MODEL_BASE_URL,
+      model: AI_MODEL_NAME,
+      maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
+      timeoutSec: AI_TIMEOUT_SEC,
+      reasoningEffort: AI_REASONING_EFFORT
+    }
+  : null;
+const aiAdmission = AI_ACTIVE
+  ? createAssistantRuntimeAdmission({ maxChatsPerWindow: AI_MAX_CHATS_PER_MIN })
+  : undefined;
+const aiRuntime = aiModelConfig
   ? createAssistantRuntime({
       catalog: catalogService,
-      model: {
-        provider: AI_PROVIDER,
-        enabled: true,
-        apiKey: AI_MODEL_API_KEY,
-        baseUrl: AI_MODEL_BASE_URL,
-        model: AI_MODEL_NAME,
-        maxOutputTokens: AI_MAX_OUTPUT_TOKENS,
-        timeoutSec: AI_TIMEOUT_SEC,
-        reasoningEffort: AI_REASONING_EFFORT
-      },
+      model: aiModelConfig,
       musicServices: AI_MUSIC_SERVICES,
       webSearch: AI_WEB_SEARCH_ACTIVE
         ? createTavilyWebSearch({
@@ -650,11 +674,51 @@ const aiRuntime = AI_ACTIVE
             now: () => Date.now()
           })
         : undefined,
-      maxChatsPerWindow: AI_MAX_CHATS_PER_MIN,
+      admission: aiAdmission,
       log: (message) => console.warn(`[lira] ${message}`)
     })
   : null;
-registerBotRoutes(app, { internalWebhookToken: INTERNAL_WEBHOOK_TOKEN, aiRuntime });
+let aiLunaPilotRuntime: ReturnType<typeof createAssistantRuntime> | null = null;
+if (LIRA_PILOT_CONFIGURED) {
+  try {
+    const relayBaseUrl = assertTrustedLoopbackRelay(LIRA_PILOT_OPENAI_BASE_URL);
+    const budgetLedger = await openProviderBudgetLedger(LIRA_PILOT_BUDGET_DB_PATH);
+    const model: AiModelConfig = {
+      provider: 'openai',
+      enabled: true,
+      apiKey: LIRA_PILOT_OPENAI_API_KEY,
+      baseUrl: relayBaseUrl,
+      model: 'gpt-6-luna',
+      maxOutputTokens: 1000,
+      timeoutSec: 25,
+      reasoningEffort: 'low'
+    };
+    aiLunaPilotRuntime = createAssistantRuntime({
+      catalog: catalogService,
+      model,
+      musicServices: AI_MUSIC_SERVICES,
+      // The owner pilot does not enable Tavily or other unrelated paid routes.
+      admission: aiAdmission,
+      fetch: createBudgetedProviderFetch({
+        provider: 'openai',
+        campaign: 'owner-trial',
+        baseUrl: relayBaseUrl,
+        ledger: budgetLedger
+      }),
+      log: (message) => console.warn(`[lira-luna-pilot] ${message}`)
+    });
+  } catch {
+    console.error('Lira Luna owner pilot disabled: relay or persistent budget configuration is invalid.');
+  }
+} else if (LIRA_PILOT_REQUESTED) {
+  console.error('Lira Luna owner pilot unavailable: required model, relay, or persistent budget configuration is missing.');
+}
+registerBotRoutes(app, {
+  internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,
+  aiRuntime,
+  aiLunaPilotRuntime,
+  aiLunaPilotTelegramId: LIRA_PILOT_TELEGRAM_ID_VALID ? LIRA_PILOT_TELEGRAM_ID : ''
+});
 if (aiRuntime) {
   registerAiRoutes(app, { runtime: aiRuntime });
 }

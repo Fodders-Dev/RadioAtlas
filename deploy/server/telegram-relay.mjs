@@ -21,6 +21,7 @@
 // badly.
 import { createServer } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { createOpenAiRelayHandler } from './openai-relay.mjs';
 import { createTavilyRelayHandler } from './tavily-relay.mjs';
 
 const PORT = Number(process.env.TELEGRAM_RELAY_PORT || 8399);
@@ -33,6 +34,7 @@ const UPSTREAM_TIMEOUT_MS = Number(process.env.TELEGRAM_RELAY_TIMEOUT_MS || 120_
 let served = 0;
 let failed = 0;
 const handleTavily = createTavilyRelayHandler();
+const handleOpenAi = createOpenAiRelayHandler();
 
 const server = createServer((req, res) => {
   // Search credentials stay in memory on our two servers: SSH between them,
@@ -41,12 +43,29 @@ const server = createServer((req, res) => {
     if (!handleTavily(req, res)) { res.writeHead(404); res.end(); }
     return;
   }
+  if (handleOpenAi(req, res)) return;
+
+  // Only the dedicated fixed-provider handlers may consume Authorization.
+  // Telegram Bot API credentials belong in the path; an unknown route with a
+  // bearer key is probably a misrouted provider request and must fail closed.
+  if (req.headers?.authorization !== undefined) {
+    req.resume?.();
+    res.writeHead(404, {
+      'content-type': 'application/json; charset=utf-8',
+      connection: 'close'
+    });
+    res.end('{"error":"not found"}');
+    return;
+  }
+
   served += 1;
 
   // Rebuild the headers rather than forwarding them wholesale: `host` must name
   // the upstream or Telegram's router does not recognise the request, and the
   // hop-by-hop ones are ours, not theirs.
   const headers = { ...req.headers };
+  // Defense in depth: Telegram Bot API auth is already present in its path.
+  delete headers.authorization;
   delete headers.connection;
   delete headers['keep-alive'];
   delete headers['proxy-connection'];

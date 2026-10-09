@@ -17,7 +17,7 @@ import {
 } from './ai/catalogToolProvider.js';
 import { buildFallbackResult } from './ai/fallbacks.js';
 import { publicWebSources } from './ai/publicSources.js';
-import { createRollingVolumeCap } from './ai/volumeCap.js';
+import { createRollingVolumeCap, type RollingVolumeCap } from './ai/volumeCap.js';
 import type {
   AssistantDeps,
   AgentClientContext,
@@ -40,6 +40,33 @@ const MAX_HISTORY_TURNS = 10;
 const VOLUME_WINDOW_MS = 60_000;
 const DEFAULT_MAX_CHATS_PER_WINDOW = 120;
 
+export type AssistantRuntimeAdmission = {
+  guard: ProtectedMediaRoute<ChatResult>;
+  volumeCap: RollingVolumeCap;
+};
+
+export const createAssistantRuntimeAdmission = (options: {
+  maxChatsPerWindow?: number;
+  now?: () => number;
+} = {}): AssistantRuntimeAdmission => {
+  const now = options.now || (() => Date.now());
+  return {
+    guard: new ProtectedMediaRoute<ChatResult>({
+      routeName: 'ai-chat',
+      maxConcurrency: 4,
+      // Share model work with protected media and all assistant runtimes.
+      sharedMaxConcurrency: 8,
+      rateLimitPerWindow: 30,
+      rateLimitWindowMs: VOLUME_WINDOW_MS
+    }),
+    volumeCap: createRollingVolumeCap({
+      windowMs: VOLUME_WINDOW_MS,
+      max: options.maxChatsPerWindow ?? DEFAULT_MAX_CHATS_PER_WINDOW,
+      now
+    })
+  };
+};
+
 export type AssistantRuntime = {
   chat: (input: ChatInput) => Promise<ChatResult>;
   checkRateLimit: (req: express.Request) => number | null;
@@ -54,6 +81,7 @@ export const createAssistantRuntime = (options: {
   // Optional Tavily-backed web search — omit to keep web search OFF (default).
   webSearch?: WebSearchProvider;
   maxChatsPerWindow?: number;
+  admission?: AssistantRuntimeAdmission;
   now?: () => number;
   // Injectable for tests (mirrors the brain's DI'd fetch); defaults to global.
   fetch?: typeof fetch;
@@ -71,20 +99,11 @@ export const createAssistantRuntime = (options: {
     log: options.log || (() => {}),
     now
   };
-  const guard = new ProtectedMediaRoute<ChatResult>({
-    routeName: 'ai-chat',
-    maxConcurrency: 4,
-    // Join the shared media pool so a burst of (slow) chats can't starve
-    // /stream and /image, and vice-versa.
-    sharedMaxConcurrency: 8,
-    rateLimitPerWindow: 30,
-    rateLimitWindowMs: VOLUME_WINDOW_MS
-  });
-  const volumeCap = createRollingVolumeCap({
-    windowMs: VOLUME_WINDOW_MS,
-    max: options.maxChatsPerWindow ?? DEFAULT_MAX_CHATS_PER_WINDOW,
+  const admission = options.admission || createAssistantRuntimeAdmission({
+    maxChatsPerWindow: options.maxChatsPerWindow,
     now
   });
+  const { guard, volumeCap } = admission;
 
   const chat = async (input: ChatInput): Promise<ChatResult> => {
     // Global cost backstop: over the per-window total → warm fallback, no

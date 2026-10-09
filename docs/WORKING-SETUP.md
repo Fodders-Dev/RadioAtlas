@@ -1,4 +1,13 @@
 # RadioAtlas: рабочая схема Codex + Claude
+**09.10 — текущий участок: owner-only GPT-6 Luna в Telegram.**
+Release checkout: lira-brain-release/Radio++_tg, codex/luna-owner-trial-20261009
+от master8a16d98. UI/MusicImage/quality эксперименты calm-home не переносить.
+Оба typecheck, API915, bot94, scripts100+1skip, offline24 прошли.
+Relay NL проверен; API/bot ещё ждут commit/same-SHA CI/deploy.
+[Сравнение, бюджет и ограничения](LIRA-LUNA-PILOT-2026-10-09.md).
+Ключ уже сохранён в dedicated server env; clipboard повторно не читать.
+Ledger не обнулять: comparison$1 + trial$1.99 + отдельный smoke < $3.
+
 **08.10 — текущий участок: Лира и мини-плеер.** Реализация и независимая
 проверка завершены: эпоха+жанр, карточки на уточнении, короткая grounded проза,
 переход из чата в текущую Ленту и отдельное сердце станции. 900 API, 948 units,

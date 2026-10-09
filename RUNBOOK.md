@@ -1,4 +1,40 @@
 # RUNBOOK
+## 2026-10-09 — owner-only GPT-6 Luna bot pilot
+
+Server-only opt-in: `LIRA_PILOT_TELEGRAM_ID` (exact numeric owner identity),
+`LIRA_PILOT_OPENAI_API_KEY` (dedicated key),
+`LIRA_PILOT_OPENAI_BASE_URL=http://127.0.0.1:8399/openai`,
+`LIRA_PILOT_BUDGET_DB_PATH=/opt/RadioAtlas/shared/data/lira-luna-budget-20261009.sqlite`.
+Do not change `AI_PROVIDER`, the global `OPENAI_API_KEY`, vision settings or
+DeepSeek settings to enable this pilot. Web/Mini App and other bot users remain
+on the default runtime. Pilot has no Tavily; both runtimes share admission caps.
+
+Ledger campaigns: $1.00 comparison + $1.99 owner trial; one separately recorded
+smoke cost estimate $0.0000138. Runtime/eval open **existing** state only.
+Explicit operator `eval:lira -- --init-budget` initializes an absent file once,
+without a model call, and refuses an existing filename. Never delete/recreate
+the DB or change campaign IDs to bypass exhaustion. Missing/corrupt state or
+unknown model/endpoint fails closed. Report conservative reservations separately
+from usage-based estimated cost; provider billing is authoritative.
+
+RU model lookup returned `unsupported_country_region_territory`; NL worked.
+The existing NL Telegram relay now owns only the fixed POST `/openai/responses`
+route for Luna: 128KiB request, 1MiB response, two active requests, 20s deadline,
+text-only, <=1000 output tokens, no streaming/tools/background or provider storage.
+Unknown Authorization-bearing routes are refused before Telegram forwarding.
+Deploy matching `telegram-relay.mjs` + `openai-relay.mjs` to the relay's sibling
+directory; retain existing unrelated helpers. Restart the active service
+explicitly (`enable --now` alone is insufficient), then prove credentialless
+GET `/openai/responses` =>405 and invalid Telegram token =>401 **before** any
+real bearer request. Keep provider errors sanitized and paths/keys out of logs.
+
+Disabling the pilot: remove `LIRA_PILOT_TELEGRAM_ID` from shared API env and
+restart our API normally; keep the ledger so re-enabling cannot reset spend.
+Rollback the relay entrypoint only with a matching module set; no neighboring
+service, kernel limit or public port change is required.
+
+Evidence and current publication state: [pilot report](docs/LIRA-LUNA-PILOT-2026-10-09.md).
+
 ## 2026-10-08 — reliability publication and Lira repair
 
 Deploy37369724539 for a653d54 initially failed before deploy: GitHub could not
