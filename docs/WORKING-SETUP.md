@@ -3,7 +3,11 @@
 Release checkout: lira-brain-release/Radio++_tg, codex/luna-owner-trial-20261009
 от master8a16d98. UI/MusicImage/quality эксперименты calm-home не переносить.
 Оба typecheck, API915, bot94, scripts100+1skip, offline24 прошли.
-Relay NL проверен; API/bot ещё ждут commit/same-SHA CI/deploy.
+Relay NL проверен; API/bot опубликованы: `b3255b3`, same-SHA обязательные
+CI37918923820/deploy37918923784 success, RU current/bot/public health подтверждены.
+Три настоящих owner-route ответа подтвердили Luna. Эпоха/Amiga дали ноль карточек,
+это открытое качество, не успешная приёмка подбора. Следующий шаг — bounded trace.
+Pixel job не запустился из-за установки Chromium; UI этого выпуска не менялся.
 [Сравнение, бюджет и ограничения](LIRA-LUNA-PILOT-2026-10-09.md).
 Ключ уже сохранён в dedicated server env; clipboard повторно не читать.
 Ledger не обнулять: comparison$1 + trial$1.99 + отдельный smoke < $3.
