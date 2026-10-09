@@ -28,6 +28,17 @@ describe('shuffleStations', () => {
     expect(out).toHaveLength(input.length);
   });
 
+  it('produces varied permutations across several fixed seeds', () => {
+    const input = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(station);
+    const original = ids(input).join(',');
+    const orders = [11, 23, 37, 41, 59].map((seed) =>
+      ids(shuffleStations(input, seed)).join(',')
+    );
+
+    expect(new Set(orders).size).toBeGreaterThanOrEqual(2);
+    expect(orders.some((order) => order !== original)).toBe(true);
+  });
+
   it('does not mutate the input array', () => {
     const input = ['a', 'b', 'c'].map(station);
     const before = ids(input);
@@ -90,15 +101,27 @@ describe('reshuffleQueueSnapshot (never-auto-switch invariants)', () => {
     expect(reshuffleQueueSnapshot(oneAhead, reverse)).toBe(oneAhead);
     expect(upcomingCount(last)).toBe(0);
     expect(upcomingCount(oneAhead)).toBe(1);
+  });
+
+  it('counts upcoming stations at the first item and treats invalid indexes as no current item', () => {
+    expect(upcomingCount(snapshot({ currentIndex: 0 }))).toBe(4);
     expect(upcomingCount(snapshot({ currentIndex: -1 }))).toBe(5);
+    expect(upcomingCount(snapshot({ currentIndex: 5 }))).toBe(5);
+    expect(upcomingCount(snapshot({ currentIndex: 7 }))).toBe(5);
+    expect(upcomingCount(snapshot({ items: [], currentIndex: 0 }))).toBe(0);
   });
 
   it('is a no-op for a 0/1-item queue', () => {
-    expect(reshuffleQueueSnapshot(snapshot({ items: [], currentIndex: -1 }), reverse).items).toEqual(
-      []
-    );
+    let calls = 0;
+    const unexpectedShuffle = (items: StationLite[]) => {
+      calls += 1;
+      return reverse(items);
+    };
+    const empty = snapshot({ items: [], currentIndex: -1 });
+    expect(reshuffleQueueSnapshot(empty, unexpectedShuffle)).toBe(empty);
     const single = snapshot({ items: [station('solo')], currentIndex: 0 });
-    expect(ids(reshuffleQueueSnapshot(single, reverse).items)).toEqual(['solo']);
+    expect(reshuffleQueueSnapshot(single, unexpectedShuffle)).toBe(single);
+    expect(calls).toBe(0);
   });
 
   it('re-rolls once when the first shuffle reproduces the original order', () => {
@@ -116,9 +139,46 @@ describe('reshuffleQueueSnapshot (never-auto-switch invariants)', () => {
     expect(ids(next.items)).toEqual(['a', 'e', 'd', 'c', 'b']);
   });
 
+  it('does not reroll when the first shuffle already changes the order', () => {
+    let call = 0;
+    const changing = (tail: StationLite[]) => {
+      call += 1;
+      // A partial fixed point moves some stations while leaving others put.
+      return call === 1 ? [tail[3], tail[1], tail[2], tail[0]] : [...tail];
+    };
+    const next = reshuffleQueueSnapshot(snapshot({ currentIndex: 0 }), changing);
+    expect(call).toBe(1);
+    expect(ids(next.items)).toEqual(['a', 'e', 'c', 'd', 'b']);
+  });
+
   it('shuffles the whole array when nothing is playing (currentIndex -1)', () => {
     const snap = snapshot({ currentIndex: -1 });
     const next = reshuffleQueueSnapshot(snap, reverse);
+    expect(ids(next.items)).toEqual(['e', 'd', 'c', 'b', 'a']);
+    expect(next.currentIndex).toBe(-1);
+  });
+
+  it('treats indexes at or beyond the queue length as no current item', () => {
+    for (const currentIndex of [5, 7]) {
+      const snap = snapshot({ currentIndex, sourceId: 'recent', sourceLabel: 'Recently played' });
+      const next = reshuffleQueueSnapshot(snap, reverse);
+      expect(ids(next.items)).toEqual(['e', 'd', 'c', 'b', 'a']);
+      expect(next.currentIndex).toBe(currentIndex);
+      expect(next.sourceId).toBe('recent');
+      expect(next.sourceLabel).toBe('Recently played');
+    }
+  });
+
+  it('re-rolls a no-current-item identity shuffle once', () => {
+    let call = 0;
+    const identityThenReverse = (items: StationLite[]) => {
+      call += 1;
+      return call === 1 ? [...items] : [...items].reverse();
+    };
+    const snap = snapshot({ currentIndex: -1 });
+    const next = reshuffleQueueSnapshot(snap, identityThenReverse);
+
+    expect(call).toBe(2);
     expect(ids(next.items)).toEqual(['e', 'd', 'c', 'b', 'a']);
     expect(next.currentIndex).toBe(-1);
   });

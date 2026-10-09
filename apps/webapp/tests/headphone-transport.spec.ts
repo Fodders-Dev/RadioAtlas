@@ -333,7 +333,19 @@ test('opt-in playback diagnostics records OS commands and survives reload', asyn
     .toEqual(expect.arrayContaining(['recording_started', 'media_pause_command', 'media_play_command']));
 
   await settings.getByRole('button', { name: 'Скопировать отчёт', exact: true }).click();
-  await expect(settings.locator('textarea[aria-label="Отчёт диагностики"]')).toContainText('media_play_command');
+  const reportText = await settings.locator('textarea[aria-label="Отчёт диагностики"]').inputValue();
+  expect(reportText).toContain('media_play_command');
+  const report = JSON.parse(reportText);
+  expect(report.version).toBe(1);
+  expect(report.analysis.analysisUnavailable).toBe(false);
+  expect(report.analysis.summaryFacts).toContain('system_play_attempts_observed');
+  expect(report.analysis.attempts).toEqual(expect.arrayContaining([
+    expect.objectContaining({ endedBy: 'trace_end', windowEnded: false, complete: false })
+  ]));
+  const persisted = await page.evaluate(() => JSON.parse(localStorage.getItem('radio:playback-diagnostics:v1') || '{}'));
+  expect(persisted.version).toBe(1);
+  expect(persisted.analysis).toBeUndefined();
+  expect(report.entries).toEqual(persisted.entries);
 
   await page.reload();
   await page.locator('.app-navigation-mobile').getByRole('button', { name: 'Моё', exact: true }).click();
@@ -343,5 +355,8 @@ test('opt-in playback diagnostics records OS commands and survives reload', asyn
   await reloadedSettings.getByRole('button', { name: 'Показать', exact: true }).click();
   await expect(reloadedSettings).toContainText('Сохранённый отчёт доступен');
   await reloadedSettings.getByRole('button', { name: 'Скопировать отчёт', exact: true }).click();
-  await expect(reloadedSettings.locator('textarea[aria-label="Отчёт диагностики"]')).toContainText('media_pause_command');
+  const reloadedReportText = await reloadedSettings.locator('textarea[aria-label="Отчёт диагностики"]').inputValue();
+  const reloadedReport = JSON.parse(reloadedReportText);
+  expect(reloadedReport.entries.map((entry: { event: string }) => entry.event)).toContain('media_pause_command');
+  expect(reloadedReport.analysis.summaryFacts).toContain('system_play_attempts_observed');
 });

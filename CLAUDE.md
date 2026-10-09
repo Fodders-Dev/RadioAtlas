@@ -103,6 +103,8 @@ npm run verify             # types + API/bot/scripts/webapp units; JSON/Markdown
 npm run verify -- --profile release # fast + offline Lira + build + serial functional browser
 npm run eval:lira:offline  # fixture-only Lira contracts; no dotenv, keys or model calls
 npm --workspace apps/webapp run test:unit   # vitest, 693 tests ~34s
+npm --workspace apps/webapp run test:a11y   # opt-in axe pilot, Home/Library × 3 sizes; owns API4311
+npm --workspace apps/webapp run test:mutation # opt-in Stryker pilot, shuffleStations only; inspect survivors
 npm run test:webapp        # Playwright, all 283 specs                    ~7min
 npm run dev:webapp         # + npm run dev:api in a second terminal
 npm run dev:local          # isolated local API + Vite, 4341 / 5184; Ctrl+C stops both

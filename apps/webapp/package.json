@@ -17,6 +17,8 @@
     "test:e2e:ci": "playwright test --workers=1",
     "test:e2e:functional": "playwright test --workers=1",
     "test:e2e:pixels": "playwright test --workers=1 tests/visual.spec.ts",
+    "test:a11y": "playwright test --config=playwright.accessibility.config.ts",
+    "test:mutation": "stryker run stryker.config.json",
     "test:acceptance": "playwright test --config=playwright.acceptance.config.ts"
   },
   "dependencies": {
@@ -29,7 +31,10 @@
     "topojson-client": "^3.1.0"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.47.2",
+    "@stryker-mutator/core": "9.6.1",
+    "@stryker-mutator/vitest-runner": "9.6.1",
     "@types/d3-geo": "^3.1.0",
     "@types/node": "^20.14.12",
     "@types/react": "^18.3.3",

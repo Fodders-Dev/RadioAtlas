@@ -83,7 +83,7 @@
 .calm-story-lead .calm-story-caption { display: grid; gap: 0; position: absolute; inset: 19px; align-content: start; justify-items: start; pointer-events: none; color: #3e3025; padding: 0; }
 .calm-story-lead { position: relative; height: 158px; border-radius: 22px; overflow: hidden; box-shadow: 0 13px 18px -13px #63392388, inset 0 1px 0 #fffc; }
 .calm-story-lead .calm-story-caption > span:first-child { display: contents; }
-.calm-story-lead .calm-story-caption small { font-size: 8px; letter-spacing: 1.1px; color: inherit; opacity: .8; }
+.calm-story-lead .calm-story-caption small { font-size: 8px; letter-spacing: 1.1px; color: inherit; }
 .calm-story-lead .calm-story-caption strong { font: italic 29px/1.05 var(--calm-serif); max-width: 195px; margin: 9px 0; letter-spacing: -.7px; }
 .calm-story-lead .calm-story-caption > span + span { margin-top: auto; color: inherit; }
 .calm-story-rail { display: flex; gap: 12px; margin: 0 -20px; padding: 0 20px 8px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; scrollbar-width: none; align-items: flex-start; }
@@ -581,7 +581,7 @@
    (a dark Classic showed dark names on a dark ground on the owner's phone). */
 .app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(h1, h2, h3, strong, .calm-heading h2, .calm-station-row strong, .calm-destination strong) { color: var(--calm-ink); }
 .app-shell-v2[data-calm='true'] :is(.calm-home, .calm-sheet, .calm-mini) :is(small, p, .calm-section-copy, .calm-station-row small) { color: var(--calm-secondary); }
-.app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption strong, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption small { color: #3e3025; }
+.app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption strong, .app-shell-v2[data-calm='true'] .calm-story-lead .calm-story-caption small { color: #241712; }
 
 /* ===== Home around one line of air, two doors and a dense choice
    (docs/DISCOVERY-DIRECTION-2026-09-13.md, owner's notes 14.09). The air is

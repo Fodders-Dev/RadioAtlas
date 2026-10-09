@@ -46,7 +46,10 @@ const SKIP_PIXELS = process.env.PLAYWRIGHT_SKIP_PIXELS === '1';
 
 export default defineConfig({
   testDir: './tests',
-  ...(SKIP_PIXELS ? { testIgnore: ['**/visual.spec.ts'] } : {}),
+  testIgnore: [
+    '**/accessibility-pilot.spec.ts',
+    ...(SKIP_PIXELS ? ['**/visual.spec.ts'] : [])
+  ],
   timeout: 30_000,
   expect: {
     timeout: 5000

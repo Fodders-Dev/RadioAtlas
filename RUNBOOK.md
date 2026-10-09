@@ -524,6 +524,17 @@ recording replaces the previous one. If storage fails, the UI says the trace
 lasts only until the app closes. Do not interpret that case as durable evidence.
 Copy has a visible readonly-text fallback when the clipboard is unavailable.
 
+Local extension on 2026-10-09: copied JSON also includes `analysis`, derived
+only at export from the same bounded entries. It summarizes the last ten
+observed system Play attempts: source/error/context evidence, observed
+`playing` and comparable media-time increases. Persisted recorder schema stays
+v1; analysis is not stored or uploaded. Unknown entries terminate attribution,
+clock/source boundaries break time comparisons, and a truncated window stays
+incomplete. `windowEnded` records a later transport boundary; `complete` is
+stricter. A moving media clock does not prove audible sound, and missing Play
+does not prove iOS failed to deliver it. The analyzer changes no playback or
+MediaSession handlers. Physical iPhone acceptance below remains open.
+
 Device acceptance must distinguish these outcomes:
 
 - MediaSession play received, media time resumes: app transport works for this trial.

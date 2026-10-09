@@ -88,7 +88,9 @@ describe('playback diagnostics recorder', () => {
     diagnostics.subscribePlaybackDiagnostics(listener);
     expect(() => diagnostics.startPlaybackDiagnostics()).not.toThrow();
     expect(diagnostics.playbackDiagnosticsIsPersisted()).toBe(false);
-    expect(diagnostics.getPlaybackDiagnosticsReport()).toContain('"persistence": "memory"');
+    const report = JSON.parse(diagnostics.getPlaybackDiagnosticsReport());
+    expect(report.persistence).toBe('memory');
+    expect(report.analysis.summaryFacts).toContain('no_system_play_commands_observed');
     expect(listener).toHaveBeenCalled();
     diagnostics.stopPlaybackDiagnostics();
     storageGetter.mockRestore();
@@ -109,6 +111,24 @@ describe('playback diagnostics recorder', () => {
     const audio = { get paused() { return paused(); } } as unknown as HTMLMediaElement;
     expect(() => diagnostics.recordAudioDiagnostic('audio_pause', audio)).not.toThrow();
     expect(paused).toHaveBeenCalled();
+    diagnostics.stopPlaybackDiagnostics();
+  });
+
+  it('computes analysis only in the exported report without changing schema-v1 persisted entries', async () => {
+    const diagnostics = await load();
+    diagnostics.startPlaybackDiagnostics();
+    diagnostics.recordPlaybackDiagnostic('media_play_command');
+    diagnostics.recordPlaybackDiagnostic('media_pause_command');
+
+    const persisted = JSON.parse(localStorage.getItem(diagnostics.PLAYBACK_DIAGNOSTICS_STORAGE_KEY) || '{}');
+    const report = JSON.parse(diagnostics.getPlaybackDiagnosticsReport());
+    expect(persisted.version).toBe(1);
+    expect(Object.keys(persisted).sort()).toEqual(['enabled', 'entries', 'expiresAt', 'version']);
+    expect(persisted.analysis).toBeUndefined();
+    expect(report.version).toBe(1);
+    expect(report.entries).toEqual(persisted.entries);
+    expect(report.analysis.analysisUnavailable).toBe(false);
+    expect(report.analysis.attempts[0]).toMatchObject({ endedBy: 'media_pause_command', windowEnded: true });
     diagnostics.stopPlaybackDiagnostics();
   });
 });

@@ -19,6 +19,14 @@ capture failures. Run full functional suites one at a time on this machine;
 the API port is fixed at 4311. A local release verification can be requested
 with `npm run verify -- --profile release`; see docs/DEVELOPMENT-QUALITY.md.
 
+The opt-in `test:a11y` pilot has its own `playwright.accessibility.config.ts`
+and asserts unsuppressed axe WCAG2/2.1 A/AA violations on Home/Library at three
+sizes. Its spec is excluded from the ordinary suite; run it explicitly when
+changing those screens' semantics/colours. It reuses the same isolated servers
+and therefore must not run alongside another browser suite on API4311.
+Reports/snapshots live under `.tmp/quality-experiments/accessibility`.
+Automated scans do not establish design acceptance or screen-reader usability.
+
 **Baselines are per platform.** Playwright appends `process.platform`, so every
 screenshot has a `-win32.png` and a `-linux.png` and they are NOT
 interchangeable — font rasterisation differs. Regenerate the one for the machine

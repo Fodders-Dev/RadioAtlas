@@ -1,4 +1,5 @@
 import { APP_COMMIT, APP_VERSION, BUILD_TIME } from './buildInfo';
+import { analyzePlaybackDiagnostics } from './playbackDiagnosticsAnalysis';
 
 export const PLAYBACK_DIAGNOSTICS_STORAGE_KEY = 'radio:playback-diagnostics:v1';
 export const PLAYBACK_DIAGNOSTICS_TTL_MS = 20 * 60 * 1000;
@@ -261,14 +262,17 @@ export const recordMediaSessionUpdatedDiagnostic = () => {
   } catch { /* diagnostics must never affect MediaSession */ }
 };
 export const playbackDiagnosticsIsPersisted = () => persistence === 'persistent';
-export const getPlaybackDiagnosticsReport = () => JSON.stringify({
-  build: { version: APP_VERSION, commit: APP_COMMIT, builtAt: BUILD_TIME },
-  userAgent: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
-  standalone: typeof navigator !== 'undefined' &&
-    (Boolean((navigator as Navigator & { standalone?: boolean }).standalone) ||
-      (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches)),
-  persistence, ...getPlaybackDiagnosticsState()
-}, null, 2);
+export const getPlaybackDiagnosticsReport = () => {
+  const diagnostics = getPlaybackDiagnosticsState();
+  return JSON.stringify({
+    build: { version: APP_VERSION, commit: APP_COMMIT, builtAt: BUILD_TIME },
+    userAgent: typeof navigator === 'undefined' ? 'unknown' : navigator.userAgent,
+    standalone: typeof navigator !== 'undefined' &&
+      (Boolean((navigator as Navigator & { standalone?: boolean }).standalone) ||
+        (typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches)),
+    persistence, ...diagnostics, analysis: analyzePlaybackDiagnostics(diagnostics.entries)
+  }, null, 2);
+};
 export const copyPlaybackDiagnostics = async () => {
   if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return false;
   try { await navigator.clipboard.writeText(getPlaybackDiagnosticsReport()); return true; } catch { return false; }
