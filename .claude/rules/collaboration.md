@@ -1,6 +1,13 @@
 # Shared workflow — Codex and Claude
 
-## Owner's Codex workflow (updated 2026-10-08)
+## Owner's Codex workflow (updated 2026-10-09)
+
+09.10 owner explicitly chose GPT-6.1 Sol to coordinate and GPT-6 Luna to write
+code and tests from detailed bounded contracts. Sol owns diagnosis, architecture,
+acceptance criteria, review, integration, verification, release, documentation
+and operations. Use an explicit Luna model/profile for implementation. This
+preference does not switch the current chat model or the product LLM; report
+Luna unavailability rather than silently substituting another coding model.
 
 08.10 owner explicitly asked for GPT-6 Luna for coding, replacing GPT-5.6
 Luna. For the current fixes, the main agent diagnoses, specifies, independently

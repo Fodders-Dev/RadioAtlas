@@ -1,6 +1,12 @@
 # RUNBOOK
 ## 2026-10-09 — owner-only GPT-6 Luna bot pilot
 
+Published `b3255b3`: same-SHA gating CI37918923820 and deploy37918923784 success.
+RU current, bot process and public API health verified. Pixel report did not
+run because Chromium installation failed. Three internal owner requests proved
+Luna selection and reserved $0.017528 of owner-trial; epoch/Amiga followups
+returned no cards, so this is a provider trial, not a quality-upgrade receipt.
+
 Server-only opt-in: `LIRA_PILOT_TELEGRAM_ID` (exact numeric owner identity),
 `LIRA_PILOT_OPENAI_API_KEY` (dedicated key),
 `LIRA_PILOT_OPENAI_BASE_URL=http://127.0.0.1:8399/openai`,
