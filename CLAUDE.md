@@ -79,7 +79,13 @@ memory through the existing loopback/SSH path to the NL Telegram relay, which
 forwards only `/tavily/search` to the fixed Tavily HTTPS endpoint. The optional
 owner-only GPT-6 Luna bot pilot uses the same transport for `/openai/responses`
 to the fixed OpenAI endpoint, with a separate server key and durable prepaid
-request reservations. Neither relay configures, persists or logs provider keys.
+request reservations. The separately enabled global GPT-6 Luna text runtime
+supersedes that pilot for Telegram and Mini App. It requires a pre-provisioned
+durable lifetime campaign, with an operator-agreed cap (currently $5 including
+live checks). DeepSeek is called only after a visible warning and an explicit
+one-use consent action; replies identify the reserve provider. All text runtimes
+share admission and one Tavily cache/daily cap. Neither relay configures, persists
+or logs provider keys. The unaccepted screenshot UI is outside this release.
 The browser gets an
 explicit allow-list of fields, never a provider key or raw provider data.
 

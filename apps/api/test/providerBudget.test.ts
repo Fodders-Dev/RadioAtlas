@@ -6,6 +6,7 @@ import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 import { Worker } from 'node:worker_threads';
 import {
+  addGlobalTextBudgetCampaign,
   createBudgetedProviderFetch,
   createProviderBudgetLedger,
   estimateRequestReservationMicroUsd,
@@ -47,6 +48,34 @@ test('budget ledger persists fixed independent campaign reservations across reop
       campaign: 'owner-trial', reservedMicroUsd: 5678, limitMicroUsd: 1_990_000
     });
     reopened.close();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('global text campaign is provisioned additively and persists independently', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'lira-global-budget-'));
+  const databasePath = join(directory, 'budget.sqlite');
+  try {
+    const initial = await initializeProviderBudgetLedger(databasePath);
+    initial.reserve('comparison', 1234);
+    initial.reserve('owner-trial', 5678);
+    initial.close();
+
+    const provisioned = await addGlobalTextBudgetCampaign(databasePath, 20_000_000);
+    assert.deepEqual(provisioned, {
+      campaign: 'global-text', reservedMicroUsd: 0, limitMicroUsd: 20_000_000
+    });
+    const global = await openProviderBudgetLedger(databasePath, { globalTextLimitMicroUsd: 20_000_000 });
+    global.reserve('global-text', 9000);
+    global.close();
+
+    const reopened = await openProviderBudgetLedger(databasePath, { globalTextLimitMicroUsd: 20_000_000 });
+    assert.equal(reopened.snapshot('global-text').reservedMicroUsd, 9000);
+    assert.equal(reopened.snapshot('comparison').reservedMicroUsd, 1234);
+    assert.equal(reopened.snapshot('owner-trial').reservedMicroUsd, 5678);
+    reopened.close();
+    await assert.rejects(openProviderBudgetLedger(databasePath, { globalTextLimitMicroUsd: 30_000_000 }), ProviderBudgetError);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

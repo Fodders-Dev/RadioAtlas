@@ -1,4 +1,27 @@
 # RUNBOOK
+## 2026-10-11 — global GPT-6 Luna text candidate
+
+Owner approved $5 total, including live checks. Separate campaign
+`lira-gpt6-luna-global-text-v1` in the existing persistent ledger; never reset
+comparison/owner-trial or silently raise its cap. Operator helper
+`addGlobalTextBudgetCampaign(path, 5000000)` is additive/idempotent, rejects
+mismatches; runtime only opens a pre-provisioned ledger. Runtime refuses caps
+above $5. Conservative reservations are not the OpenAI invoice.
+
+Opt-in shared API configuration: `LIRA_GLOBAL_GPT_ENABLED=1` and
+`LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD=5`; reuse the existing server-only dedicated
+`LIRA_PILOT_OPENAI_API_KEY`, loopback relay base and persistent budget path.
+DeepSeek remains explicit reserve. Primary/default/reserve share the same
+Tavily client and existing daily cap. Screenshot UI/runtime is excluded from
+this selective release; no NL relay update is required for existing text calls.
+
+Activation is pending verified release. Deploy copies shared configuration to
+the release and recreates PM2 processes; ephemeral `pm2 set` is not durable.
+Back up configuration before changing only these nonsecret flags; never print
+or copy keys locally. Disable global mode by setting its flag to 0, then deploy
+or recreate only our API process with its correct cwd; this restores the
+previous configured default/pilot routes and does not erase the ledger.
+
 ## 2026-10-09 — owner-only GPT-6 Luna bot pilot
 
 Published `b3255b3`: same-SHA gating CI37918923820 and deploy37918923784 success.

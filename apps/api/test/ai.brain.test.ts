@@ -334,6 +334,84 @@ test('smalltalk fast-path skips the planner — exactly one (compose) DeepSeek c
   assert.deepEqual(result.stations, []);
 });
 
+test('normal music conversation carries Lira voice on Telegram and Mini App without turning it into radio routing', async () => {
+  for(const surface of ['telegram','miniapp'] as const) {
+    const {fetchImpl,calls}=makeFetch({compose:'Джаз хорош тем, что даже паузы умеют держать ритм.'});
+    const result=await chatWithAssistant(ask('Что тебе нравится в джазе?',{surface}),makeDeps(fetchImpl));
+    assert.equal(calls.length,1);
+    assert.equal(calls[0]?.phase,'compose');
+    assert.ok(calls[0]?.body.messages.some((message:any)=>message.role==='system' && message.content.includes('Отвечай именно на то, что человек сказал')));
+    assert.ok(result.reply.includes('даже паузы'),surface);
+    assert.deepEqual(result.stations,[]);
+    assert.deepEqual(result.actions,[{kind:'none'}]);
+  }
+});
+
+test('a direct identity question permits an honest answer; unsolicited identity still falls back', async () => {
+  const identity='Я — ИИ-собеседница RadioAtlas.';
+  const direct=makeFetch({compose:identity});
+  const answer=await chatWithAssistant(ask('Ты бот или человек?'),makeDeps(direct.fetchImpl));
+  assert.match(answer.reply,/ИИ-собеседница/);
+  assert.equal(direct.calls.filter(call=>call.phase==='compose').length,1);
+
+  const unsolicited=makeFetch({compose:identity});
+  const ordinary=await chatWithAssistant(ask('Что думаешь о джазе?'),makeDeps(unsolicited.fetchImpl));
+  assert.doesNotMatch(ordinary.reply,/ИИ-собеседница/);
+  assert.ok(ordinary.reply.length>0,'unsafe unsolicited identity text falls back warmly');
+});
+
+test('bounded recommendation keeps cards and actions while accepting only a safe optional voice', async () => {
+  const tools:ToolProvider={...stubTools,searchStations:async()=>[station()]};
+  const safeVoice='Ночной поезд под дождём — красивый образ; я бы оставила в нём побольше воздуха.';
+  const response=(voice?:string,extra:Record<string,unknown>={})=>JSON.stringify({v:1,cards:[{stationId:'uuid-jazz',tagKeys:['t0']}],...(voice === undefined?{}:{voice}),...extra});
+  const invalid=[
+    response('Paris Jazz сегодня играет до утра.'),
+    response('Сейчас играет джаз.'),
+    response(`Мне нравится этот образ. ${'Очень '.repeat(45)}`),
+    response('Мой музыкальный вкус.',{debug:'unexpected'}),
+    '{broken'
+  ];
+  const run=async(compose:string,history?:ChatInput['history'],userMessage='Посоветуй джаз под ночной поезд. Не включай.')=>{
+    const {fetchImpl,calls}=makeFetch({planner:['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}','{"action":"final"}'],compose});
+    const result=await chatWithAssistant(ask(userMessage,{history}),makeDeps(fetchImpl,{tools}));
+    assert.deepEqual(result.stations.map(row=>row.stationuuid),['uuid-jazz']);
+    assert.deepEqual(result.actions,[{kind:'open-station',stationuuid:'uuid-jazz'}]);
+    assert.ok(!result.actions.some(action=>action.kind==='play'));
+    const composeCall=calls.find(call=>call.phase==='compose');
+    assert.ok(composeCall);
+    assert.ok(JSON.stringify(composeCall.body).includes('voice'));
+    return {result,calls};
+  };
+  const accepted=await run(response(safeVoice));
+  assert.ok(accepted.result.reply.startsWith(safeVoice));
+  assert.match(accepted.result.reply,/джазовая сторона/);
+  assert.equal(accepted.calls.filter(call=>call.phase==='compose').length,1);
+  const legacy=await run(JSON.stringify({v:1,cards:[{stationId:'uuid-jazz',tagKeys:['t0']}]}));
+  assert.match(legacy.result.reply,/джазовая сторона/);
+  assert.doesNotMatch(legacy.result.reply,/Paris Jazz/);
+  for(const compose of invalid) {
+    const rejected=await run(compose);
+    assert.match(rejected.result.reply,/джазовая сторона/);
+    assert.doesNotMatch(rejected.result.reply,/Paris Jazz|сейчас играет|до утра/);
+  }
+  const followupVoice='Да, тут просится чуть больше воздуха.';
+  const followupFetch=makeFetch({
+    planner:['{"action":"use_tool","intent":"recommend","tool":"search_stations","args":{"query":"jazz"},"continuity":{"mode":"continue","fromUserTurnId":"u0"}}'],
+    compose:response(followupVoice)
+  });
+  const followup=await chatWithAssistant(ask('Ещё один такой же, но тише.',{history:[
+    {role:'user',text:'Посоветуй джаз под ночной поезд. Не включай.'},
+    {role:'assistant',text:'Вот варианты. Хочешь включить?'}
+  ]}),makeDeps(followupFetch.fetchImpl,{tools}));
+  const followupCompose=followupFetch.calls.find(call=>call.phase==='compose');
+  assert.ok(followupCompose);
+  assert.ok(JSON.stringify(followupCompose?.body).includes('Посоветуй джаз под ночной поезд. Не включай.'),'composer received the earlier USER request as context');
+  assert.ok(followup.reply.startsWith(followupVoice),'valid recommendation JSON voice survives the continuation lane');
+  assert.match(followup.reply,/джазовая сторона/,'verified evidence summary remains beside follow-up voice');
+  assert.deepEqual(followup.stations.map(row=>row.stationuuid),['uuid-jazz']);
+  assert.ok(!followup.actions.some(action=>action.kind==='play'));
+});
+
 test('action intent runs the planner → search tool → stations come from observations only', async () => {
   const { fetchImpl, calls } = makeFetch({
     planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
@@ -1402,18 +1480,17 @@ test('ANTI-FABRICATION: the composer is told NEVER to name a station that is not
   assert.ok(guarded, 'the no-fabricated-station-names guard reached the composer');
 });
 
-test('COMPOSE: verified stations force a station-first reply instead of permission asking', async () => {
+test('COMPOSE: bounded recommendations do not ask permission or require station-name prose', async () => {
   const { fetchImpl, calls } = makeFetch({
     planner: ['{"action":"use_tool","tool":"search_stations","args":{"query":"jazz"}}', '{"action":"final"}'],
     compose: 'Подобрала тёплые станции.'
   });
   await chatWithAssistant(ask('давай радио'), makeDeps(fetchImpl));
   const compose = calls.find((c) => c.phase === 'compose');
-  assert.ok(
-    compose?.body.messages.some(
-      (m: any) => m.role === 'system' && String(m.content).includes('station-first')
-    )
-  );
+  const boundedNote=compose?.body.messages.find((m:any)=>m.role==='system' && String(m.content).includes('Карточки уже содержат проверенные станции'));
+  assert.ok(boundedNote);
+  assert.doesNotMatch(String(boundedNote?.content),/ТОЧНОМУ НАЗВАНИЮ|по названиям/);
+  assert.match(String(boundedNote?.content),/Не задерживай результат, не проси разрешения включить/);
 });
 
 test('VIBE BACKSTOP (4): a factual/news question with a music keyword does NOT trigger the backstop — the honesty guard survives', async () => {
@@ -2228,7 +2305,7 @@ test('summarizeStationSlate omits region when countries are mixed, and is null o
   assert.equal(summarizeStationSlate([station({ stationuuid: 'x', name: 'X', tags: ['no tags'] })]), null);
 });
 
-test('the grounded slate summary reaches the composer on a genre search', async () => {
+test('per-card verified genre evidence reaches the bounded composer', async () => {
   const tools: ToolProvider = {
     ...stubTools,
     searchStations: async () => [
@@ -2241,7 +2318,9 @@ test('the grounded slate summary reaches the composer on a genre search', async 
     compose: 'Лови глубокий хаус.'
   });
   await chatWithAssistant(ask('посоветуй deep house'), makeDeps(fetchImpl, { tools }));
-  assert.ok(composeText(calls).includes('жанры — deep house'), 'grounded genre summary reached composer');
+  const compose=calls.find(call=>call.phase==='compose');
+  assert.ok(compose);
+  assert.ok(JSON.stringify(compose?.body).includes('deep house'),'verified per-card genre evidence reached composer');
 });
 
 // --- «не то / дай другое / ещё» reject-and-refresh loop -------------------------

@@ -122,10 +122,12 @@ export type ChatUsage = { prompt: number; completion: number };
 export type ModelErrorKind =
   | 'auth'
   | 'billing'
+  | 'budget'
   | 'rate_limit'
   | 'provider_unavailable'
   | 'timeout'
   | 'network'
+  | 'invalid_request'
   | 'http';
 
 export type ChatResult = {

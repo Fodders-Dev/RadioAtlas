@@ -16,6 +16,13 @@ test('record then get returns the exchange as user/assistant turns in order', ()
   ]);
 });
 
+test('clear drops the user conversation for /reset', () => {
+  const h = createChatHistory({ now: () => 1000 });
+  h.record('u1', 'first', 'answer');
+  h.clear('u1');
+  assert.deepEqual(h.get('u1'), []);
+});
+
 test('history is per-user (one user never sees another)', () => {
   const h = createChatHistory({ now: () => 1 });
   h.record('u1', 'a', 'A');

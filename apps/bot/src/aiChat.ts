@@ -28,6 +28,8 @@ export type AiChatResult = {
   stations: AiChatStation[];
   serviceLinks: AiServiceLink[];
   sources: AiSource[];
+  provider?: { name: 'gpt-6-luna' | 'deepseek'; fallback: boolean };
+  providerFallback?: { token: string; reason: 'unavailable' | 'budget'; provider: 'deepseek' };
 };
 
 export type AiChatDeps = {
@@ -42,6 +44,155 @@ export type AiChatInput = {
   telegramId: string | number;
   text: string;
   history?: AiChatHistoryTurn[];
+  fallbackToken?: string;
+};
+
+export const AI_FALLBACK_OFFER_PREFIX = 'lira_ds:';
+export type AiFallbackOffer = {
+  callbackData: string;
+  token: string;
+  userId: string;
+  chatId: string;
+  input: Omit<AiChatInput, 'fallbackToken'>;
+  generation: string;
+  createdAt: number;
+};
+
+/** Bounded, expiring, one-use in-memory offers. The opaque callback id never
+ * contains the API ticket and consumption binds it to the original private chat. */
+export const createAiFallbackOffers = (options: {
+  now: () => number;
+  makeId: () => string;
+  ttlMs?: number;
+  maxOffers?: number;
+  maxUsers?: number;
+}) => {
+  const ttlMs = options.ttlMs ?? 5 * 60_000;
+  const maxOffers = Math.max(1, options.maxOffers ?? 2000);
+  const maxUsers = Math.max(1, options.maxUsers ?? 5000);
+  const offers = new Map<string, AiFallbackOffer>();
+  const generations = new Map<string, { value: string; touchedAt: number }>();
+  const pruneGenerations = () => {
+    while (generations.size > maxUsers) {
+      const oldest = [...generations.entries()].sort((a, b) => a[1].touchedAt - b[1].touchedAt)[0]?.[0];
+      if (!oldest) break;
+      generations.delete(oldest);
+    }
+  };
+  const currentGeneration = (userId: string) => {
+    const entry = generations.get(userId);
+    if (entry) entry.touchedAt = options.now();
+    return entry?.value || '';
+  };
+  const isCurrent = (userId: string, generation: string) =>
+    Boolean(generation) && currentGeneration(userId) === generation;
+  const prune = () => {
+    const now = options.now();
+    for (const [id, offer] of offers) if (now - offer.createdAt >= ttlMs) offers.delete(id);
+    while (offers.size >= maxOffers) offers.delete(offers.keys().next().value as string);
+  };
+  return {
+    invalidateUser(userId: string) {
+      if (!userId) return;
+      generations.set(userId, { value: options.makeId(), touchedAt: options.now() });
+      pruneGenerations();
+      for (const [id, offer] of offers) if (offer.userId === userId) offers.delete(id);
+    },
+    isCurrent(userId: string, generation: string) {
+      return isCurrent(userId, generation);
+    },
+    currentGeneration,
+    create(input: Omit<AiChatInput, 'fallbackToken'>, token: string, userId: string, chatId: string, generation: string) {
+      if (!token || !userId || !chatId || chatId !== userId || !isCurrent(userId, generation)) return null;
+      prune();
+      const id = options.makeId().replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+      const callbackData = `${AI_FALLBACK_OFFER_PREFIX}${id}`;
+      if (!id || callbackData.length > 64) return null;
+      offers.set(id, {
+        callbackData,
+        token,
+        userId,
+        chatId,
+        input: { ...input, history: (input.history || []).map((turn) => ({ ...turn })) },
+        generation,
+        createdAt: options.now()
+      });
+      return callbackData;
+    },
+    consume(callbackData: string, userId: string, chatId: string) {
+      prune();
+      if (!callbackData.startsWith(AI_FALLBACK_OFFER_PREFIX)) return null;
+      const id = callbackData.slice(AI_FALLBACK_OFFER_PREFIX.length);
+      const offer = offers.get(id);
+      if (!offer || offer.callbackData !== callbackData || offer.userId !== userId || offer.chatId !== chatId || chatId !== userId || !isCurrent(userId, offer.generation)) return null;
+      offers.delete(id);
+      return { ...offer, input: { ...offer.input, history: (offer.input.history || []).map((turn) => ({ ...turn })) } };
+    },
+    remove(callbackData: string) {
+      if (callbackData.startsWith(AI_FALLBACK_OFFER_PREFIX)) offers.delete(callbackData.slice(AI_FALLBACK_OFFER_PREFIX.length));
+    },
+    size: () => offers.size
+  };
+};
+
+/** Shared callback path: consume once, await user-visible callback handling,
+ * revalidate, then make exactly one provider retry with the captured snapshot. */
+export const runAiFallbackCallback = async (options: {
+  offers: ReturnType<typeof createAiFallbackOffers>;
+  callbackData: string;
+  userId: string;
+  chatId: string;
+  beforeRequest: (offer: AiFallbackOffer) => Promise<boolean>;
+  request: (input: AiChatInput) => Promise<AiChatResult | null>;
+}): Promise<{ offer: AiFallbackOffer; result: AiChatResult | null } | null> => {
+  const offer = options.offers.consume(options.callbackData, options.userId, options.chatId);
+  if (!offer) return null;
+  if (!await options.beforeRequest(offer)) return null;
+  if (!options.offers.isCurrent(options.userId, offer.generation)) return null;
+  const result = await options.request({ ...offer.input, fallbackToken: offer.token });
+  if (!options.offers.isCurrent(options.userId, offer.generation)) return null;
+  return { offer, result };
+};
+
+/** Store the one-use ticket only while the warning is actually deliverable. */
+export const deliverAiFallbackOffer = async (options: {
+  offers: ReturnType<typeof createAiFallbackOffers>;
+  input: Omit<AiChatInput, 'fallbackToken'>;
+  token: string;
+  userId: string;
+  chatId: string;
+  generation: string;
+  deliver: (callbackData: string) => Promise<void>;
+}): Promise<string | null> => {
+  const callbackData = options.offers.create(
+    options.input, options.token, options.userId, options.chatId, options.generation
+  );
+  if (!callbackData) return null;
+  try {
+    await options.deliver(callbackData);
+    if (!options.offers.isCurrent(options.userId, options.generation)) {
+      options.offers.remove(callbackData);
+      return null;
+    }
+    return callbackData;
+  } catch (error) {
+    options.offers.remove(callbackData);
+    throw error;
+  }
+};
+
+/** Write conversation history only after Telegram accepted the reply and the
+ * originating user generation is still current. */
+export const deliverAiChatReply = async (options: {
+  isCurrent: () => boolean;
+  deliver: () => Promise<void>;
+  recordDeliveredReply: () => void;
+}): Promise<boolean> => {
+  if (!options.isCurrent()) return false;
+  await options.deliver();
+  if (!options.isCurrent()) return false;
+  options.recordDeliveredReply();
+  return true;
 };
 
 // Warm fallback shown whenever the round-trip fails (no apiUrl/token, network
@@ -130,7 +281,8 @@ export const requestAiChat = async (
     const payload = JSON.stringify({
       telegramId: String(input.telegramId),
       text: input.text,
-      history: input.history || []
+      history: input.history || [],
+      ...(input.fallbackToken ? { fallbackToken: input.fallbackToken } : {})
     });
     const init = (): RequestInit => ({
       method: 'POST',
@@ -156,7 +308,15 @@ export const requestAiChat = async (
       reply: body.reply,
       stations: Array.isArray(body.stations) ? body.stations : [],
       serviceLinks: Array.isArray(body.serviceLinks) ? body.serviceLinks : [],
-      sources: Array.isArray(body.sources) ? body.sources : []
+      sources: Array.isArray(body.sources) ? body.sources : [],
+      provider: body.provider?.name === 'gpt-6-luna' || body.provider?.name === 'deepseek'
+        ? { name: body.provider.name, fallback: body.provider.fallback === true }
+        : undefined,
+      providerFallback: body.providerFallback && typeof body.providerFallback.token === 'string' &&
+        (body.providerFallback.reason === 'unavailable' || body.providerFallback.reason === 'budget') &&
+        body.providerFallback.provider === 'deepseek'
+        ? { token: body.providerFallback.token, reason: body.providerFallback.reason, provider: 'deepseek' }
+        : undefined
     };
   } catch {
     return null;

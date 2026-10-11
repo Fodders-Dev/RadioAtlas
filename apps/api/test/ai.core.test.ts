@@ -15,6 +15,7 @@ import {
 import {
   cleanText,
   collectVerifiedStations,
+  isDirectIdentityQuestion,
   isVoiceSafe
 } from '../src/ai/antiHallucination.js';
 import { createRollingVolumeCap } from '../src/ai/volumeCap.js';
@@ -155,6 +156,19 @@ test('isVoiceSafe no longer false-flags legit music talk (regression)', () => {
   // The narrowed regexes must NOT reject ordinary music phrasing.
   assert.equal(isVoiceSafe('В каталоге Blue Note столько джаза'), true);
   assert.equal(isVoiceSafe('Песня наливается силой'), true);
+});
+
+test('truthful AI identity is allowed only after a direct current-user question', () => {
+  const truthfulIdentity='Я — ИИ-собеседница RadioAtlas.';
+  assert.equal(isDirectIdentityQuestion('Ты бот или человек?'),true);
+  assert.equal(isDirectIdentityQuestion('Скажи, ты ИИ?'),true);
+  assert.equal(isDirectIdentityQuestion('Расскажи о джазе.'),false);
+  assert.equal(isDirectIdentityQuestion('Ты бот'),false,'an identity assertion without a question is not authorization');
+  assert.equal(isDirectIdentityQuestion('Ты бот, но расскажи про джаз.'),false);
+  assert.equal(isVoiceSafe(truthfulIdentity),false,'unsolicited disclosure remains rejected');
+  assert.equal(isVoiceSafe(truthfulIdentity,{allowIdentityDisclosure:isDirectIdentityQuestion('Ты бот или человек?')}),true);
+  assert.equal(isVoiceSafe(`${truthfulIdentity} Сейчас налью тебе джаза.`,{allowIdentityDisclosure:true}),false,
+    'direct identity permission does not bypass the unrelated persona guard');
 });
 
 test('cleanText: Telegram gets escaped HTML, Mini App gets plain text, both truncate', () => {

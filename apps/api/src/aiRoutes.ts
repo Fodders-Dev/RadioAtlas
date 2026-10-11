@@ -10,6 +10,7 @@
 // runtime.checkRateLimit so it can pre-empt the model call cheaply.
 
 import type express from 'express';
+import { createHash } from 'node:crypto';
 import { runLiraAgent } from './ai/agentRunner.js';
 import {
   createCatalogToolProvider,
@@ -17,6 +18,7 @@ import {
 } from './ai/catalogToolProvider.js';
 import { buildFallbackResult } from './ai/fallbacks.js';
 import { publicWebSources } from './ai/publicSources.js';
+import type { ProviderChatResult } from './ai/providerController.js';
 import { createRollingVolumeCap, type RollingVolumeCap } from './ai/volumeCap.js';
 import type {
   AssistantDeps,
@@ -34,6 +36,7 @@ import type {
 } from './ai/types.js';
 import { MediaOverloadError, ProtectedMediaRoute } from './media/protection.js';
 import { appendAgentRun, appendAlert, bumpCounter, setGauge } from './observabilityStore.js';
+import { getBearerToken } from './routeSupport.js';
 
 const MAX_MESSAGE_CHARS = 2000;
 const MAX_HISTORY_TURNS = 10;
@@ -70,6 +73,30 @@ export const createAssistantRuntimeAdmission = (options: {
 export type AssistantRuntime = {
   chat: (input: ChatInput) => Promise<ChatResult>;
   checkRateLimit: (req: express.Request) => number | null;
+};
+
+export type PrimaryProviderController = {
+  chat: (input: ChatInput, args?: { fallbackToken?: string; identity?: string }) => Promise<ProviderChatResult>;
+  checkRateLimit: (req: express.Request) => number | null;
+};
+
+/** Stable ticket binding derived only from authenticated account state or
+ * trusted transport metadata; caller-supplied account/session IDs are ignored. */
+export const createAiTicketIdentityResolver = (
+  lookupAccount: (token: string) => Promise<{ id: string } | null>
+) => async (req: express.Request): Promise<string> => {
+  const bearer = getBearerToken(req);
+  if (bearer) {
+    const account = await lookupAccount(bearer).catch(() => null);
+    if (account?.id) {
+      const sessionFingerprint = createHash('sha256').update(bearer).digest('hex');
+      return `account:${account.id}:session:${sessionFingerprint}`;
+    }
+  }
+  const address = req.ip || req.socket.remoteAddress || 'unknown';
+  const userAgent = String(req.headers['user-agent'] || '').slice(0, 512);
+  const anonymousId = createHash('sha256').update(`${address}\n${userAgent}`).digest('hex');
+  return `anonymous:${anonymousId}`;
 };
 
 export const createAssistantRuntime = (options: {
@@ -427,10 +454,16 @@ export const recordChatTelemetry = (
 
 export const registerAiRoutes = (
   app: express.Express,
-  options: { runtime: AssistantRuntime }
+  options: {
+    runtime?: AssistantRuntime;
+    primaryProviderController?: PrimaryProviderController;
+    /** Server-side session lookup and anonymous affinity are supplied by the composition root. */
+    resolveTicketIdentity: (req: express.Request) => Promise<string>;
+  }
 ) => {
+  if (!options.runtime && !options.primaryProviderController) throw new Error('AI route runtime is required');
   app.post('/ai/chat', async (req, res) => {
-    const retryAfter = options.runtime.checkRateLimit(req);
+    const retryAfter = (options.primaryProviderController || options.runtime!).checkRateLimit(req);
     if (retryAfter !== null) {
       res.setHeader('Retry-After', String(retryAfter));
       res.status(429).json({ error: 'ai chat rate limit exceeded' });
@@ -454,7 +487,7 @@ export const registerAiRoutes = (
       // runtime.chat already applies the volume cap + concurrency guard and
       // degrades capacity overloads to a warm fallback, so the route only
       // handles genuine failures.
-      const result = await options.runtime.chat({
+      const input: ChatInput = {
         userMessage: message.slice(0, MAX_MESSAGE_CHARS),
         history,
         surface: 'miniapp',
@@ -464,7 +497,22 @@ export const registerAiRoutes = (
         agentContext: parseAgentClientContext(req.body?.agentContext),
         actionReceipts,
         safetyIdentifier: parseSafetyIdentifier(req.body?.safetyIdentifier)
-      });
+      };
+      const fallbackTokenPresent = Object.prototype.hasOwnProperty.call(req.body || {}, 'fallbackToken');
+      const fallbackToken = fallbackTokenPresent
+        ? typeof req.body?.fallbackToken === 'string' ? req.body.fallbackToken : ''
+        : undefined;
+      const result: ProviderChatResult = options.primaryProviderController
+        ? await options.primaryProviderController.chat(input, {
+            fallbackToken,
+            identity: await options.resolveTicketIdentity(req)
+          })
+        : fallbackTokenPresent
+          ? {
+              reply: 'Не удалось подтвердить повторный запрос. Отправь сообщение ещё раз.',
+              stations: [], serviceLinks: [], sources: [], actions: []
+            }
+          : await options.runtime!.chat(input);
       recordChatTelemetry('miniapp', startedAt, result, actionReceipts);
       res.json({
         reply: result.reply,
@@ -474,6 +522,8 @@ export const registerAiRoutes = (
         // them to the browser; the UI only needs attribution metadata.
         sources: publicWebSources(result.sources),
         actions: result.actions,
+        ...(result.provider ? { provider: result.provider } : {}),
+        ...(result.providerFallback ? { providerFallback: result.providerFallback } : {}),
         run: result.agentRun
           ? {
               runId: result.agentRun.runId,

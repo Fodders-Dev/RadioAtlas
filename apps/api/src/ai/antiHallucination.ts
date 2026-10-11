@@ -2,9 +2,10 @@
 //  1. The ONLY stations that become cards/buttons are the ones a tool actually
 //     returned (collectVerifiedStations) — a station the model merely names in
 //     prose never produces a button. This is the anti-hallucination backstop.
-//  2. The reply must sound like «Лира» — never disclose bot/AI, never the
-//     bar/bartender metaphor, never tech-speak ("база/каталог/выдача"). A
-//     violation rejects the text so the caller swaps a warm fallback.
+//  2. The reply must sound like «Лира» — no unsolicited bot/AI disclosure,
+//     no bar/bartender metaphor, and no tech-speak ("база/каталог/выдача"). A
+//     direct identity question may get an honest answer; other violations
+//     reject the text so the caller swaps a warm fallback.
 
 import type { ToolObservation, VerifiedStationRef, WebSource } from './types.js';
 
@@ -61,18 +62,17 @@ export const collectVerifiedSources = (observations: ToolObservation[]): WebSour
   return out;
 };
 
-// Persona violations → reject (caller uses a warm deterministic fallback,
-// NEVER a sterile/error reply). Kept targeted to avoid false-flagging ordinary
-// music talk.
-// NOTE: JS \b / \w are ASCII-only and do NOT mark Cyrillic word boundaries, so
-// these match plain (case-insensitive) stems instead. Kept targeted so ordinary
-// music talk is not false-flagged.
-const VOICE_VIOLATIONS: RegExp[] = [
+// Identity disclosure is rejected unless the current user directly asks who
+// Lira is. This does not relax the unrelated persona and product guards below.
+const IDENTITY_VIOLATIONS: RegExp[] = [
   /я\s*[—-]?\s*(?:бот|ии|ассистент|нейросет|искусственн|программа|алгоритм)/i,
   // noun forms: «являюсь ботом / нейросетью / моделью» (Cyrillic class — \w is
   // ASCII-only and would not consume «юсь»)
   /явля[а-яё]*\s+(?:ботом|ассистентом|нейросет[а-яё]*|программой|моделью)/i,
-  /языков(?:ая|ой|ую)\s+модел/i,
+  /языков(?:ая|ой|ую)\s+модел/i
+];
+
+const PERSONA_VIOLATIONS: RegExp[] = [
   /бармен/i,
   // «налью / налей / наливаю…» but NOT «песня наливается силой»
   /налива(?:ю|ешь|ем)|налью|налей/i,
@@ -83,9 +83,21 @@ const VOICE_VIOLATIONS: RegExp[] = [
   /баз[аеуы]\s+данных/i
 ];
 
-export const isVoiceSafe = (text: string): boolean => {
+// Keep this classifier intentionally narrow and based on the current USER
+// message only. History or an assistant's earlier offer does not authorize an
+// unsolicited identity disclosure.
+export const isDirectIdentityQuestion = (text: string): boolean => {
+  const hasQuestionMark = /[?？]/u.test(String(text || ''));
+  const value = String(text || '').trim().replace(/[!?.,…]+$/u, '').trim().toLocaleLowerCase();
+  if (/^(?:(?:скажи|подскажи|слушай)[, ]+)?(?:а\s+)?(?:кто\s+ты|ты\s+кто)$/iu.test(value)) return true;
+  const identityQuestion = /^(?:(?:скажи|подскажи|слушай)[, ]+)?(?:а\s+)?ты\s+(?:бот|ии|ассистент|нейросеть|человек|настоящ(?:ий|ая)\s+человек|жив(?:ой|ая))(?:\s+или\s+(?:бот|ии|ассистент|нейросеть|человек))?$/iu.test(value);
+  return identityQuestion && (hasQuestionMark || /\s+или\s+/iu.test(value));
+};
+
+export const isVoiceSafe = (text: string, options: {allowIdentityDisclosure?: boolean} = {}): boolean => {
   const value = String(text || '');
-  return !VOICE_VIOLATIONS.some((pattern) => pattern.test(value));
+  return (options.allowIdentityDisclosure || !IDENTITY_VIOLATIONS.some(pattern => pattern.test(value))) &&
+    !PERSONA_VIOLATIONS.some((pattern) => pattern.test(value));
 };
 
 const escapeHtml = (text: string) =>

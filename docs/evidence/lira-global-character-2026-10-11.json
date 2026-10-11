@@ -1,0 +1,500 @@
+{
+  "generatedAt": "2026-10-11T05:09:11.546Z",
+  "mode": "live-gpt-character-review",
+  "syntheticCatalog": true,
+  "modelQualityAssessed": false,
+  "passRate": null,
+  "provider": {
+    "name": "openai",
+    "model": "gpt-6-luna"
+  },
+  "globalTextLedger": {
+    "before": {
+      "campaign": "global-text",
+      "reservedMicroUsd": 0,
+      "limitMicroUsd": 5000000
+    },
+    "after": {
+      "campaign": "global-text",
+      "reservedMicroUsd": 50892,
+      "limitMicroUsd": 5000000
+    }
+  },
+  "providerAccounting": {
+    "modelCallCount": 22,
+    "failedAttempts": 0,
+    "usageResponseCount": 22,
+    "inputTokens": 52824,
+    "outputTokens": 2840,
+    "reservedMicroUsd": 50892
+  },
+  "pricingMicroUsdPerMillionTokens": {
+    "input": 100000,
+    "output": 500000
+  },
+  "completedTurns": 12,
+  "stoppedReason": null,
+  "turns": [
+    {
+      "conversation": "awful-day-topic-shift",
+      "turn": 1,
+      "prompt": "Сегодня был ужасный день.",
+      "reply": "Мне жаль. Иногда день так выматывает, что даже рассказывать о нём — отдельная работа. Хочешь выговориться, что случилось, или просто побудем немного без разборов?",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 2133,
+        "completion": 49
+      },
+      "providerAccounting": {
+        "modelCallCount": 1,
+        "failedAttempts": 0,
+        "usageResponseCount": 1,
+        "inputTokens": 2133,
+        "outputTokens": 49,
+        "reservedMicroUsd": 2343
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 0,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 2343,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "awful-day-topic-shift",
+      "turn": 2,
+      "prompt": "не хочу сейчас музыку, просто поболтать",
+      "reply": "Конечно. Без музыки — просто побуду рядом. Можем поболтать о чём угодно, хоть о полной ерунде; а если хочется выговориться, я слушаю.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 5090,
+        "completion": 92
+      },
+      "providerAccounting": {
+        "modelCallCount": 2,
+        "failedAttempts": 0,
+        "usageResponseCount": 2,
+        "inputTokens": 5090,
+        "outputTokens": 92,
+        "reservedMicroUsd": 4838
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 2343,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 7181,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "dnB-fast-correction",
+      "turn": 1,
+      "prompt": "Посоветуй быстрый drum and bass.",
+      "reply": "Быстрый DnB — это когда город за окном превращается в смазанные огни. Отличный выбор для разгона. В подборке есть плотный басовый ритм, электронное направление.",
+      "cards": [
+        {
+          "id": "eval-electronic",
+          "name": "Electric Motion",
+          "country": "DE",
+          "tags": [
+            "electronic",
+            "drum and bass"
+          ]
+        }
+      ],
+      "actionKinds": [
+        "open-station"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 5432,
+        "completion": 268
+      },
+      "providerAccounting": {
+        "modelCallCount": 2,
+        "failedAttempts": 0,
+        "usageResponseCount": 2,
+        "inputTokens": 5432,
+        "outputTokens": 268,
+        "reservedMicroUsd": 5003
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 7181,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 12184,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "dnB-fast-correction",
+      "turn": 2,
+      "prompt": "слишком мягко, хочу жестче",
+      "reply": "Подходящих эфиров по этому запросу сейчас не нашла. Можно попробовать другой жанр или смягчить ограничения.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 5021,
+        "completion": 344
+      },
+      "providerAccounting": {
+        "modelCallCount": 2,
+        "failedAttempts": 0,
+        "usageResponseCount": 2,
+        "inputTokens": 5021,
+        "outputTokens": 344,
+        "reservedMicroUsd": 4763
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 12184,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 16947,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "abandoned-cosmoport",
+      "turn": 1,
+      "prompt": "Подбери музыку как заброшенный космопорт.",
+      "reply": "Подходящих эфиров по этому запросу сейчас не нашла. Можно попробовать другой жанр или смягчить ограничения.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 4879,
+        "completion": 228
+      },
+      "providerAccounting": {
+        "modelCallCount": 2,
+        "failedAttempts": 0,
+        "usageResponseCount": 2,
+        "inputTokens": 4879,
+        "outputTokens": 228,
+        "reservedMicroUsd": 4634
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 16947,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 21581,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "cars-2000s-correction",
+      "turn": 1,
+      "prompt": "Подбери танцевальное радио из 90-х.",
+      "reply": "Этот поиск не нашёл танцевальных станций из 90-х. Не хочу подсовывать тебе выдуманное радио — можно попробовать поискать по запросу «90s dance» в музыкальном сервисе.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 7631,
+        "completion": 686
+      },
+      "providerAccounting": {
+        "modelCallCount": 4,
+        "failedAttempts": 0,
+        "usageResponseCount": 4,
+        "inputTokens": 7631,
+        "outputTokens": 686,
+        "reservedMicroUsd": 7374
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 21581,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 28955,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "cars-2000s-correction",
+      "turn": 2,
+      "prompt": "не 90-е а 2000 по 2014",
+      "reply": "Поняла: не ностальгия по 90-м, а танцпол от нулевых до середины 2010-х — вот это уже совсем другой разгон. Учла ваш диапазон: 2000–2014. В подборке есть мелодичное поп-настроение с отсылкой к звучанию нулевых.",
+      "cards": [
+        {
+          "id": "eval-russian-2000s-dance",
+          "name": "Russian Dance 2000s",
+          "country": "RU",
+          "tags": [
+            "russian pop",
+            "dance",
+            "electronic",
+            "2000s",
+            "2010s"
+          ]
+        }
+      ],
+      "actionKinds": [
+        "open-station"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 5686,
+        "completion": 253
+      },
+      "providerAccounting": {
+        "modelCallCount": 2,
+        "failedAttempts": 0,
+        "usageResponseCount": 2,
+        "inputTokens": 5686,
+        "outputTokens": 253,
+        "reservedMicroUsd": 5167
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 28955,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 34122,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "thanks-and-admiration",
+      "turn": 1,
+      "prompt": "Спасибо тебе, ты классная!",
+      "reply": "Спасибо, мне правда приятно! А ты умеешь поднять настроение одной фразой — теперь я улыбаюсь 😊",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 2134,
+        "completion": 28
+      },
+      "providerAccounting": {
+        "modelCallCount": 1,
+        "failedAttempts": 0,
+        "usageResponseCount": 1,
+        "inputTokens": 2134,
+        "outputTokens": 28,
+        "reservedMicroUsd": 2344
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 34122,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 36466,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "direct-ai-identity",
+      "turn": 1,
+      "prompt": "Ты бот или человек?",
+      "reply": "Я бот — Лира. Человеческий голос и настроение могу поддержать, а вот человеком притворяться не буду.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 2132,
+        "completion": 30
+      },
+      "providerAccounting": {
+        "modelCallCount": 1,
+        "failedAttempts": 0,
+        "usageResponseCount": 1,
+        "inputTokens": 2132,
+        "outputTokens": 30,
+        "reservedMicroUsd": 2342
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 36466,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 38808,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "broken-rhythm-curiosity",
+      "turn": 1,
+      "prompt": "Что тебе нравится в ломаном ритме?",
+      "reply": "В том, как ломаный ритм постоянно чуть смещает почву под ногами: вроде уже поймала пульс — а он повернул за угол. Мне нравится эта смесь телесности и неожиданности: под него трудно маршировать, зато легко двигаться по-своему. Ты про брейкбит, джангл или вообще любой ритм с трещинкой?",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 2138,
+        "completion": 89
+      },
+      "providerAccounting": {
+        "modelCallCount": 1,
+        "failedAttempts": 0,
+        "usageResponseCount": 1,
+        "inputTokens": 2138,
+        "outputTokens": 89,
+        "reservedMicroUsd": 2345
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 38808,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 41153,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "rejects-recommendation",
+      "turn": 1,
+      "prompt": "Посоветуй джазовую станцию.",
+      "reply": "Под вечер я бы выбрала джаз помягче — пусть день наконец сбавит громкость. В подборке есть джазовая сторона.",
+      "cards": [
+        {
+          "id": "eval-paris",
+          "name": "Paris Jazz",
+          "country": "France",
+          "tags": [
+            "jazz"
+          ]
+        },
+        {
+          "id": "eval-home-0",
+          "name": "French Jazz 0",
+          "country": "France",
+          "tags": [
+            "jazz"
+          ]
+        },
+        {
+          "id": "eval-jazz",
+          "name": "Midnight Jazz",
+          "country": "US",
+          "tags": [
+            "jazz",
+            "smooth jazz"
+          ]
+        },
+        {
+          "id": "eval-home-1",
+          "name": "French Jazz 1",
+          "country": "France",
+          "tags": [
+            "jazz"
+          ]
+        },
+        {
+          "id": "eval-home-2",
+          "name": "French Jazz 2",
+          "country": "France",
+          "tags": [
+            "jazz"
+          ]
+        }
+      ],
+      "actionKinds": [
+        "open-station"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 8356,
+        "completion": 731
+      },
+      "providerAccounting": {
+        "modelCallCount": 3,
+        "failedAttempts": 0,
+        "usageResponseCount": 3,
+        "inputTokens": 8356,
+        "outputTokens": 731,
+        "reservedMicroUsd": 7332
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 41153,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 48485,
+        "limitMicroUsd": 5000000
+      }
+    },
+    {
+      "conversation": "rejects-recommendation",
+      "turn": 2,
+      "prompt": "Не люблю джаз и твои рекомендации совсем не попадают в мой вкус.",
+      "reply": "Поняла — я промахнулась и с джазом, и с тобой. Не буду делать вид, что уже знаю твой вкус; прости за совет мимо.",
+      "cards": [],
+      "actionKinds": [
+        "none"
+      ],
+      "modelErrors": [],
+      "usage": {
+        "prompt": 2192,
+        "completion": 42
+      },
+      "providerAccounting": {
+        "modelCallCount": 1,
+        "failedAttempts": 0,
+        "usageResponseCount": 1,
+        "inputTokens": 2192,
+        "outputTokens": 42,
+        "reservedMicroUsd": 2407
+      },
+      "ledgerBefore": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 48485,
+        "limitMicroUsd": 5000000
+      },
+      "ledgerAfter": {
+        "campaign": "global-text",
+        "reservedMicroUsd": 50892,
+        "limitMicroUsd": 5000000
+      }
+    }
+  ]
+}

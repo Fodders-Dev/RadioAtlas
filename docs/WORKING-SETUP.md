@@ -1,4 +1,17 @@
 # RadioAtlas: рабочая схема Codex + Claude
+**11.10 — глобальный GPT-6 Luna и голос Лиры, selective release.**
+Checkout lira-brain-release/Radio++_tg, codex/luna-owner-trial-20261009.
+Владелец согласовал отдельный общий $5 lifetime cap с проверками; старые
+comparison/trial не сбрасывать. GPT основной для Telegram/Mini App, DeepSeek
+только по предупреждению и нажатию. 12 настоящих реплик, 22 calls без ошибок,
+$0.050892 reserved. Это синтетический каталог, не сертификат качества подбора.
+Типы/API933/bot101/web949/scripts102+1skip/offline24/build прошли;
+full browser450+7skip, targeted fallback9. Независимое Astra review без блокеров.
+Новая композиция Моего/Главной и screenshot UI не входят в выпуск.
+Следующее действие: публикация после merge актуального master (только catalog
+refresh), same-SHA CI/deploy, затем 4 public smoke и отчёт.
+[Результат и ограничения](LIRA-GLOBAL-2026-10-11.md).
+
 **09.10 — текущий участок: owner-only GPT-6 Luna в Telegram.**
 Release checkout: lira-brain-release/Radio++_tg, codex/luna-owner-trial-20261009
 от master8a16d98. UI/MusicImage/quality эксперименты calm-home не переносить.
