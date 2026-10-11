@@ -8,8 +8,11 @@ $0.050892 reserved. Это синтетический каталог, не се�
 Типы/API933/bot101/web949/scripts102+1skip/offline24/build прошли;
 full browser450+7skip, targeted fallback9. Независимое Astra review без блокеров.
 Новая композиция Моего/Главной и screenshot UI не входят в выпуск.
-Следующее действие: публикация после merge актуального master (только catalog
-refresh), same-SHA CI/deploy, затем 4 public smoke и отчёт.
+Опубликовано `522e0e0`: обязательные CI38114337642 и deploy38114337640 success;
+functional453+7skip, RU current/PM2/health подтверждены. Четыре public smoke
+и bot-surface подтвердили GPT; global reserved $0.071727 на момент проверки.
+Готовится bounded fix ложного поп/классика-пояснения для чиптюна; эпоха
+2000–2014 остаётся открытой и требует фактического поискового trace.
 [Результат и ограничения](LIRA-GLOBAL-2026-10-11.md).
 
 **09.10 — текущий участок: owner-only GPT-6 Luna в Telegram.**

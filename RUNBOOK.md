@@ -1,5 +1,5 @@
 # RUNBOOK
-## 2026-10-11 — global GPT-6 Luna text candidate
+## 2026-10-11 — global GPT-6 Luna text release
 
 Owner approved $5 total, including live checks. Separate campaign
 `lira-gpt6-luna-global-text-v1` in the existing persistent ledger; never reset
@@ -15,7 +15,11 @@ DeepSeek remains explicit reserve. Primary/default/reserve share the same
 Tavily client and existing daily cap. Screenshot UI/runtime is excluded from
 this selective release; no NL relay update is required for existing text calls.
 
-Activation is pending verified release. Deploy copies shared configuration to
+Activated 11.10: release522e0e0, CI38114337642 required jobs success,
+deploy38114337640 success; current/API/bot/harvester/health verified.
+Global reserved after live checks 71,727 micro-USD of 5,000,000. Prior campaigns
+unchanged. Details/quality gaps: docs/LIRA-GLOBAL-2026-10-11.md.
+Deploy copies shared configuration to
 the release and recreates PM2 processes; ephemeral `pm2 set` is not durable.
 Back up configuration before changing only these nonsecret flags; never print
 or copy keys locally. Disable global mode by setting its flag to 0, then deploy

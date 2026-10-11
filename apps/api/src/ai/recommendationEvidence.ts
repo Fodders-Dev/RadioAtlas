@@ -11,7 +11,13 @@ const MAX_PROJECTED_TAGS = 12;
 const DNB_STYLES = new Set(['liquid dnb', 'liquid drum and bass', 'neurofunk', 'tech step']);
 const REVIEWED_FORMAT_GENRES = new Map([
   ['breakbeat', 'breakbeat'], ['breaks', 'breakbeat'], ['breakcore', 'breakcore'],
-  ['industrial', 'industrial'], ['industrial music', 'industrial'], ['industrial techno', 'industrial techno'], ['ebm', 'ebm']
+  ['industrial', 'industrial'], ['industrial music', 'industrial'], ['industrial techno', 'industrial techno'], ['ebm', 'ebm'],
+  // Preserve catalogue-specific computer/game music before the coarse family
+  // classifier, which otherwise buckets chiptune as pop and soundtracks as classical.
+  ['chiptune', 'chiptune'], ['chiptunes', 'chiptune'],
+  ['amiga', 'computer music'], ['c64', 'computer music'], ['commodore 64', 'computer music'], ['atari', 'computer music'],
+  ['retro games', 'video game music'], ['video game', 'video game music'], ['video game music', 'video game music'],
+  ['soundtrack', 'soundtrack'], ['soundtracks', 'soundtrack']
 ]);
 // Translate only reviewed catalogue genres into a short listener-facing
 // explanation. The labels themselves remain on the cards; this copy conveys
@@ -39,7 +45,11 @@ const STYLE_EXPLANATIONS = new Map<string, string>([
   ['90s', 'ностальгическое настроение девяностых'],
   ['1990s', 'ностальгическое настроение девяностых'],
   ['2000s', 'настроение нулевых'],
-  ['2010s', 'настроение десятых']
+  ['2010s', 'настроение десятых'],
+  ['chiptune', 'чиптюн-направление'],
+  ['computer music', 'музыка ретро-компьютерной сцены'],
+  ['video game music', 'музыка из видеоигр'],
+  ['soundtrack', 'музыка из саундтреков']
 ]);
 const STYLE_EXPLANATIONS_EN = new Map<string, string>([
   ['drum and bass', 'a bass-heavy, broken rhythm'],
@@ -64,7 +74,11 @@ const STYLE_EXPLANATIONS_EN = new Map<string, string>([
   ['90s', 'a nostalgic nineties mood'],
   ['1990s', 'a nostalgic nineties mood'],
   ['2000s', 'a mood from the 2000s'],
-  ['2010s', 'a mood from the 2010s']
+  ['2010s', 'a mood from the 2010s'],
+  ['chiptune', 'a chiptune direction'],
+  ['computer music', 'music from the retro-computer scene'],
+  ['video game music', 'video game music'],
+  ['soundtrack', 'soundtrack music']
 ]);
 const FAMILY_EXPLANATIONS: Record<string, string> = {
   electronic: 'электронное направление', pop: 'мелодичное поп-настроение',
@@ -187,10 +201,11 @@ export const renderRecommendationEvidence = (
       else highlights.push(distinct);
     }
     return [...new Set(highlights.slice(0, 3).map(tag => {
-      const family = stationGenreFamily(tag.label) || tag.genre;
+      const family = REVIEWED_FORMAT_GENRES.has(tag.label) ? undefined : stationGenreFamily(tag.label) || tag.genre;
+      const familyExplanation = family ? (en ? FAMILY_EXPLANATIONS_EN[family] : FAMILY_EXPLANATIONS[family]) : undefined;
       return en
-        ? STYLE_EXPLANATIONS_EN.get(tag.label) || FAMILY_EXPLANATIONS_EN[family] || 'a distinct musical direction'
-        : STYLE_EXPLANATIONS.get(tag.label) || FAMILY_EXPLANATIONS[family] || 'отдельное музыкальное направление';
+        ? STYLE_EXPLANATIONS_EN.get(tag.label) || familyExplanation || 'a distinct musical direction'
+        : STYLE_EXPLANATIONS.get(tag.label) || familyExplanation || 'отдельное музыкальное направление';
     }))];
   });
   const descriptions = [...new Set(cardDescriptions.flat())].slice(0, 6);

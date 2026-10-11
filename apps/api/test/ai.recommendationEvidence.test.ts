@@ -85,6 +85,26 @@ test('reviewed breakcore and industrial techno tags render on malformed model se
   assert.doesNotMatch(result.reply,/no ads|128kbps|made up nonsense/i);
 });
 
+test('public Amiga and chiptune cards keep computer/game music evidence out of pop and classical families', () => {
+  const rows = [
+    row('9f9cc220-3462-11e8-bb9b-52543be04c81', ['chiptune', 'retro games', 'soundtracks', 'video game'], 'Retro PC GAME MUSIC Streaming Radio'),
+    row('abd85401-d5ae-41d5-a9e7-a6eb83ea59b1', ['amiga', 'c64', 'commodore 64'], 'CommodExplorer'),
+    row('d59bbb09-d855-46b7-bf21-ddb203dfff71', ['chiptune'], 'Radio Caprice - Chiptune'),
+    row('961447b9-0601-11e8-ae97-52543be04c81', ['amiga', 'c64', 'chiptune', 'retro games', 'tracked'], 'ModFM'),
+    row('561300e3-86ba-489f-901d-426596141e8d', ['amiga', 'atari', 'c64', 'chiptunes', 'compos', 'demos'], 'Retro Plum Radio')
+  ];
+  const cards = recommendationEvidence(rows);
+  const output = JSON.stringify({v:1,cards:cards.map(card=>({stationId:card.stationId,tagKeys:card.evidence.slice(0,3).map(tag=>tag.key)}))});
+  const result = renderRecommendationEvidence(rows,output);
+  assert.equal(result.validSelection,true);
+  assert.match(result.reply,/чиптюн-направление/);
+  assert.match(result.reply,/ретро-компьютерной сцены/);
+  assert.match(result.reply,/музыка из видеоигр/);
+  assert.doesNotMatch(result.reply,/мелодичное поп-настроение|классическое направление/);
+  assert.doesNotMatch(result.reply,/Retro PC GAME MUSIC|CommodExplorer|Radio Caprice|ModFM|Retro Plum Radio/);
+  assert.deepEqual(rows.map(item=>item.stationuuid),cards.map(card=>card.stationId));
+});
+
 test('empty or unknown tags never borrow facts from a station name or another card', () => {
   const rows=[row('a',[], 'jungletrain — 24/7 drum and bass'),row('b',['ambient'])];
   const r=renderRecommendationEvidence(rows, selection([{stationId:'a',tagKeys:['t0']}])).reply;
