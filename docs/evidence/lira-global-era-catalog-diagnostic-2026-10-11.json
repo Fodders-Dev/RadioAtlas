@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-10-11T05:55:42.654Z",
+  "method": "public catalog substring-tag pages; exact semantic-tag, production era matcher, 90s pattern, and prior-slate mirror exclusions applied locally",
+  "productionPlannerArgs": {
+    "tag": "dance pop",
+    "semanticGenre": "dance pop",
+    "era": {
+      "fromYear": 2000,
+      "toYear": 2014
+    },
+    "eraAliases": [
+      "00s",
+      "2000s",
+      "нулевые",
+      "10s",
+      "2010s",
+      "десятые"
+    ],
+    "pageSize": 24,
+    "maxPages": 3
+  },
+  "productionRankReplay": false,
+  "publicEndpointLimit": "tagAliases and relevance-ranked ordering are not exposed; public page order differs from production internal ranking",
+  "previousSlateAnchorsResolved": 5,
+  "uniqueQualifiedAcrossPublicSemanticAliasWindows": 53,
+  "aliases": [
+    {
+      "spelling": "dance pop",
+      "publicTotalForSubstringTagSearch": 59,
+      "boundedRowsScanned": 59,
+      "first72Qualified": 50,
+      "laterQualified": 0,
+      "firstEligiblePageAfterProd": null,
+      "firstEligibleNameAfterProd": null,
+      "pages": [
+        {
+          "rows": 24,
+          "semanticExact": 24,
+          "recognizedEraEvidence": 6,
+          "unknownEraEvidence": 18,
+          "eraMatched": 20,
+          "without90s": 20,
+          "afterPriorSlateExclusion": 20
+        },
+        {
+          "rows": 24,
+          "semanticExact": 22,
+          "recognizedEraEvidence": 2,
+          "unknownEraEvidence": 20,
+          "eraMatched": 21,
+          "without90s": 20,
+          "afterPriorSlateExclusion": 20
+        },
+        {
+          "rows": 11,
+          "semanticExact": 11,
+          "recognizedEraEvidence": 2,
+          "unknownEraEvidence": 9,
+          "eraMatched": 10,
+          "without90s": 10,
+          "afterPriorSlateExclusion": 10
+        }
+      ]
+    },
+    {
+      "spelling": "dance-pop",
+      "publicTotalForSubstringTagSearch": 6,
+      "boundedRowsScanned": 6,
+      "first72Qualified": 3,
+      "laterQualified": 0,
+      "firstEligiblePageAfterProd": null,
+      "firstEligibleNameAfterProd": null,
+      "pages": [
+        {
+          "rows": 6,
+          "semanticExact": 4,
+          "recognizedEraEvidence": 1,
+          "unknownEraEvidence": 3,
+          "eraMatched": 3,
+          "without90s": 3,
+          "afterPriorSlateExclusion": 3
+        }
+      ]
+    }
+  ],
+  "eraCohortChecks": [
+    {
+      "eraTag": "2000s",
+      "publicSubstringTagTotal": 395,
+      "boundedRowsScanned": 72,
+      "qualifiedWithin72": 1,
+      "pages": [
+        {
+          "rows": 24,
+          "semanticExact": 0,
+          "recognizedEraEvidence": 0,
+          "unknownEraEvidence": 0,
+          "eraMatched": 0,
+          "without90s": 0,
+          "afterPriorSlateExclusion": 0
+        },
+        {
+          "rows": 24,
+          "semanticExact": 1,
+          "recognizedEraEvidence": 1,
+          "unknownEraEvidence": 0,
+          "eraMatched": 1,
+          "without90s": 1,
+          "afterPriorSlateExclusion": 1
+        },
+        {
+          "rows": 24,
+          "semanticExact": 0,
+          "recognizedEraEvidence": 0,
+          "unknownEraEvidence": 0,
+          "eraMatched": 0,
+          "without90s": 0,
+          "afterPriorSlateExclusion": 0
+        }
+      ]
+    },
+    {
+      "eraTag": "2010s",
+      "publicSubstringTagTotal": 154,
+      "boundedRowsScanned": 72,
+      "qualifiedWithin72": 2,
+      "pages": [
+        {
+          "rows": 24,
+          "semanticExact": 1,
+          "recognizedEraEvidence": 1,
+          "unknownEraEvidence": 0,
+          "eraMatched": 1,
+          "without90s": 1,
+          "afterPriorSlateExclusion": 1
+        },
+        {
+          "rows": 24,
+          "semanticExact": 1,
+          "recognizedEraEvidence": 1,
+          "unknownEraEvidence": 0,
+          "eraMatched": 1,
+          "without90s": 1,
+          "afterPriorSlateExclusion": 1
+        },
+        {
+          "rows": 24,
+          "semanticExact": 0,
+          "recognizedEraEvidence": 0,
+          "unknownEraEvidence": 0,
+          "eraMatched": 0,
+          "without90s": 0,
+          "afterPriorSlateExclusion": 0
+        }
+      ]
+    }
+  ]
+}

@@ -10,7 +10,10 @@ offline24/0calls/build; full450+7skip, targeted provider9. Новые компо
 Моего/Главной и screenshot UI не публикуются. Public4+bot-surface подтвердили
 GPT/без резерва; functional CI453+7skip, RU current/PM2/health подтверждены.
 Amiga дал 5 карточек, но ошибочное поп/классика-пояснение: bounded fix в
-selective `f4ef231` ожидает CI/deploy. Эпоха2000–2014 без карточек остаётся
+selective `f4ef231` опубликован: CI38115998084 обязательные jobs/deploy38115997967
+success, RU current/PM2/health совпадают. Public Amiga5 без ложных жанров/Play.
+Global reserved $0.081893/$5 на момент финального probe.
+Эпоха2000–2014 без карточек остаётся
 открытой, parser/history и наличие каталога проверены; следующий trace —
 первый поисковый план. [Отчёт](LIRA-GLOBAL-2026-10-11.md).
 Исходный checkpoint и release не путать. Ключ повторно из clipboard не читать.

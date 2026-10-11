@@ -1,0 +1,67 @@
+{
+  "checkedAt": "2026-10-11T06:06:47.0127916Z",
+  "release": "f4ef2314eba01fcaef8457c0db82a61639070cd0",
+  "httpStatus": 200,
+  "provider": {
+    "name": "gpt-6-luna",
+    "fallback": false
+  },
+  "fallbackOffered": false,
+  "reply": "В подборке есть чиптюн-направление, музыка из видеоигр, музыка ретро-компьютерной сцены.",
+  "cards": [
+    {
+      "stationuuid": "9f9cc220-3462-11e8-bb9b-52543be04c81",
+      "name": "Retro PC GAME MUSIC Streaming Radio",
+      "tags": [
+        "chiptune",
+        "retro games",
+        "soundtracks",
+        "video game"
+      ]
+    },
+    {
+      "stationuuid": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+      "name": "Radio Caprice - Chiptune",
+      "tags": [
+        "chiptune"
+      ]
+    },
+    {
+      "stationuuid": "32f62475-8900-4364-9fee-d1909f06ae2d",
+      "name": "Gamesboro Radio - Video Game Music 24/7",
+      "tags": [
+        "chiptune",
+        "game",
+        "nintendo",
+        "playstation",
+        "sega",
+        "video game music"
+      ]
+    },
+    {
+      "stationuuid": "961447b9-0601-11e8-ae97-52543be04c81",
+      "name": "ModFM",
+      "tags": [
+        "amiga",
+        "c64",
+        "chiptune",
+        "retro games",
+        "tracked"
+      ]
+    },
+    {
+      "stationuuid": "e2d0b790-de9c-11e8-a9cc-52543be04c81",
+      "name": "CGM UK DemoScene",
+      "tags": [
+        "8 bit",
+        "8bit",
+        "chiptune",
+        "demoscene"
+      ]
+    }
+  ],
+  "actionKinds": [
+    "open-station"
+  ],
+  "runStatus": "completed"
+}

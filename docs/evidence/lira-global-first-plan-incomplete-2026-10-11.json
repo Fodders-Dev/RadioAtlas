@@ -1,0 +1,28 @@
+{
+  "generatedAt": "2026-10-11T05:50:34.915Z",
+  "mode": "first-planner-decision-diagnostic",
+  "catalogueResultsProvided": false,
+  "modelCalls": 1,
+  "failedAttempts": 0,
+  "reservedMicroUsd": 2423,
+  "ledgerBefore": {
+    "campaign": "global-text",
+    "reservedMicroUsd": 71727,
+    "limitMicroUsd": 5000000
+  },
+  "ledgerAfter": {
+    "campaign": "global-text",
+    "reservedMicroUsd": 74150,
+    "limitMicroUsd": 5000000
+  },
+  "firstTool": null,
+  "firstSearchArgs": null,
+  "result": {
+    "status": "failed",
+    "route": "music_worker",
+    "cardCount": 0,
+    "modelErrorKinds": [
+      "network"
+    ]
+  }
+}
