@@ -19,6 +19,7 @@ import { liraOpeningStations } from '../lib/liraOpening';
 import { resolveNowPlayingTrust } from '../lib/trackTrust';
 import {
   latestSuggestedStationIds,
+  captureChatSessionGuard,
   postChatMessage,
   type ChatHistoryTurn,
   type ChatActionReceipt,
@@ -29,6 +30,7 @@ import {
 } from '../lib/aiChat';
 import { executeAgentActions } from '../lib/agentActions';
 import { useLocale } from '../state/LocaleContext';
+import { useSession } from '../state/SessionContext';
 import { useCatalog } from '../state/CatalogContext';
 import { useLibrary, usePlayback, useShell } from '../state/RadioContext';
 import { CALM_PREVIEW } from '../lib/calmPreview';
@@ -55,6 +57,15 @@ type ChatMessage = {
   serviceLinks?: ChatServiceLink[];
   sources?: ChatSource[];
   actionReceipts?: ChatActionReceipt[];
+  fallbackProvider?: 'deepseek';
+};
+
+type PendingProviderFallback = {
+  token: string;
+  reason: 'unavailable' | 'budget';
+  request: { message: string; history: ChatHistoryTurn[]; options: Parameters<typeof postChatMessage>[2] };
+  contextKey: string;
+  sessionIsCurrent: () => boolean;
 };
 
 type ChatSheetProps = {
@@ -141,6 +152,7 @@ const readStoredMessages = (): ChatMessage[] => {
           ? (item.serviceLinks as ChatServiceLink[])
           : undefined,
         sources: Array.isArray(item.sources) ? (item.sources as ChatSource[]) : undefined,
+        fallbackProvider: item.fallbackProvider === 'deepseek' ? 'deepseek' : undefined,
         actionReceipts: Array.isArray(item.actionReceipts)
           ? (item.actionReceipts as ChatActionReceipt[])
           : undefined
@@ -228,6 +240,7 @@ const buildChatUserTaste = (
 
 export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const { t, locale } = useLocale();
+  const { status: sessionStatus, profile: sessionProfile } = useSession();
   const { fetchStationById, summary } = useCatalog();
   const { player, queue, nowPlaying, nowPlayingStatus, playStation, playStationQueue } = usePlayback();
   const { favorites, recent, tasteProfile, toggleFavorite, isFavorite } = useLibrary();
@@ -246,6 +259,8 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const titleId = useId();
   const inputId = useId();
   const [messages, setMessages] = useState<ChatMessage[]>(readStoredMessages);
+  const [pendingFallback, setPendingFallback] = useState<PendingProviderFallback | null>(null);
+  const chatRequestGeneration = useRef(0);
 
   // Advance the rotation each time the welcome screen appears, NOT each render:
   // chips that reshuffle under a finger are worse than chips that repeat.
@@ -266,8 +281,8 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       return;
     }
     const controller = new AbortController();
-    void getMusicImageCapability(controller.signal).then(enabled => {
-      if (!controller.signal.aborted) setMusicImageEnabled(enabled);
+    void getMusicImageCapability(controller.signal).then(capability => {
+      if (!controller.signal.aborted) setMusicImageEnabled(Boolean(capability));
     });
     return () => controller.abort();
   }, [open, prompt?.id, savedFinding]);
@@ -291,6 +306,38 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const contextTrack = contextStation?.stationuuid === player.current?.stationuuid
     ? resolveNowPlayingTrust({ station: player.current, track: nowPlaying, metadataStatus: nowPlayingStatus, playerStatus: player.status, failure: player.failure }).track
     : undefined;
+  const fallbackContextKey = JSON.stringify({
+    promptId: prompt?.id ?? null,
+    sourceStationId: contextStation?.stationuuid ?? null,
+    isPlaying: player.isPlaying,
+    queueStationIds: queue.items.map((station) => station.stationuuid).filter(Boolean),
+    favoriteStationIds: favorites.map((station) => station.stationuuid).filter(Boolean).sort()
+  });
+  const fallbackContextKeyRef = useRef(fallbackContextKey);
+  fallbackContextKeyRef.current = fallbackContextKey;
+  const chatOpenRef = useRef(open);
+  chatOpenRef.current = open;
+  const fallbackContextIsCurrent = (contextKey: string) => contextKey === fallbackContextKeyRef.current;
+  const requestIsCurrent = (generation: number, sessionIsCurrent: () => boolean) =>
+    generation === chatRequestGeneration.current &&
+    chatOpenRef.current &&
+    sessionIsCurrent();
+  useEffect(() => {
+    if (pendingFallback && (!open || pendingFallback.contextKey !== fallbackContextKey || !pendingFallback.sessionIsCurrent())) {
+      setPendingFallback(null);
+    }
+  }, [open, fallbackContextKey, pendingFallback]);
+  useEffect(() => {
+    setPendingFallback(null);
+    chatRequestGeneration.current += 1;
+    setSending(false);
+  }, [sessionStatus, sessionProfile?.id]);
+  useEffect(() => {
+    if (open) return;
+    chatRequestGeneration.current += 1;
+    setPendingFallback(null);
+    setSending(false);
+  }, [open]);
   useEffect(() => {
     if (welcomeVisible) promptSeedRef.current += 1;
   }, [welcomeVisible]);
@@ -311,7 +358,10 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   const [feedLaunchError, setFeedLaunchError] = useState<number | null>(null);
   const [feedLaunchSource, setFeedLaunchSource] = useState<string | null>(null);
   const feedLaunchGeneration = useRef(0);
-  useEffect(() => () => { feedLaunchGeneration.current += 1; }, []);
+  useEffect(() => () => {
+    feedLaunchGeneration.current += 1;
+    chatRequestGeneration.current += 1;
+  }, []);
   useEffect(() => {
     if (!feedLaunchSource || queue.sourceId !== feedLaunchSource || !queue.items.length) return;
     // The lazy transport publishes its queue asynchronously. Enter only once
@@ -486,6 +536,10 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
   ) => {
     let text = (override ?? input).trim();
     if (!text || sending) return;
+    const requestGeneration = ++chatRequestGeneration.current;
+    const requestContextKey = fallbackContextKey;
+    const sessionIsCurrent = captureChatSessionGuard();
+    setPendingFallback(null);
     const anchor = findingAnchorRef.current;
     if (anchor && anchor.requestId === prompt?.id) {
       if (findingAnchor === 'force' || (findingAnchor === 'first' && anchor.armed)) {
@@ -529,8 +583,7 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
       if (composerRef.current) composerRef.current.style.height = '';
     }
     setSending(true);
-    try {
-      const response = await postChatMessage(text, history, {
+    const requestOptions = {
         userTaste,
         agentContext: {
           isPlaying: player.isPlaying,
@@ -544,7 +597,21 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               ...(trustedStationUuid ? { stationUuid: trustedStationUuid } : {})
             }
           : undefined
-      });
+      };
+    try {
+      const response = await postChatMessage(text, history, requestOptions);
+      if (!requestIsCurrent(requestGeneration, sessionIsCurrent)) return;
+      if (response.providerFallback) {
+        if (!fallbackContextIsCurrent(requestContextKey)) return;
+        setPendingFallback({
+          token: response.providerFallback.token,
+          reason: response.providerFallback.reason,
+          request: { message: text, history: history.map((turn) => ({ ...turn })), options: requestOptions },
+          contextKey: fallbackContextKey,
+          sessionIsCurrent
+        });
+        return;
+      }
       const assistantMessageId = nextId();
       setMessages((prev) => [
         ...prev,
@@ -554,18 +621,23 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
           text: response.reply,
           stations: response.stations,
           serviceLinks: response.serviceLinks,
-          sources: response.sources
+          sources: response.sources,
+          fallbackProvider: response.provider?.fallback ? 'deepseek' : undefined
         }
       ]);
       const receipts = await executeAgentActions(response.actions, {
         resolveStation: (stationuuid) => fetchStationById(stationuuid).catch(() => null),
-        play: (station) =>
-          playStation(station, { sourceId: 'assistant', sourceLabel: t('chat.sourceLabel') }),
-        enqueue: (station) => queue.enqueue(station),
-        pause: () => player.pause(),
+        play: (station) => {
+          if (requestIsCurrent(requestGeneration, sessionIsCurrent)) {
+            playStation(station, { sourceId: 'assistant', sourceLabel: t('chat.sourceLabel') });
+          }
+        },
+        enqueue: (station) => requestIsCurrent(requestGeneration, sessionIsCurrent) && queue.enqueue(station),
+        pause: () => { if (requestIsCurrent(requestGeneration, sessionIsCurrent)) player.pause(); },
         isFavorite,
-        toggleFavorite
+        toggleFavorite: (station) => { if (requestIsCurrent(requestGeneration, sessionIsCurrent)) toggleFavorite(station); }
       });
+      if (!requestIsCurrent(requestGeneration, sessionIsCurrent)) return;
       if (receipts.some((receipt) => receipt.status === 'executed')) triggerHaptic('light');
       if (receipts.length) {
         setMessages((prev) =>
@@ -575,12 +647,71 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
         );
       }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: nextId(), role: 'assistant', text: t('chat.error'), errorFor: text }
-      ]);
+      if (requestIsCurrent(requestGeneration, sessionIsCurrent)) {
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: 'assistant', text: t('chat.error'), errorFor: text }
+        ]);
+      }
     } finally {
-      setSending(false);
+      if (requestGeneration === chatRequestGeneration.current) setSending(false);
+    }
+  };
+
+  const continueWithDeepSeek = async () => {
+    const offer = pendingFallback;
+    if (!offer || sending) return;
+    if (!open || offer.contextKey !== fallbackContextKey || !offer.sessionIsCurrent()) {
+      setPendingFallback(null);
+      return;
+    }
+    const requestGeneration = ++chatRequestGeneration.current;
+    const fallbackRequestIsCurrent = () =>
+      requestIsCurrent(requestGeneration, offer.sessionIsCurrent);
+    setPendingFallback(null);
+    setSending(true);
+    try {
+      const response = await postChatMessage(offer.request.message, offer.request.history, {
+        ...offer.request.options,
+        fallbackToken: offer.token
+      });
+      if (!fallbackRequestIsCurrent()) return;
+      if (response.providerFallback) return;
+      const assistantMessageId = nextId();
+      setMessages((prev) => [...prev, {
+        id: assistantMessageId,
+        role: 'assistant',
+        text: response.reply,
+        stations: response.stations,
+        serviceLinks: response.serviceLinks,
+        sources: response.sources,
+        fallbackProvider: response.provider?.fallback ? 'deepseek' : undefined
+      }]);
+      const receipts = await executeAgentActions(response.actions, {
+        resolveStation: (stationuuid) => fetchStationById(stationuuid).catch(() => null),
+        play: (station) => { if (fallbackRequestIsCurrent()) playStation(station, { sourceId: 'assistant', sourceLabel: t('chat.sourceLabel') }); },
+        enqueue: (station) => fallbackRequestIsCurrent() && queue.enqueue(station),
+        pause: () => { if (fallbackRequestIsCurrent()) player.pause(); },
+        isFavorite,
+        toggleFavorite: (station) => { if (fallbackRequestIsCurrent()) toggleFavorite(station); }
+      });
+      if (!fallbackRequestIsCurrent()) return;
+      if (receipts.some((receipt) => receipt.status === 'executed')) triggerHaptic('light');
+      if (receipts.length) {
+        setMessages((prev) => prev.map((message) =>
+          message.id === assistantMessageId ? { ...message, actionReceipts: receipts } : message
+        ));
+      }
+    } catch {
+      // The one-use offer is consumed by this explicit attempt. Leave the
+      // original turn intact and show a local transport error that is not history.
+      if (fallbackRequestIsCurrent()) {
+        setMessages((prev) => [...prev, {
+          id: nextId(), role: 'assistant', text: t('chat.error'), errorFor: offer.request.message
+        }]);
+      }
+    } finally {
+      if (requestGeneration === chatRequestGeneration.current) setSending(false);
     }
   };
 
@@ -620,6 +751,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
 
   const startFresh = () => {
     if (!window.confirm(t('chat.clearChatConfirm'))) return;
+    chatRequestGeneration.current += 1;
+    setPendingFallback(null);
+    setSending(false);
     feedLaunchGeneration.current += 1;
     setFeedLaunchId(null);
     setFeedLaunchSource(null);
@@ -830,6 +964,9 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               ) : null}
               <div className="chat-message-stack">
                 <div className={`chat-bubble chat-bubble--${message.role}`}>{message.text}</div>
+                {message.fallbackProvider === 'deepseek' ? (
+                  <span className="chat-provider-badge">{t('chat.deepSeekReply')}</span>
+                ) : null}
                 {message.actionReceipts?.some((receipt) => actionFeedbackForReceipt(receipt)) ? (
                   <div className="chat-action-feedback" role="status" aria-live="polite" aria-atomic="true">
                     {message.actionReceipts.map((receipt) => {
@@ -985,6 +1122,14 @@ export const ChatSheet = ({ open, onClose, prompt }: ChatSheetProps) => {
               </div>
             </div>
           ))}
+          {pendingFallback ? (
+            <div className="chat-provider-fallback" role="status" aria-live="polite" aria-atomic="true">
+              <span>{t('chat.deepSeekOfferNotice')}</span>
+              <button type="button" disabled={sending} onClick={() => { triggerHaptic('light'); void continueWithDeepSeek(); }}>
+                {t('chat.deepSeekOfferAction')}
+              </button>
+            </div>
+          ) : null}
           {sending ? (
             <div className="chat-row chat-row--assistant">
               <span className="chat-lira-orb chat-lira-orb--message" aria-hidden="true">

@@ -2,12 +2,17 @@ import 'dotenv/config';
 import express from 'express';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
-import { listCatalogProfileOverrides } from './accountStore.js';
+import { getAccountByToken, listCatalogProfileOverrides } from './accountStore.js';
 import { registerAccountRoutes } from './accountRoutes.js';
 import { registerAuthRoutes } from './authRoutes.js';
 import { registerBillingRoutes } from './billingRoutes.js';
 import { registerBotRoutes } from './botRoutes.js';
-import { createAssistantRuntime, createAssistantRuntimeAdmission, registerAiRoutes } from './aiRoutes.js';
+import {
+  createAiTicketIdentityResolver,
+  createAssistantRuntime,
+  createAssistantRuntimeAdmission,
+  registerAiRoutes
+} from './aiRoutes.js';
 import { createTavilyWebSearch } from './ai/webSearch.js';
 import { parseMusicServices } from './ai/musicLinks.js';
 import {
@@ -16,6 +21,7 @@ import {
   LIRA_PILOT_PRODUCTION_BUDGET_PATH,
   openProviderBudgetLedger
 } from './ai/providerBudget.js';
+import { createPrimaryProviderController } from './ai/providerController.js';
 import type { AiModelConfig, AiModelProvider, ModelReasoningEffort } from './ai/types.js';
 import { startBillingReconcileSweep } from './billingReconciliation.js';
 import { persistCatalogSnapshot, readPersistedCatalog } from './catalogCache.js';
@@ -85,6 +91,13 @@ const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const LIRA_PILOT_OPENAI_API_KEY = process.env.LIRA_PILOT_OPENAI_API_KEY || '';
+const LIRA_GLOBAL_GPT_ENABLED = process.env.LIRA_GLOBAL_GPT_ENABLED === '1';
+const LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD = Number(process.env.LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD || 0);
+const GLOBAL_GPT_MAX_LIFETIME_BUDGET_USD = 5;
+const LIRA_GLOBAL_GPT_BUDGET_LIMIT_MICRO_USD = Number.isFinite(LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD) &&
+  LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD > 0 && LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD <= GLOBAL_GPT_MAX_LIFETIME_BUDGET_USD
+  ? Math.round(LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD * 1_000_000)
+  : 0;
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.6-luna';
 const AI_MAX_OUTPUT_TOKENS = Math.max(64, Number(process.env.AI_MAX_OUTPUT_TOKENS) || 1000);
@@ -104,6 +117,7 @@ const AI_MUSIC_SERVICES = parseMusicServices(process.env.AI_MUSIC_SERVICES);
 const AI_WEB_SEARCH_ENABLED = process.env.AI_WEB_SEARCH_ENABLED === '1';
 const TAVILY_API_KEY = process.env.TAVILY_API_KEY || '';
 const AI_WEB_SEARCH_DAILY_CAP = Math.max(1, Number(process.env.AI_WEB_SEARCH_DAILY_CAP) || 300);
+const GLOBAL_GPT_WEB_SEARCH_ACTIVE = AI_ENABLED && AI_WEB_SEARCH_ENABLED && Boolean(TAVILY_API_KEY);
 // Global cost backstop: total accepted chats per minute across BOTH surfaces.
 const AI_MAX_CHATS_PER_MIN = Math.max(1, Number(process.env.AI_MAX_CHATS_PER_MIN) || 120);
 // T0.2c: opt-out flag for the billing reconciliation sweep. Defaults
@@ -189,6 +203,15 @@ if (NODE_ENV === 'production' && SCENE_ARTWORK_ENABLED && !SCENE_ARTWORK_DIR_RAW
 const AI_ACTIVE = AI_ENABLED && Boolean(AI_MODEL_API_KEY);
 // Web search is active only when AI is active AND its own flag AND a Tavily key.
 const AI_WEB_SEARCH_ACTIVE = AI_ACTIVE && AI_WEB_SEARCH_ENABLED && Boolean(TAVILY_API_KEY);
+const sharedTavilyWebSearch = AI_WEB_SEARCH_ACTIVE || GLOBAL_GPT_WEB_SEARCH_ACTIVE
+  ? createTavilyWebSearch({
+      apiKey: TAVILY_API_KEY,
+      relayBase: process.env.TELEGRAM_API_ROOT,
+      dailyCap: AI_WEB_SEARCH_DAILY_CAP,
+      fetch: globalThis.fetch.bind(globalThis),
+      now: () => Date.now()
+    })
+  : undefined;
 const LIRA_PILOT_TELEGRAM_ID = (process.env.LIRA_PILOT_TELEGRAM_ID || '').trim();
 const LIRA_PILOT_TELEGRAM_ID_VALID = /^\d{5,20}$/.test(LIRA_PILOT_TELEGRAM_ID);
 const LIRA_PILOT_OPENAI_BASE_URL = process.env.LIRA_PILOT_OPENAI_BASE_URL || '';
@@ -669,24 +692,82 @@ const aiModelConfig: AiModelConfig | null = AI_ACTIVE
 const aiAdmission = AI_ACTIVE
   ? createAssistantRuntimeAdmission({ maxChatsPerWindow: AI_MAX_CHATS_PER_MIN })
   : undefined;
+const aiTicketIdentityResolver = createAiTicketIdentityResolver(getAccountByToken);
 const aiRuntime = aiModelConfig
   ? createAssistantRuntime({
       catalog: catalogService,
       model: aiModelConfig,
       musicServices: AI_MUSIC_SERVICES,
       webSearch: AI_WEB_SEARCH_ACTIVE
-        ? createTavilyWebSearch({
-            apiKey: TAVILY_API_KEY,
-            relayBase: process.env.TELEGRAM_API_ROOT,
-            dailyCap: AI_WEB_SEARCH_DAILY_CAP,
-            fetch: globalThis.fetch.bind(globalThis),
-            now: () => Date.now()
-          })
+        ? sharedTavilyWebSearch
         : undefined,
       admission: aiAdmission,
       log: (message) => console.warn(`[lira] ${message}`)
     })
   : null;
+let primaryProviderController: ReturnType<typeof createPrimaryProviderController> | null = null;
+let globalGptModelConfig: AiModelConfig | null = null;
+let globalGptBudgetedFetch: typeof fetch | undefined;
+if (LIRA_GLOBAL_GPT_ENABLED) {
+  const sharedAdmission = aiAdmission || createAssistantRuntimeAdmission({ maxChatsPerWindow: AI_MAX_CHATS_PER_MIN });
+  const globalGptWebSearch = GLOBAL_GPT_WEB_SEARCH_ACTIVE ? sharedTavilyWebSearch : undefined;
+  let gptRuntime: ReturnType<typeof createAssistantRuntime> | null = null;
+  let fallbackRuntime: ReturnType<typeof createAssistantRuntime> | null = null;
+  let unavailableReason: 'unavailable' | 'budget' = 'unavailable';
+  if (AI_ENABLED && DEEPSEEK_API_KEY) {
+    fallbackRuntime = createAssistantRuntime({
+      catalog: catalogService,
+      model: {
+        provider: 'deepseek', enabled: true, apiKey: DEEPSEEK_API_KEY,
+        baseUrl: DEEPSEEK_BASE_URL, model: DEEPSEEK_MODEL,
+        maxOutputTokens: AI_MAX_OUTPUT_TOKENS, timeoutSec: AI_TIMEOUT_SEC,
+        reasoningEffort: 'none'
+      },
+      musicServices: AI_MUSIC_SERVICES,
+      webSearch: globalGptWebSearch,
+      admission: sharedAdmission
+    });
+  }
+  if (AI_ENABLED && LIRA_PILOT_OPENAI_API_KEY && LIRA_PILOT_OPENAI_BASE_URL &&
+      LIRA_PILOT_BUDGET_DB_PATH && LIRA_PILOT_BUDGET_PATH_VALID &&
+      LIRA_GLOBAL_GPT_BUDGET_LIMIT_MICRO_USD > 0) {
+    try {
+      const relayBaseUrl = assertTrustedLoopbackRelay(LIRA_PILOT_OPENAI_BASE_URL);
+      const budgetLedger = await openProviderBudgetLedger(LIRA_PILOT_BUDGET_DB_PATH, {
+        globalTextLimitMicroUsd: LIRA_GLOBAL_GPT_BUDGET_LIMIT_MICRO_USD
+      });
+      globalGptModelConfig = {
+        provider: 'openai', enabled: true, apiKey: LIRA_PILOT_OPENAI_API_KEY,
+        baseUrl: relayBaseUrl, model: 'gpt-6-luna', maxOutputTokens: 1000,
+        timeoutSec: 25, reasoningEffort: 'low'
+      };
+      globalGptBudgetedFetch = createBudgetedProviderFetch({
+        provider: 'openai', campaign: 'global-text', baseUrl: relayBaseUrl,
+        ledger: budgetLedger, allowVisionEnvelope: true
+      });
+      gptRuntime = createAssistantRuntime({
+        catalog: catalogService,
+        model: globalGptModelConfig,
+        musicServices: AI_MUSIC_SERVICES,
+        webSearch: globalGptWebSearch,
+        admission: sharedAdmission,
+        fetch: globalGptBudgetedFetch,
+        log: (message) => console.warn(`[lira-global-gpt] ${message}`)
+      });
+    } catch {
+      unavailableReason = 'budget';
+      console.error('Global GPT text runtime disabled: relay or pre-provisioned durable budget campaign is invalid.');
+    }
+  } else if (LIRA_GLOBAL_GPT_BUDGET_LIMIT_MICRO_USD <= 0) {
+    unavailableReason = 'budget';
+  }
+  primaryProviderController = createPrimaryProviderController({
+    gptRuntime,
+    deepseekRuntime: fallbackRuntime,
+    unavailableReason,
+    admission: sharedAdmission
+  });
+}
 let aiLunaPilotRuntime: ReturnType<typeof createAssistantRuntime> | null = null;
 if (LIRA_PILOT_CONFIGURED) {
   try {
@@ -726,16 +807,32 @@ registerBotRoutes(app, {
   internalWebhookToken: INTERNAL_WEBHOOK_TOKEN,
   aiRuntime,
   aiLunaPilotRuntime,
-  aiLunaPilotTelegramId: LIRA_PILOT_TELEGRAM_ID_VALID ? LIRA_PILOT_TELEGRAM_ID : ''
+  aiLunaPilotTelegramId: LIRA_PILOT_TELEGRAM_ID_VALID ? LIRA_PILOT_TELEGRAM_ID : '',
+  primaryProviderController
 });
 if (aiRuntime) {
-  registerAiRoutes(app, { runtime: aiRuntime });
+  registerAiRoutes(app, {
+    runtime: aiRuntime,
+    primaryProviderController: primaryProviderController || undefined,
+    resolveTicketIdentity: aiTicketIdentityResolver
+  });
+} else if (primaryProviderController) {
+  registerAiRoutes(app, { primaryProviderController, resolveTicketIdentity: aiTicketIdentityResolver });
 }
-if (aiModelConfig) {
+const musicImageModel: AiModelConfig | null = LIRA_GLOBAL_GPT_ENABLED
+  ? globalGptModelConfig || {
+      provider: 'openai', enabled: false, apiKey: '', baseUrl: 'http://127.0.0.1:8399/openai',
+      model: 'gpt-6-luna', maxOutputTokens: 700, timeoutSec: 25, reasoningEffort: 'none'
+    }
+  : aiModelConfig
+    ? { ...aiModelConfig, model: process.env.AI_MUSIC_IMAGE_MODEL || 'deepseek-flash' }
+    : null;
+if (musicImageModel) {
   registerMusicImageRoutes(app, {
-    // Screenshot extraction is a separate, single vision call. Never change
-    // the selected conversation model (production currently uses text-only Pro).
-    model: { ...aiModelConfig, model: process.env.AI_MUSIC_IMAGE_MODEL || 'deepseek-flash' },
+    // In global GPT mode, screenshot analysis shares the same durable global
+    // text reservation cap. The owner-only pilot remains on its own campaign.
+    model: musicImageModel,
+    ...(LIRA_GLOBAL_GPT_ENABLED && globalGptBudgetedFetch ? { fetch: globalGptBudgetedFetch } : {}),
     sharedMaxConcurrency: MEDIA_SHARED_CONCURRENCY
   });
 }

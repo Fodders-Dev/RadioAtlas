@@ -5,6 +5,8 @@ export const MUSIC_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 const MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 export type MusicImageCandidate = { artist: string; title: string; uncertain: boolean };
+export type MusicImageProvider = 'gpt-6-luna' | 'deepseek';
+export type MusicImageCapability = { enabled: true; provider: MusicImageProvider };
 export type MusicImageFailure = 'file' | 'tooLarge' | 'unavailable' | 'timeout' | 'rateLimited' | 'response';
 
 export class MusicImageError extends Error {
@@ -26,17 +28,25 @@ const apiUrl = (path: string) => {
   return `${base}${path}`;
 };
 
-export const getMusicImageCapability = async (signal?: AbortSignal): Promise<boolean> => {
+export const parseMusicImageCapability = (value: unknown): MusicImageCapability | null => {
+  if (!value || typeof value !== 'object') return null;
+  const body = value as Record<string, unknown>;
+  if (body.enabled !== true) return null;
+  if (body.provider !== 'gpt-6-luna' && body.provider !== 'deepseek') return null;
+  return { enabled: true, provider: body.provider };
+};
+
+export const getMusicImageCapability = async (signal?: AbortSignal): Promise<MusicImageCapability | null> => {
   try {
     const response = await fetch(apiUrl('/ai/music-image'), {
       headers: readToken() ? { Authorization: `Bearer ${readToken()}` } : undefined,
       signal
     });
-    if (!response.ok) return false;
+    if (!response.ok) return null;
     const body: unknown = await response.json();
-    return Boolean(body && typeof body === 'object' && (body as { enabled?: unknown }).enabled === true);
+    return parseMusicImageCapability(body);
   } catch {
-    return false;
+    return null;
   }
 };
 

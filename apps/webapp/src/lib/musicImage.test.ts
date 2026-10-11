@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { frameMusicImageQuestion, getMusicImageCapability, MusicImageError, parseMusicImageCandidates, recognizeMusicImage } from './musicImage';
+import { frameMusicImageQuestion, getMusicImageCapability, MusicImageError, parseMusicImageCandidates, parseMusicImageCapability, recognizeMusicImage } from './musicImage';
 
 vi.mock('./apiBase', () => ({ getApiBase: () => '/api' }));
 
@@ -31,9 +31,17 @@ describe('music image client', () => {
 
   it('GETs capability without a provider call and reads the existing session token', async () => {
     localStorage.setItem('radio:session:v1', 'session-token');
-    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ enabled: true }), { status: 200 }));
-    expect(await getMusicImageCapability()).toBe(true);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ enabled: true, provider: 'gpt-6-luna' }), { status: 200 }));
+    expect(await getMusicImageCapability()).toEqual({ enabled: true, provider: 'gpt-6-luna' });
     expect(fetchMock).toHaveBeenCalledWith('/api/ai/music-image', expect.objectContaining({ headers: { Authorization: 'Bearer session-token' } }));
+  });
+
+  it('fails closed for disabled, missing, or unknown provider capability data', () => {
+    expect(parseMusicImageCapability({ enabled: false })).toBeNull();
+    expect(parseMusicImageCapability({ enabled: true })).toBeNull();
+    expect(parseMusicImageCapability({ enabled: true, provider: 'other' })).toBeNull();
+    expect(parseMusicImageCapability({ enabled: true, provider: 'deepseek', endpoint: 'https://secret.invalid' }))
+      .toEqual({ enabled: true, provider: 'deepseek' });
   });
 
   it('POSTs raw image bytes with the real MIME type and rejects unsupported/oversized files locally', async () => {

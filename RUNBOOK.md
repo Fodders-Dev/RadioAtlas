@@ -1,4 +1,41 @@
 # RUNBOOK
+## 2026-10-09 — global GPT primary (prepared, not activated)
+
+Owner requested GPT-6 Luna across bot, Mini App and screenshots. This supersedes
+the owner-only restriction below when explicitly activated; it does not authorize
+reusing the closed comparison budget. Await the separate global spend limit.
+Implementation/evidence: [global GPT report](docs/LIRA-GPT-PRIMARY-2026-10-09.md).
+
+Activation requires `LIRA_GLOBAL_GPT_ENABLED=1`, positive
+`LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD`, the existing dedicated `LIRA_PILOT_OPENAI_*`
+key/loopback configuration and persistent `LIRA_PILOT_BUDGET_DB_PATH`.
+Use `addGlobalTextBudgetCampaign(dbPath, limitMicroUsd)` explicitly once to add
+`lira-gpt6-luna-global-text-v1` to the EXISTING ledger. It refuses cap mismatch
+and preserves comparison/owner-trial reservations. Runtime opens existing state
+only. Never reset the DB/campaign to regain allowance.
+
+The one lifetime campaign covers chat and screenshot requests. Reservations are
+conservative, not the provider invoice; unknown network outcomes retain the
+reservation. Vision reserves an extra 100,000 input tokens because Luna's exact
+image sizing formula was not established; this is deliberately a spend bound,
+not a measured image cost. Text-only envelopes stay <=128KiB/1000 output tokens.
+Vision allows only the exact one-inline-JPEG music schema, <=2MiB decoded,
+<=3MiB JSON/700 output tokens. Install matching relay module before enabling it.
+
+GPT and reserve DeepSeek share admission and one Tavily daily-cap instance.
+No silent provider switch: first failure returns a static notice and opaque
+one-use 10-minute ticket; DeepSeek is called only after the listener presses
+the visible button. Valid Mini App sessions bind the exact verified Bearer
+session; anonymous affinity is hashed IP+User-Agent, so an IP change may require
+a fresh question. Bot tickets bind Telegram ID. Notices never enter model history.
+Screenshot failure remains visible and does not automatically use DeepSeek.
+
+Rollback: disable `LIRA_GLOBAL_GPT_ENABLED` and restart only our API. This returns
+to the earlier owner pilot/default runtime; preserve both campaigns and the
+dedicated key. Relay rollback must preserve unrelated Telegram/Tavily helpers.
+Configuration is not activation proof: record process/public health, same-SHA
+CI/deploy and a budgeted internal route check before calling the release live.
+
 ## 2026-10-09 — owner-only GPT-6 Luna bot pilot
 
 Published `b3255b3`: same-SHA gating CI37918923820 and deploy37918923784 success.

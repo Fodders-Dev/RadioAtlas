@@ -5,10 +5,12 @@ import type { SyncedLibrary } from './accountStore.js';
 import {
   parseChatHistory,
   recordChatTelemetry,
-  type AssistantRuntime
+  type AssistantRuntime,
+  type PrimaryProviderController
 } from './aiRoutes.js';
 import { bumpCounter } from './observabilityStore.js';
 import { publicWebSources } from './ai/publicSources.js';
+import type { ProviderChatResult } from './ai/providerController.js';
 import type { UserTasteContext } from './ai/types.js';
 
 // Mirrors the billing webhook gate: constant-time compare, empty token fails closed.
@@ -109,6 +111,7 @@ export const registerBotRoutes = (
     aiRuntime?: AssistantRuntime | null;
     aiLunaPilotRuntime?: AssistantRuntime | null;
     aiLunaPilotTelegramId?: string;
+    primaryProviderController?: PrimaryProviderController | null;
   }
 ) => {
   const gate = (req: express.Request, res: express.Response): boolean => {
@@ -163,7 +166,7 @@ export const registerBotRoutes = (
   // not use an account id in v1, so a per-call DB hit would be wasted.)
   const aiRuntime = options.aiRuntime;
   const aiLunaPilotRuntime = options.aiLunaPilotRuntime;
-  if (aiRuntime || aiLunaPilotRuntime || options.aiLunaPilotTelegramId) {
+  if (aiRuntime || aiLunaPilotRuntime || options.aiLunaPilotTelegramId || options.primaryProviderController) {
     app.post('/internal/bot/ai-chat', async (req, res) => {
       if (!gate(req, res)) return;
       const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
@@ -175,13 +178,24 @@ export const registerBotRoutes = (
         typeof req.body?.telegramId === 'string' || typeof req.body?.telegramId === 'number'
           ? String(req.body.telegramId).trim()
           : '';
-      const selectedRuntime = selectBotAssistantRuntime({
+      const fallbackTokenPresent = Object.prototype.hasOwnProperty.call(req.body || {}, 'fallbackToken');
+      const fallbackToken = fallbackTokenPresent
+        ? typeof req.body?.fallbackToken === 'string' ? req.body.fallbackToken : ''
+        : undefined;
+      if (fallbackTokenPresent && !options.primaryProviderController) {
+        res.json({
+          reply: 'Не удалось подтвердить повторный запрос. Отправь сообщение ещё раз.',
+          stations: [], serviceLinks: [], sources: [], actions: []
+        });
+        return;
+      }
+      const selectedRuntime = options.primaryProviderController ? null : selectBotAssistantRuntime({
         telegramId,
         pilotTelegramId: options.aiLunaPilotTelegramId || '',
         defaultRuntime: aiRuntime,
         pilotRuntime: aiLunaPilotRuntime
       });
-      if (!selectedRuntime) {
+      if (!selectedRuntime && !options.primaryProviderController) {
         if (options.aiLunaPilotTelegramId && telegramId === options.aiLunaPilotTelegramId) {
           console.warn('[lira-luna-pilot] owner fallback: runtime unavailable');
           res.json({
@@ -197,16 +211,19 @@ export const registerBotRoutes = (
       const startedAt = Date.now();
       try {
         const account = telegramId ? await getAccountByProvider('telegram', telegramId).catch(() => null) : null;
-        const result = await selectedRuntime.chat({
+        const input = {
           userMessage: text.slice(0, 2000),
           history,
           surface: 'telegram',
           userTaste: buildUserTasteContext(account?.library)
-        });
+        } as const;
+        const result: ProviderChatResult = options.primaryProviderController
+          ? await options.primaryProviderController.chat(input, { fallbackToken, identity: telegramId })
+          : await selectedRuntime!.chat(input);
         recordChatTelemetry('telegram', startedAt, result);
-        const pilotFallback = selectedRuntime === aiLunaPilotRuntime && Boolean(
+        const pilotFallback = Boolean(selectedRuntime && selectedRuntime === aiLunaPilotRuntime && (
           result.modelErrors?.length || result.agentRun?.status === 'failed' || result.agentRun?.status === 'blocked'
-        );
+        ));
         if (selectedRuntime === aiLunaPilotRuntime && pilotFallback) {
           console.warn(`[lira-luna-pilot] owner fallback: ${result.modelErrors?.length ? 'model request unavailable' : `run ${result.agentRun?.status || 'unknown'}`}`);
           res.json({
@@ -226,6 +243,8 @@ export const registerBotRoutes = (
             country: station.country
           })),
           serviceLinks: result.serviceLinks,
+          ...(result.provider ? { provider: result.provider } : {}),
+          ...(result.providerFallback ? { providerFallback: result.providerFallback } : {}),
           // Keep raw search/lyrics content server-side; Telegram needs only
           // link labels and URLs for its inline buttons.
           sources: publicWebSources(result.sources)

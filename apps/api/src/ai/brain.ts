@@ -12,6 +12,7 @@ import {
   cleanText,
   collectVerifiedSources,
   collectVerifiedStations,
+  isDirectIdentityQuestion,
   isVoiceSafe
 } from './antiHallucination.js';
 import { resolveCuratedArtist } from './curatedArtistIndex.js';
@@ -1159,19 +1160,21 @@ const composeAgentReply = async (
     const slateSummary = summarizeStationSlate(verifiedForCompose);
     messages.push({
       role: 'system',
-      content: [
-        'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки».',
-        'Каждое пояснение привязывай к ТОЧНОМУ НАЗВАНИЮ станции и только её собственным тегам. Не описывай варианты по порядку («первая», «вторая», «№2»): позиция меняется, название остаётся. Общий жанровый портрет подборки не является описанием каждой станции.',
-        opts.playRequested === false
-          ? 'Человек сейчас не просит запускать звук. Ты предлагаешь варианты, а не включаешь их: не пиши «врубаем», «включаю» или «уже играет».'
-          : 'Не утверждай, что действие клиента уже выполнено, если у тебя нет подтверждения его исполнения.',
-        opts.repeatDiscovery
-          ? 'Это продолжение музыкальной просьбы с НОВЫМИ карточками. Короткое «и?» не повод отправлять читать ответ выше. Объясни текущие варианты по названиям и их собственным тегам; прежние карточки не являются результатом этого шага.'
-          : '',
-        slateSummary
-          ? `Вот что РЕАЛЬНО в подборке (по тегам станций): ${slateSummary}. Оттолкнись от этой конкретики — назови жанр/эпоху/звучание живыми словами. Можно назвать подтверждённую станцию, но ничего не добавляй сверх её тегов.`
-          : 'Коротко объясни, почему подборка попала в запрос.'
-      ].join(' ')
+      content: opts.boundedRecommendations
+        ? 'Карточки уже содержат проверенные станции и появятся в этом же ответе. Не повторяй названия и не пересказывай факты о станциях: твоя короткая реплика может отозваться на конкретный образ или мнение человека, выразить субъективную ассоциацию или задать один уместный необязательный вопрос. Не задерживай результат, не проси разрешения включить и не утверждай, что эфир уже играет или действие выполнено.'
+        : [
+          'В карточках уже есть реальные станции. Ответь station-first: 1–3 коротких живых предложения, без длинного рассуждения и без вопроса «хочешь включить?». Не проси разрешения попробовать. Не повторяй шаблон «Лучше всего начать с первой карточки».',
+          'Каждое пояснение привязывай к ТОЧНОМУ НАЗВАНИЮ станции и только её собственным тегам. Не описывай варианты по порядку («первая», «вторая», «№2»): позиция меняется, название остаётся. Общий жанровый портрет подборки не является описанием каждой станции.',
+          opts.playRequested === false
+            ? 'Человек сейчас не просит запускать звук. Ты предлагаешь варианты, а не включаешь их: не пиши «врубаем», «включаю» или «уже играет».'
+            : 'Не утверждай, что действие клиента уже выполнено, если у тебя нет подтверждения его исполнения.',
+          opts.repeatDiscovery
+            ? 'Это продолжение музыкальной просьбы с НОВЫМИ карточками. Короткое «и?» не повод отправлять читать ответ выше. Объясни текущие варианты по названиям и их собственным тегам; прежние карточки не являются результатом этого шага.'
+            : '',
+          slateSummary
+            ? `Вот что РЕАЛЬНО в подборке (по тегам станций): ${slateSummary}. Оттолкнись от этой конкретики — назови жанр/эпоху/звучание живыми словами. Можно назвать подтверждённую станцию, но ничего не добавляй сверх её тегов.`
+            : 'Коротко объясни, почему подборка попала в запрос.'
+        ].join(' ')
     });
   }
   // Artist grounding note (curated / name-match / none) — gates "plays X" claims.
@@ -1192,7 +1195,9 @@ const composeAgentReply = async (
     });
   }
   if (opts.recommendationNote) {
-    messages.push({ role: 'system', content: curatedRecommendationNote(opts.recommendationNote) });
+    messages.push({ role: 'system', content: opts.boundedRecommendations
+      ? `Учитывай эту музыкальную наводку только при выборе собственных признаков карточек; не повторяй и не дополняй её фактами: ${opts.recommendationNote}`
+      : curatedRecommendationNote(opts.recommendationNote) });
   }
   const sources = opts.sources || [];
   if (sources.length) {
@@ -1215,7 +1220,7 @@ const composeAgentReply = async (
   }
   messages.push({role:'system', content:`REPLY CONTEXT ${JSON.stringify(opts.replyContext)}. ${renderReplyContextInstruction(opts.replyContext)}`});
   if (opts.boundedRecommendations) {
-    messages.push({role: 'system', content: `РЕЖИМ ВЫБОРА ПРИЗНАКОВ. Ответ — ТОЛЬКО JSON {"v":1,"cards":[{"stationId":"UUID","tagKeys":["t0"]}]}. Для каждой текущей карточки выбери до трёх её собственных признаков, полезных для текущего запроса. Никаких других полей, вступления, объяснений или команд. Пустой tagKeys, если данных нет. Имена, порядок и пояснения соберёт сервер. Признак относится только к stationId своей карточки. Разрешённые признаки: ${JSON.stringify(recommendationEvidence(verifiedForCompose))}`});
+    messages.push({role: 'system', content: `РЕЖИМ РЕКОМЕНДАЦИИ / РЕЖИМ ВЫБОРА ПРИЗНАКОВ. Ответ — ТОЛЬКО JSON {"v":1,"cards":[{"stationId":"UUID","tagKeys":["t0"]}],"voice":"короткая реплика или пустая строка"}. В cards для каждой текущей карточки выбери до трёх собственных признаков, полезных для запроса. Пустой tagKeys, если данных нет. Имена, порядок, факты и действия принадлежат серверу. В voice можно написать одну короткую живую реплику, которая отзывается на конкретный образ или мнение самого человека, выражает твою субъективную музыкальную ассоциацию либо задаёт один естественный вопрос по теме, только если ответ что-то добавит. Пустая строка нормальна; вопрос не обязателен. Не пересказывай карточки, не повторяй названия, не говори о станциях как о факте, их программе, артистах, новостях или поиске; не обещай и не утверждай, что эфир уже играет или действие выполнено. Не добавляй «вот радио/держи подборку» или просьбу разрешить включить: карточки уже показаны, и результат не должен ждать ответа. Без markdown, ссылок, нескольких абзацев и иных полей. voice ограничен 240 символами. ВЕРИФИЦИРОВАННЫЕ признаки для выбора: ${JSON.stringify(recommendationEvidence(verifiedForCompose))}`});
   }
   if (opts.musicExpertise) {
     messages.push({
@@ -1243,7 +1248,8 @@ const composeAgentReply = async (
       .flatMap(observation => [String(observation.args.tag || ''), String(observation.args.query || '')]).filter(Boolean)
   });
   if (!rendered.validSelection) deps.log('ai compose: invalid evidence selection; used verified format facts');
-  return {...result, content: rendered.reply};
+  if (rendered.voiceWasProvided && !rendered.voice) deps.log('ai compose: invalid recommendation voice; used verified format facts');
+  return {...result, content: [rendered.voice, rendered.reply].filter(Boolean).join(' ')};
 };
 
 const ENQUEUE_INTENT =
@@ -2955,7 +2961,9 @@ export const chatWithAssistant = async (
 
   // Compose failed / empty / off-voice → warm fallback (carrying any stations
   // we DID verify, so the answer is never a dead end).
-  if (composed.error || !composed.content.trim() || !isVoiceSafe(composed.content)) {
+  if (composed.error || !composed.content.trim() || !isVoiceSafe(composed.content, {
+    allowIdentityDisclosure: isDirectIdentityQuestion(userMessage)
+  })) {
     const reason = composed.error ? 'compose-error' : !composed.content.trim() ? 'empty' : 'voice-unsafe';
     if (reason === 'voice-unsafe') deps.log('ai compose rejected by voice safety');
     return {

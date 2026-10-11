@@ -70,6 +70,8 @@ export type ChatResponse = {
   sources: ChatSource[];
   actions: ChatActionRef[];
   run?: ChatRunSummary;
+  provider?: { name: 'gpt-6-luna' | 'deepseek'; fallback: boolean };
+  providerFallback?: { token: string; reason: 'unavailable' | 'budget'; provider: 'deepseek' };
 };
 
 export type ChatHistoryTurn = { role: ChatRole; text: string };
@@ -98,6 +100,14 @@ export type ChatRequestOptions = {
   nowPlaying?: ChatNowPlaying;
   agentContext?: ChatAgentContext;
   actionReceipts?: ChatActionReceipt[];
+  fallbackToken?: string;
+};
+
+/** A closure lets a pending fallback offer detect sign-out or account switching
+ * without exposing or persisting the session token in component state. */
+export const captureChatSessionGuard = (): (() => boolean) => {
+  const token = readToken();
+  return () => readToken() === token;
 };
 
 const readToken = (): string => {
@@ -172,6 +182,7 @@ export const postChatMessage = async (
       nowPlaying: options.nowPlaying,
       agentContext: options.agentContext,
       actionReceipts: options.actionReceipts,
+      ...(options.fallbackToken ? { fallbackToken: options.fallbackToken } : {}),
       safetyIdentifier: readSafetyIdentifier()
     })
   });
@@ -185,6 +196,15 @@ export const postChatMessage = async (
     serviceLinks: Array.isArray(body?.serviceLinks) ? body!.serviceLinks! : [],
     sources: Array.isArray(body?.sources) ? body!.sources! : [],
     actions: parseActions(body?.actions),
-    run: body?.run && typeof body.run.runId === 'string' ? body.run : undefined
+    run: body?.run && typeof body.run.runId === 'string' ? body.run : undefined,
+    provider: body?.provider?.name === 'gpt-6-luna' || body?.provider?.name === 'deepseek'
+      ? { name: body.provider.name, fallback: body.provider.fallback === true }
+      : undefined,
+    providerFallback: body?.providerFallback &&
+      typeof body.providerFallback.token === 'string' &&
+      (body.providerFallback.reason === 'unavailable' || body.providerFallback.reason === 'budget') &&
+      body.providerFallback.provider === 'deepseek'
+      ? { token: body.providerFallback.token, reason: body.providerFallback.reason, provider: 'deepseek' }
+      : undefined
   };
 };

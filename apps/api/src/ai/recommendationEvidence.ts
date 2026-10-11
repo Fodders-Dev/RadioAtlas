@@ -101,28 +101,53 @@ export const recommendationEvidence = (stations: readonly VerifiedStationRef[]):
 }));
 
 export const RECOMMENDATION_EVIDENCE_SCHEMA: JsonSchemaOutput = {
-  name: 'station_evidence_selection',
-  schema: { type: 'object', additionalProperties: false, required: ['v', 'cards'], properties: {
+  name: 'station_recommendation_voice',
+  schema: { type: 'object', additionalProperties: false, required: ['v', 'cards', 'voice'], properties: {
     v: {type: 'integer', const: 1}, cards: {type: 'array', maxItems: 5, items: {
       type: 'object', additionalProperties: false, required: ['stationId', 'tagKeys'], properties: {
         stationId: {type: 'string'}, tagKeys: {type: 'array', maxItems: 3, uniqueItems: true, items: {type: 'string'}}
       }
-    }}
+    }}, voice: {type: 'string', maxLength: 240}
   }}
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === 'object' && !Array.isArray(value));
 const exactKeys = (row: Record<string, unknown>, keys: string[]) => Object.keys(row).length === keys.length && keys.every(key => Object.hasOwn(row, key));
 
-// Provider JSON mode is not a validation boundary. No free-form text survives
-// an invalid response, and selection never changes the final cards or actions.
-export const validateEvidenceSelection = (content: string, cards: readonly CardEvidence[]): Map<string, string[]> | undefined => {
+const parseRecommendationOutput = (content: string): Record<string, unknown> | undefined => {
   if (content.length > 16_384) return undefined;
   let value: unknown;
   try { value = JSON.parse(content); } catch { return undefined; }
-  if (!isRecord(value) || !exactKeys(value, ['v', 'cards']) || value.v !== 1 || !Array.isArray(value.cards) || value.cards.length > 5) return undefined;
+  if (!isRecord(value) || !(exactKeys(value, ['v', 'cards']) || exactKeys(value, ['v', 'cards', 'voice'])) || value.v !== 1 || !Array.isArray(value.cards) || value.cards.length > 5) return undefined;
+  return value;
+};
+
+// The model gets a tiny conversational lane beside its evidence selection.
+// This is a coarse boundary for obvious leaks and claims, not a truth detector.
+export const validateRecommendationVoice = (voice: unknown, stations: readonly VerifiedStationRef[]): string | undefined => {
+  if (typeof voice !== 'string') return undefined;
+  const text = voice.trim();
+  if (!text || text.length > 240 || /[\r\n\u0000-\u001f\u007f-\u009f<>`*_[\]{}]|https?:\/\/|www\./iu.test(text)) return undefined;
+  const normalized = text.toLocaleLowerCase();
+  if (stations.some(station => station.name.trim().length >= 3 && normalized.includes(station.name.trim().toLocaleLowerCase()))) return undefined;
+  const unsafeClaims = [
+    /(?:станци|эфир|радио|поток|канал)|\b(?:station|radio|stream|channel|fm|am)\b/iu,
+    /сейчас\s+(?:играет|звучит|в эфире)|уже\s+(?:играет|звучит|включил)|(?:включаю|запускаю|переключаю|нашла\s+и\s+включила)/iu,
+    /(?:без рекламы|без ведущих|без вокала|нон.?стоп|no ads|ad.?free|no presenters|no vocals|non.?stop)/iu,
+    /(?:playing|streaming)\s+now|already\s+(?:playing|on)|(?:i(?:’|')?m|i am)\s+(?:playing|starting|switching\s+to)|(?:will|guaranteed? to)\s+(?:play|stream)/iu,
+    /(?:гарант\w*|будет)\s*.{0,24}(?:играть|звучать|эфир|поток)/iu
+  ];
+  if (unsafeClaims.some(pattern => pattern.test(text))) return undefined;
+  return text;
+};
+
+// Provider JSON mode is not a validation boundary. No free-form text survives
+// an invalid response, and selection never changes the final cards or actions.
+export const validateEvidenceSelection = (content: string, cards: readonly CardEvidence[]): Map<string, string[]> | undefined => {
+  const value = parseRecommendationOutput(content);
+  if (!value) return undefined;
   const selected = new Map<string, string[]>();
-  for (const row of value.cards) {
+  for (const row of value.cards as unknown[]) {
     if (!isRecord(row) || !exactKeys(row, ['stationId', 'tagKeys']) || typeof row.stationId !== 'string' ||
         selected.has(row.stationId) || !Array.isArray(row.tagKeys) || row.tagKeys.length > 3 ||
         !row.tagKeys.every(key => typeof key === 'string') || new Set(row.tagKeys).size !== row.tagKeys.length) return undefined;
@@ -136,9 +161,14 @@ export const validateEvidenceSelection = (content: string, cards: readonly CardE
 export const renderRecommendationEvidence = (
   stations: readonly VerifiedStationRef[], content: string,
   options: {english?: boolean; culturalVibe?: boolean; preferredTags?: string[]; eraAcknowledgement?: {fromYear:number;toYear:number}} = {}
-): {reply: string; validSelection: boolean} => {
+): {reply: string; validSelection: boolean; voice?: string; voiceWasProvided: boolean} => {
   const rows = stations.slice(0, 5).map(station => ({station, evidence: approvedEvidence(station)}));
   const selected = validateEvidenceSelection(content, recommendationEvidence(stations));
+  const parsed = parseRecommendationOutput(content);
+  const voiceWasProvided = Boolean(parsed && Object.hasOwn(parsed, 'voice'));
+  // Voice is a separate channel, but its envelope must still contain a valid
+  // evidence selection. Invalid card IDs/keys invalidate the whole model reply.
+  const voice = parsed && selected ? validateRecommendationVoice(parsed.voice, stations) : undefined;
   const en = options.english;
   const cardDescriptions = rows.map(({station, evidence}) => {
     const keys = selected?.get(station.stationuuid);
@@ -209,12 +239,12 @@ export const renderRecommendationEvidence = (
           ? `В подборке есть ${descriptions[0]}.`
           : `В подборке есть ${describeSet(descriptions)}.`
       : en
-        ? 'I found stations for this direction, but the catalogue does not give enough musical detail to describe their sound.'
-        : 'Подходящие станции нашлись, но в каталоге недостаточно музыкальных деталей, чтобы описать их звучание.';
-  const partialEvidence = rows.some(row => row.evidence.length === 0)
-    ? en ? 'Some cards have too little catalogue evidence for a more specific explanation.'
-      : 'Для части вариантов в каталоге мало данных, чтобы точнее описать их характер.'
-    : '';
+        ? rows.length === 1 ? 'You could start with this station.'
+          : rows.length > 1 ? 'You could start with these stations.'
+            : 'I did not find a station to show yet.'
+        : rows.length === 1 ? 'Можно начать с этого эфира.'
+          : rows.length > 1 ? 'Можно начать с этих эфиров.'
+            : 'Пока не нашла эфиров для показа.';
   const cultural = options.culturalVibe
     ? en ? 'They are selected for the association, not as an official soundtrack.' : 'Это подборка по ассоциации, не официальный саундтрек.'
     : '';
@@ -225,5 +255,5 @@ export const renderRecommendationEvidence = (
   const groundedSummary = hasDnb && periodReference
     ? `${summary} ${en ? `There is also ${periodReference}.` : `Есть и отсылка к ${periodSound}.`}`
     : summary;
-  return {reply: [eraAcknowledgement, groundedSummary, partialEvidence, cultural].filter(Boolean).join(' '), validSelection: Boolean(selected)};
+  return {reply: [eraAcknowledgement, groundedSummary, cultural].filter(Boolean).join(' '), validSelection: Boolean(selected), voice, voiceWasProvided};
 };

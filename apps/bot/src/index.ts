@@ -34,10 +34,15 @@ import {
 } from './replyPayloads.js';
 import {
   AI_FALLBACK_TEXT,
+  AI_FALLBACK_OFFER_PREFIX,
   buildAiButtons,
+  createAiFallbackOffers,
   createAiLimiter,
+  deliverAiFallbackOffer,
+  deliverAiChatReply,
   isAiEligibleMessage,
-  requestAiChat
+  requestAiChat,
+  runAiFallbackCallback
 } from './aiChat.js';
 import { createChatHistory } from './chatHistory.js';
 import { createBotUrlRuntime } from './urlRuntime.js';
@@ -143,6 +148,18 @@ const ffmpegPath = resolveFfmpegPath({
 console.log(`record: using ffmpeg at ${ffmpegPath ?? '(none found)'}`);
 const recordingLimiter = createRecordingLimiter();
 const activeRecordings = new Map<string, { controller: AbortController }>();
+const aiFallbackOffers = createAiFallbackOffers({ now: () => Date.now(), makeId: () => randomUUID() });
+let handleAiFallbackCallback: ((ctx: Context, data: string) => Promise<void>) | null = null;
+if (aiEnabled) {
+  // Any new user message supersedes an outstanding provider choice, including
+  // commands handled by other routes. Telegram callback clicks are separate
+  // updates and do not pass through this invalidation middleware.
+  bot.on('message', async (ctx, next) => {
+    const userId = String(ctx.from?.id || '');
+    if (ctx.chat?.type === 'private' && userId) aiFallbackOffers.invalidateUser(userId);
+    await next();
+  });
+}
 const DURATION_LABELS: Record<number, string> = { 300: '5 мин', 900: '15 мин', 1800: '30 мин' };
 
 const stationPickKeyboard = (stations: RecordStation[]) => {
@@ -351,6 +368,12 @@ bot.command('record', async (ctx) => {
 bot.on('callback_query:data', async (ctx) => {
   const data = ctx.callbackQuery.data;
 
+  if (data.startsWith(AI_FALLBACK_OFFER_PREFIX)) {
+    if (handleAiFallbackCallback) await handleAiFallbackCallback(ctx, data);
+    else await ctx.answerCallbackQuery({ text: 'Этот ответ уже недоступен' });
+    return;
+  }
+
   if (data.startsWith('rec:')) {
     await ctx.answerCallbackQuery();
     await presentStationForRecording(ctx, data.slice(4), true);
@@ -514,6 +537,89 @@ if (aiEnabled) {
   // build it). In-memory, bounded, idle-expiring — see chatHistory.ts.
   const aiHistory = createChatHistory({ now: () => Date.now() });
 
+  bot.command('reset', async (ctx) => {
+    const userId = String(ctx.from?.id || '');
+    if (ctx.chat?.type !== 'private' || !userId) return;
+    aiFallbackOffers.invalidateUser(userId);
+    aiHistory.clear(userId);
+    await ctx.reply('История Лиры очищена. Начнём заново.');
+  });
+
+  handleAiFallbackCallback = async (ctx, data) => {
+    const userId = String(ctx.from?.id || '');
+    const chatId = String(ctx.chat?.id || '');
+    if (ctx.chat?.type !== 'private' || !userId || !chatId || chatId !== userId) {
+      await ctx.answerCallbackQuery({ text: 'Продолжить можно только в личном чате' });
+      return;
+    }
+    let validOffer = false;
+    let acquired = false;
+    let callbackGeneration = '';
+    try {
+      const outcome = await runAiFallbackCallback({
+        offers: aiFallbackOffers,
+        callbackData: data,
+        userId,
+        chatId,
+        beforeRequest: async (offer) => {
+          validOffer = true;
+          callbackGeneration = offer.generation;
+          await ctx.answerCallbackQuery();
+          await ctx.editMessageReplyMarkup().catch(() => {});
+          if (!aiFallbackOffers.isCurrent(userId, offer.generation)) return false;
+          const verdict = aiLimiter.verdict(userId);
+          if (verdict !== 'ok') {
+            await ctx.reply(verdict === 'busy'
+              ? 'Секунду, я ещё думаю над прошлым — сейчас отвечу.'
+              : 'Ой, как много всего сразу — дай мне чуть выдохнуть, и продолжим.');
+            return false;
+          }
+          aiLimiter.acquire(userId);
+          acquired = true;
+          await ctx.replyWithChatAction('typing');
+          return true;
+        },
+        request: (input) => requestAiChat(
+          input,
+          { fetch: globalThis.fetch.bind(globalThis), apiUrl, internalWebhookToken }
+        )
+      });
+      if (!validOffer) {
+        await ctx.answerCallbackQuery({ text: 'Этот ответ уже недоступен' });
+        return;
+      }
+      if (!outcome) return;
+      const { offer, result } = outcome;
+      if (!aiFallbackOffers.isCurrent(userId, offer.generation)) return;
+      if (!result || result.providerFallback || !result.provider?.fallback) {
+        await ctx.reply(AI_FALLBACK_TEXT);
+        return;
+      }
+      const buttons = buildAiButtons(result, ctx.me?.username || '');
+      const suffix = result.provider.name === 'deepseek' && result.provider.fallback
+        ? '\n\n<i>Ответ через DeepSeek</i>'
+        : '';
+      await deliverAiChatReply({
+        isCurrent: () => aiFallbackOffers.isCurrent(userId, offer.generation),
+        deliver: async () => {
+          await ctx.reply(`${result.reply}${suffix}`, {
+            parse_mode: 'HTML',
+            link_preview_options: { is_disabled: true },
+            reply_markup: buttons.length ? InlineKeyboard.from(buttons) : undefined
+          });
+        },
+        recordDeliveredReply: () => aiHistory.record(userId, offer.input.text, result.reply)
+      });
+    } catch (err) {
+      console.error('ai chat fallback handler error', err);
+      try {
+        if (validOffer && aiFallbackOffers.isCurrent(userId, callbackGeneration)) await ctx.reply(AI_FALLBACK_TEXT);
+      } catch { /* ignore secondary failure */ }
+    } finally {
+      if (acquired) aiLimiter.release(userId);
+    }
+  };
+
   bot.on('message:text', async (ctx) => {
     if (!isAiEligibleMessage({ text: ctx.message.text, chatType: ctx.chat?.type })) return;
     const userId = String(ctx.from?.id || '');
@@ -530,28 +636,58 @@ if (aiEnabled) {
     }
 
     aiLimiter.acquire(userId);
+    const requestInput = { telegramId: userId, text: ctx.message.text, history: aiHistory.get(userId) };
+    const requestGeneration = aiFallbackOffers.currentGeneration(userId);
     try {
       await ctx.replyWithChatAction('typing');
+      if (!aiFallbackOffers.isCurrent(userId, requestGeneration)) return;
       const result = await requestAiChat(
-        { telegramId: userId, text: ctx.message.text, history: aiHistory.get(userId) },
+        requestInput,
         { fetch: globalThis.fetch.bind(globalThis), apiUrl, internalWebhookToken }
       );
+      if (!aiFallbackOffers.isCurrent(userId, requestGeneration)) return;
       if (!result) {
         await ctx.reply(AI_FALLBACK_TEXT);
         return;
       }
-      // Remember this exchange so the next message has context (the goldfish-memory fix).
-      aiHistory.record(userId, ctx.message.text, result.reply);
+      if (result.providerFallback) {
+        const callbackData = await deliverAiFallbackOffer({
+          offers: aiFallbackOffers,
+          input: requestInput,
+          token: result.providerFallback.token,
+          userId,
+          chatId: String(ctx.chat?.id || ''),
+          generation: requestGeneration,
+          deliver: async (data) => {
+            await ctx.reply('GPT-6 Luna сейчас не смогла ответить. Если хочешь, я продолжу через DeepSeek.', {
+              reply_markup: new InlineKeyboard().text('Продолжить через DeepSeek', data)
+            });
+          }
+        });
+        if (!callbackData) {
+          if (!aiFallbackOffers.isCurrent(userId, requestGeneration)) return;
+          await ctx.reply('GPT-6 Luna сейчас не смогла ответить. Попробуй написать ещё раз позже.');
+          return;
+        }
+        return;
+      }
       const buttons = buildAiButtons(result, ctx.me?.username || '');
-      await ctx.reply(result.reply, {
-        parse_mode: 'HTML',
-        link_preview_options: { is_disabled: true },
-        reply_markup: buttons.length ? InlineKeyboard.from(buttons) : undefined
+      if (!aiFallbackOffers.isCurrent(userId, requestGeneration)) return;
+      await deliverAiChatReply({
+        isCurrent: () => aiFallbackOffers.isCurrent(userId, requestGeneration),
+        deliver: async () => {
+          await ctx.reply(result.reply, {
+            parse_mode: 'HTML',
+            link_preview_options: { is_disabled: true },
+            reply_markup: buttons.length ? InlineKeyboard.from(buttons) : undefined
+          });
+        },
+        recordDeliveredReply: () => aiHistory.record(userId, ctx.message.text, result.reply)
       });
     } catch (err) {
       console.error('ai chat handler error', err);
       try {
-        await ctx.reply(AI_FALLBACK_TEXT);
+        if (aiFallbackOffers.isCurrent(userId, requestGeneration)) await ctx.reply(AI_FALLBACK_TEXT);
       } catch {
         // ignore secondary failure
       }

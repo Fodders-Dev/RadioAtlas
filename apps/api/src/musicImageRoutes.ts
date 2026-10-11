@@ -26,6 +26,9 @@ export const registerMusicImageRoutes = (
   }
 ) => {
   const enabled = musicImageEnabled(options.model);
+  const provider = enabled
+    ? options.model.provider === 'openai' ? 'gpt-6-luna' : 'deepseek'
+    : undefined;
   const guard = new ProtectedMediaRoute<unknown>({
     routeName: 'ai-music-image',
     maxConcurrency: 1,
@@ -37,7 +40,7 @@ export const registerMusicImageRoutes = (
   const now = options.now || (() => Date.now());
 
   app.get('/ai/music-image', (_req, res) => {
-    res.json({ enabled });
+    res.json(enabled ? { enabled: true, provider } : { enabled: false });
   });
 
   app.post('/ai/music-image', async (req, res) => {

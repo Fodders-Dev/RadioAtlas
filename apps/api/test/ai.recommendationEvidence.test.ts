@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { recommendationEvidence, renderRecommendationEvidence, validateEvidenceSelection } from '../src/ai/recommendationEvidence.js';
+import { RECOMMENDATION_EVIDENCE_SCHEMA, recommendationEvidence, renderRecommendationEvidence, validateEvidenceSelection, validateRecommendationVoice } from '../src/ai/recommendationEvidence.js';
 import { registerCatalogueTagEvidence } from '../src/ai/catalogueTagEvidence.js';
 import type { VerifiedStationRef } from '../src/ai/types.js';
 
@@ -89,8 +89,16 @@ test('empty or unknown tags never borrow facts from a station name or another ca
   const rows=[row('a',[], 'jungletrain — 24/7 drum and bass'),row('b',['ambient'])];
   const r=renderRecommendationEvidence(rows, selection([{stationId:'a',tagKeys:['t0']}])).reply;
   assert.match(r,/атмосферный, созерцательный оттенок/);
-  assert.match(r,/Для части вариантов в каталоге мало данных/);
+  assert.doesNotMatch(r,/мало данных|недостаточно музыкальных деталей/);
   assert.doesNotMatch(r,/jungletrain|drum and bass|«b»|чистый|Общее/);
+});
+
+test('no approved evidence gets one short count-correct invitation without invented detail', () => {
+  const single=renderRecommendationEvidence([row('a',[], 'Jungletrain')],'{broken').reply;
+  const plural=renderRecommendationEvidence([row('a',[], 'Jungletrain'),row('b',[], 'DnB Radio')],selection([])).reply;
+  assert.equal(single,'Можно начать с этого эфира.');
+  assert.equal(plural,'Можно начать с этих эфиров.');
+  assert.doesNotMatch(`${single} ${plural}`,/Jungletrain|DnB Radio|drum and bass|подходящ|звучани|мало данных|недостаточно/);
 });
 
 test('model picks a request-relevant own tag while final station order and names stay server-owned', () => {
@@ -100,6 +108,69 @@ test('model picks a request-relevant own tag while final station order and names
   assert.match(result.reply,/атмосферный, созерцательный оттенок/);
   assert.match(result.reply,/ритмичное танцевальное направление/);
   assert.doesNotMatch(result.reply,/«a»|«b»|ambient|house/);
+});
+
+test('recommendation voice is bounded separately from legacy and verified card evidence', () => {
+  const stationRow=row('station-1',['jazz'],'Paris Jazz');
+  const voice='Ночной поезд под дождём — красивый образ; я бы оставила в нём побольше воздуха.';
+  const modern=JSON.stringify({v:1,cards:[{stationId:'station-1',tagKeys:['t0']}],voice});
+  const rendered=renderRecommendationEvidence([stationRow],modern);
+  assert.equal(rendered.voice,voice);
+  assert.equal(rendered.validSelection,true);
+  assert.equal(rendered.voiceWasProvided,true);
+  assert.match(rendered.reply,/джазовая сторона/);
+  assert.deepEqual(validateEvidenceSelection(selection([{stationId:'station-1',tagKeys:['t0']}]),recommendationEvidence([stationRow]))?.get('station-1'),['t0']);
+  assert.deepEqual(RECOMMENDATION_EVIDENCE_SCHEMA.schema.required,['v','cards','voice']);
+  assert.equal((RECOMMENDATION_EVIDENCE_SCHEMA.schema.properties as any).voice.maxLength,240);
+});
+
+test('verified era and cultural qualifiers remain beside a valid conversational voice', () => {
+  const stationRow=row('station-1',['synthwave'],'Night Arcade');
+  const voice='Ночной город — мой любимый саундтрек к долгой дороге.';
+  const rendered=renderRecommendationEvidence([stationRow],JSON.stringify({v:1,cards:[{stationId:'station-1',tagKeys:['t0']}],voice}),{
+    eraAcknowledgement:{fromYear:1990,toYear:1999},culturalVibe:true
+  });
+  assert.equal(rendered.voice,voice);
+  assert.match(rendered.reply,/Учла ваш диапазон: 1990–1999/);
+  assert.match(rendered.reply,/ретро-электронное настроение/);
+  assert.match(rendered.reply,/подборка по ассоциации, не официальный саундтрек/);
+  assert.match([rendered.voice,rendered.reply].filter(Boolean).join(' '),/Ночной город — мой любимый саундтрек/);
+});
+
+test('invalid, forged, overlong or malformed voice falls back to verified prose while legacy selection still works', () => {
+  const stationRow=row('station-1',['jazz'],'Paris Jazz');
+  const invalidVoices=[
+    'Paris Jazz сегодня играет до утра.',
+    'На этой станции всегда чистая музыка.',
+    'Этот эфир без рекламы.',
+    'Moonlight FM мягко играет каждую ночь.',
+    'Уже включаю этот эфир.',
+    'Сейчас играет джаз.',
+    `Мне нравится этот образ. ${'Очень '.repeat(45)}`,
+    'Тихий джаз <b>для ночи</b>',
+    'Музыка: https://example.com'
+  ];
+  for(const voice of invalidVoices) {
+    const output=JSON.stringify({v:1,cards:[{stationId:'station-1',tagKeys:['t0']}],voice});
+    const rendered=renderRecommendationEvidence([stationRow],output);
+    assert.equal(rendered.validSelection,true,voice);
+    assert.equal(rendered.voice,undefined,voice);
+    assert.equal(rendered.voiceWasProvided,true,voice);
+    assert.match(rendered.reply,/джазовая сторона/,voice);
+  }
+  const legacy=renderRecommendationEvidence([stationRow],selection([{stationId:'station-1',tagKeys:['t0']}]));
+  assert.equal(legacy.validSelection,true);
+  assert.equal(legacy.voice,undefined);
+  assert.equal(legacy.voiceWasProvided,false);
+  const unknown=renderRecommendationEvidence([stationRow],JSON.stringify({v:1,cards:[],voice:'Мой вкус.',debug:'secret'}));
+  assert.equal(unknown.validSelection,false);
+  assert.equal(unknown.voice,undefined);
+  const malformed=renderRecommendationEvidence([stationRow],'{broken');
+  assert.equal(malformed.voice,undefined);
+  const forgedCard=renderRecommendationEvidence([stationRow],JSON.stringify({v:1,cards:[{stationId:'invented-station',tagKeys:['t0']}],voice:'Мой личный музыкальный вкус.'}));
+  assert.equal(forgedCard.validSelection,false);
+  assert.equal(forgedCard.voice,undefined);
+  assert.equal(validateRecommendationVoice('Лёгкий образ для вечера.',[stationRow]),'Лёгкий образ для вечера.');
 });
 
 test('invalid IDs/keys/fields/duplicates and prose cannot escape the selection boundary', () => {

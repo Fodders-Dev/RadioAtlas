@@ -124,7 +124,7 @@ const post = (base: string, bytes: Buffer, type = 'image/jpeg', ip = '127.0.0.1'
   method: 'POST', headers: { 'Content-Type': type, 'X-Forwarded-For': ip }, body: bytes
 });
 
-test('music image capability is false outside the allow-listed DeepSeek vision configs', async () => {
+test('music image capability is restricted to supported DeepSeek and GPT-6 Luna vision configs', async () => {
   for (const model of [
     config({ provider: 'openai' }), config({ model: 'deepseek-v4-pro' }),
     config({ model: 'DeepSeek-V4-Flash' }), config({ enabled: false }), config({ apiKey: '' })
@@ -143,9 +143,135 @@ test('music image capability is false outside the allow-listed DeepSeek vision c
     const app = express();
     registerMusicImageRoutes(app, { model: config({ model }) });
     const { server, base } = await listen(app);
-    try { assert.deepEqual(await (await fetch(`${base}/ai/music-image`)).json(), { enabled: true }); }
+    try {
+      assert.deepEqual(await (await fetch(`${base}/ai/music-image`)).json(), { enabled: true, provider: 'deepseek' });
+    }
     finally { await close(server); }
   }
+  for (const model of ['gpt-6-luna', 'gpt-6-astra']) {
+    const app = express();
+    registerMusicImageRoutes(app, { model: config({ provider: 'openai', model }) });
+    const { server, base } = await listen(app);
+    try {
+      assert.deepEqual(await (await fetch(`${base}/ai/music-image`)).json(), model === 'gpt-6-luna'
+        ? { enabled: true, provider: 'gpt-6-luna' }
+        : { enabled: false });
+    } finally { await close(server); }
+  }
+});
+
+test('GPT-6 Luna receives one sanitized JPEG through the bounded Responses vision envelope', async () => {
+  __resetMusicImageRateState();
+  const files = await fixtures();
+  const app = express();
+  let calls = 0;
+  let url = '';
+  let sent: Record<string, unknown> | undefined;
+  registerMusicImageRoutes(app, {
+    model: config({ provider: 'openai', model: 'gpt-6-luna', baseUrl: 'https://openai.invalid/v1' }),
+    fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      url = String(input);
+      sent = JSON.parse(String(init?.body));
+      return Response.json({ output_text: JSON.stringify({ candidates: [
+        { artist: 'Artist One', title: 'Song A', uncertain: false },
+        { artist: '', title: 'Unclear title', uncertain: false }
+      ] }) });
+    }) as typeof fetch
+  });
+  const { server, base } = await listen(app);
+  try {
+    const response = await post(base, files.png, 'image/png');
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { candidates: [
+      { artist: 'Artist One', title: 'Song A', uncertain: false },
+      { artist: '', title: 'Unclear title', uncertain: true }
+    ] });
+    assert.equal(calls, 1);
+    assert.equal(url, 'https://openai.invalid/v1/responses');
+    assert.equal(sent?.model, 'gpt-6-luna');
+    assert.equal(sent?.store, false);
+    assert.equal(sent?.max_output_tokens, 700);
+    assert.deepEqual(sent?.reasoning, { effort: 'none', context: 'current_turn' });
+    const text = sent?.text as Record<string, unknown>;
+    assert.equal(text.verbosity, 'low');
+    const format = text.format as Record<string, unknown>;
+    assert.equal(format.type, 'json_schema');
+    assert.equal(format.name, 'music_image_candidates');
+    assert.equal(format.strict, true);
+    const input = sent?.input as Array<{ role: string; content: Array<Record<string, unknown>> }>;
+    assert.equal(input.length, 1);
+    assert.equal(input[0]?.role, 'user');
+    const content = input[0]?.content || [];
+    assert.deepEqual(content.map((part) => part.type), ['input_text', 'input_image']);
+    const image = content[1];
+    assert.equal(image?.detail, 'high');
+    const imageUrl = String(image?.image_url || '');
+    assert.match(imageUrl, /^data:image\/jpeg;base64,/);
+    const sanitized = Buffer.from(imageUrl.split(',')[1] || '', 'base64');
+    const metadata = await sharp(sanitized).metadata();
+    assert.equal(metadata.exif, undefined);
+    assert.equal(metadata.format, 'jpeg');
+  } finally { await close(server); }
+});
+
+test('GPT-6 Luna failures and malformed Responses output stay unavailable without a DeepSeek retry', async () => {
+  __resetMusicImageRateState();
+  const files = await fixtures();
+  for (const responseBody of [
+    new Response('private provider failure', { status: 500 }),
+    Response.json({ output_text: 'not JSON' }),
+    Response.json({ output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }] })
+  ]) {
+    const app = express();
+    let calls = 0;
+    registerMusicImageRoutes(app, {
+      model: config({ provider: 'openai', model: 'gpt-6-luna' }),
+      fetch: (async () => { calls++; return responseBody; }) as typeof fetch
+    });
+    const { server, base } = await listen(app);
+    try {
+      const response = await post(base, files.jpeg, 'image/jpeg', `203.0.113.${calls + 10}`);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), { error: 'unavailable' });
+      assert.equal(calls, 1);
+    } finally { await close(server); }
+  }
+});
+
+test('GPT-6 Luna image limits reject before the provider and the total deadline aborts Responses', async () => {
+  __resetMusicImageRateState();
+  const files = await fixtures();
+  const model = config({ provider: 'openai', model: 'gpt-6-luna' });
+  let calls = 0;
+  const limited = express();
+  registerMusicImageRoutes(limited, {
+    model,
+    fetch: (async () => { calls++; return Response.json({ output_text: '{"candidates":[]}' }); }) as typeof fetch
+  });
+  const limitedServer = await listen(limited);
+  try {
+    const response = await post(limitedServer.base, Buffer.alloc(MUSIC_IMAGE_MAX_BYTES + 1), 'image/jpeg');
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { error: 'image_too_large' });
+    assert.equal(calls, 0);
+  } finally { await close(limitedServer.server); }
+
+  const timed = express();
+  let aborted = false;
+  registerMusicImageRoutes(timed, {
+    model, deadlineMs: 30,
+    fetch: (async (_url: string | URL | Request, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => { aborted = true; reject(new Error('internal abort')); }, { once: true });
+    })) as typeof fetch
+  });
+  const timedServer = await listen(timed);
+  try {
+    const response = await post(timedServer.base, files.jpeg, 'image/jpeg', '203.0.113.89');
+    assert.equal(response.status, 504);
+    assert.deepEqual(await response.json(), { error: 'timeout' });
+    assert.equal(aborted, true);
+  } finally { await close(timedServer.server); }
 });
 
 test('one sanitized inline vision request yields a bounded, deduplicated allow-list', async () => {

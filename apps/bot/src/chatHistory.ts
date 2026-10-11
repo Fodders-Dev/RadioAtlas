@@ -17,6 +17,7 @@ import type { AiChatHistoryTurn } from './aiChat.js';
 export type ChatHistoryStore = {
   get: (userId: string) => AiChatHistoryTurn[];
   record: (userId: string, userText: string, assistantText: string) => void;
+  clear: (userId: string) => void;
 };
 
 type Entry = { turns: AiChatHistoryTurn[]; lastSeen: number };
@@ -80,6 +81,9 @@ export const createChatHistory = (options: ChatHistoryOptions = {}): ChatHistory
       entry.lastSeen = at;
       store.set(userId, entry);
       prune(at);
+    },
+    clear(userId) {
+      store.delete(userId);
     }
   };
 };

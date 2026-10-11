@@ -85,7 +85,20 @@ an **explicit allow-list** (`reply`, `stations`, `serviceLinks`, `sources`,
 adding it to that literal does. Operator-only signals (`modelErrors`,
 `cardGate`, `constraintFilter`, `webSearchStatuses`) must stay server-side.
 
-The opt-in GPT-6 Luna Telegram pilot is a second model configuration behind the
+The global GPT-6 Luna opt-in (`LIRA_GLOBAL_GPT_ENABLED=1`) is the primary route
+for bot and Mini App and supersedes the older owner pilot. It requires an
+explicitly pre-provisioned `global-text` ledger campaign and the matching
+`LIRA_GLOBAL_GPT_BUDGET_LIMIT_USD`; runtime never initializes missing state.
+Text and screenshot calls share that durable lifetime reservation cap. Global
+GPT and reserve DeepSeek share admission and a single Tavily daily budget.
+Provider failure/budget exhaustion returns a static warning and an expiring,
+one-use ticket; only an explicit listener action may call DeepSeek. Bind retries
+to original content, surface and server-side session/Telegram identity. No
+hidden fallback, no provider key/diagnostics in the browser allow-list. Public
+`provider` and `providerFallback` contain only bounded status and opaque tickets.
+Global screenshot failures do not call DeepSeek automatically.
+
+The earlier opt-in GPT-6 Luna Telegram pilot is a second model configuration behind the
 same admission controls, selected only by the trusted internal bot's exact
 server-configured Telegram ID. Never expose a provider selector to the browser
 or switch other listeners as a side effect. Its dedicated key travels in memory

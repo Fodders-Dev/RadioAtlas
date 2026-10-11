@@ -2,10 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   AI_FALLBACK_TEXT,
+  AI_FALLBACK_OFFER_PREFIX,
   buildAiButtons,
+  createAiFallbackOffers,
   createAiLimiter,
+  deliverAiFallbackOffer,
+  deliverAiChatReply,
   isAiEligibleMessage,
   requestAiChat,
+  runAiFallbackCallback,
   stationDeepLink,
   type AiChatResult
 } from '../src/aiChat.js';
@@ -63,6 +68,172 @@ test('requestAiChat forwards conversation history in the body (so the brain has 
   await requestAiChat({ telegramId: 7, text: 'без азиатских нот', history }, deps(fetchImpl));
   const body = JSON.parse(calls[0]?.init?.body);
   assert.deepEqual(body.history, history);
+});
+
+test('requestAiChat forwards only the explicit fallback ticket and parses typed provider metadata', async () => {
+  const { fetch: fetchImpl, calls } = stubFetch({ ok: true, body: {
+    reply: 'Tokyo jazz', stations: [], serviceLinks: [], sources: [],
+    provider: { name: 'deepseek', fallback: true }
+  } });
+  const result = await requestAiChat({ telegramId: 7, text: 'Tokyo', history: [], fallbackToken: 'ticket-1' }, deps(fetchImpl));
+  assert.equal(JSON.parse(calls[0]?.init?.body).fallbackToken, 'ticket-1');
+  assert.deepEqual(result?.provider, { name: 'deepseek', fallback: true });
+});
+
+test('fallback offers are opaque, bounded, expiring, user-bound and consumed once', () => {
+  let clock = 100;
+  let nextId = 0;
+  const offers = createAiFallbackOffers({ now: () => clock, makeId: () => `opaque-${++nextId}`, ttlMs: 50, maxOffers: 2 });
+  offers.invalidateUser('42');
+  const generation = offers.currentGeneration('42');
+  const original = { telegramId: '42', text: 'find jazz', history: [{ role: 'user' as const, text: 'earlier' }] };
+  const first = offers.create(original, 'secret-provider-ticket', '42', '42', generation);
+  assert.ok(first);
+  assert.ok(first.startsWith(AI_FALLBACK_OFFER_PREFIX));
+  assert.ok(first.length <= 64);
+  assert.equal(first.includes('secret-provider-ticket'), false);
+  assert.equal(offers.consume(first, '99', '99'), null);
+  assert.equal(offers.consume(first, '42', 'group-1'), null);
+  assert.deepEqual(offers.consume(first, '42', '42')?.input, original);
+  assert.equal(offers.consume(first, '42', '42'), null);
+
+  const expired = offers.create(original, 'ticket-2', '42', '42', generation);
+  assert.ok(expired);
+  clock += 50;
+  assert.equal(offers.consume(expired, '42', '42'), null);
+
+  const replacedA = offers.create(original, 'ticket-3', '42', '42', generation);
+  const replacedB = offers.create(original, 'ticket-4', '42', '42', generation);
+  const replacement = offers.create(original, 'ticket-5', '42', '42', generation);
+  assert.equal(offers.consume(replacedA!, '42', '42'), null); // bounded eviction
+  offers.invalidateUser('42');
+  assert.equal(offers.consume(replacedB!, '42', '42'), null);
+  assert.equal(offers.consume(replacement!, '42', '42'), null);
+  assert.equal(offers.size(), 0);
+});
+
+test('fallback network retry starts only after consuming the explicit callback offer', async () => {
+  const initial = stubFetch({ ok: true, body: {
+    reply: 'GPT is unavailable', stations: [], serviceLinks: [], sources: [],
+    provider: { name: 'gpt-6-luna', fallback: false },
+    providerFallback: { token: 'provider-ticket', reason: 'unavailable', provider: 'deepseek' }
+  } });
+  const fallback = stubFetch({ ok: true, body: {
+    reply: 'DeepSeek answer', stations: [], serviceLinks: [], sources: [],
+    provider: { name: 'deepseek', fallback: true }
+  } });
+  const offers = createAiFallbackOffers({ now: () => 0, makeId: () => 'click-1' });
+  const original = { telegramId: '42', text: 'find calm jazz', history: [{ role: 'user' as const, text: 'earlier' }] };
+  const first = await requestAiChat(original, deps(initial.fetch));
+  assert.equal(initial.calls.length, 1);
+  offers.invalidateUser('42');
+  const generation = offers.currentGeneration('42');
+  let warningDelivered = false;
+  const callbackData = await deliverAiFallbackOffer({
+    offers, input: original, token: first?.providerFallback?.token || '',
+    userId: '42', chatId: '42', generation,
+    deliver: async (data) => { warningDelivered = true; assert.ok(data.startsWith(AI_FALLBACK_OFFER_PREFIX)); }
+  });
+  assert.ok(callbackData);
+  // The callback helper is the path used by index.ts after Telegram delivers
+  // the warning. No retry is possible before that explicit callback.
+  assert.equal(fallback.calls.length, 0);
+  const forged = await runAiFallbackCallback({
+    offers, callbackData: `${AI_FALLBACK_OFFER_PREFIX}forged`, userId: '42', chatId: '42',
+    beforeRequest: async () => true,
+    request: (input) => requestAiChat(input, deps(fallback.fetch))
+  });
+  const foreignUser = await runAiFallbackCallback({
+    offers, callbackData, userId: '99', chatId: '99',
+    beforeRequest: async () => true,
+    request: (input) => requestAiChat(input, deps(fallback.fetch))
+  });
+  assert.equal(forged, null);
+  assert.equal(foreignUser, null);
+  assert.equal(fallback.calls.length, 0);
+  const outcome = await runAiFallbackCallback({
+    offers, callbackData, userId: '42', chatId: '42',
+    beforeRequest: async () => warningDelivered,
+    request: (input) => requestAiChat(input, deps(fallback.fetch))
+  });
+  assert.equal(fallback.calls.length, 1);
+  assert.deepEqual(JSON.parse(fallback.calls[0]?.init?.body), {
+    telegramId: '42', text: 'find calm jazz', history: original.history, fallbackToken: 'provider-ticket'
+  });
+  assert.equal(outcome?.result?.provider?.fallback, true);
+  const replay = await runAiFallbackCallback({
+    offers, callbackData, userId: '42', chatId: '42',
+    beforeRequest: async () => true,
+    request: (input) => requestAiChat(input, deps(fallback.fetch))
+  });
+  assert.equal(replay, null);
+  assert.equal(fallback.calls.length, 1);
+});
+
+test('failed warning delivery removes the offer, and a newer message/reset invalidates in-flight offers', async () => {
+  let nextId = 0;
+  const offers = createAiFallbackOffers({ now: () => 1, makeId: () => `id-${++nextId}` });
+  const input = { telegramId: '5', text: 'find ambient', history: [] };
+  offers.invalidateUser('5');
+  const firstGeneration = offers.currentGeneration('5');
+  let callbackData = '';
+  await assert.rejects(() => deliverAiFallbackOffer({
+    offers, input, token: 'ticket-a', userId: '5', chatId: '5', generation: firstGeneration,
+    deliver: async (data) => { callbackData = data; throw new Error('telegram unavailable'); }
+  }));
+  assert.equal(offers.consume(callbackData, '5', '5'), null);
+
+  // A text update or /reset advances the same per-user epoch used by pending
+  // initial replies and callbacks, so a late GPT result cannot recreate an offer.
+  offers.invalidateUser('5');
+  const secondGeneration = offers.currentGeneration('5');
+  offers.invalidateUser('5');
+  assert.equal(offers.isCurrent('5', secondGeneration), false);
+  assert.equal(offers.create(input, 'late-ticket', '5', '5', secondGeneration), null);
+});
+
+test('a message arriving while callback acknowledgement is pending prevents the retry call', async () => {
+  let nextId = 0;
+  const offers = createAiFallbackOffers({ now: () => 1, makeId: () => `race-${++nextId}` });
+  offers.invalidateUser('8');
+  const generation = offers.currentGeneration('8');
+  const callbackData = offers.create({ telegramId: '8', text: 'find jazz' }, 'ticket', '8', '8', generation);
+  assert.ok(callbackData);
+  let calls = 0;
+  const outcome = await runAiFallbackCallback({
+    offers, callbackData, userId: '8', chatId: '8',
+    beforeRequest: async () => { offers.invalidateUser('8'); return true; },
+    request: async () => { calls += 1; return null; }
+  });
+  assert.equal(outcome, null);
+  assert.equal(calls, 0);
+});
+
+test('bot records only successfully delivered replies from the current user generation', async () => {
+  let current = true;
+  const records: string[] = [];
+  await assert.rejects(() => deliverAiChatReply({
+    isCurrent: () => current,
+    deliver: async () => { throw new Error('Telegram rejected HTML'); },
+    recordDeliveredReply: () => records.push('failed')
+  }));
+  assert.equal(records.length, 0);
+
+  await deliverAiChatReply({
+    isCurrent: () => current,
+    deliver: async () => { current = false; },
+    recordDeliveredReply: () => records.push('stale')
+  });
+  assert.equal(records.length, 0);
+
+  current = true;
+  const delivered = await deliverAiChatReply({
+    isCurrent: () => current,
+    deliver: async () => {},
+    recordDeliveredReply: () => records.push('delivered')
+  });
+  assert.equal(delivered, true);
+  assert.deepEqual(records, ['delivered']);
 });
 
 test('requestAiChat retries POST on final URL when canonical host redirect turns POST into GET', async () => {

@@ -72,6 +72,7 @@ export const classifyModelHttpStatus = (status: number): ModelErrorKind => {
 export const classifyModelThrow = (error: unknown): ModelErrorKind => {
   const name = error instanceof Error ? error.name : '';
   const message = error instanceof Error ? error.message : '';
+  if (name === 'ProviderBudgetError') return /budget exhausted/i.test(message) ? 'budget' : 'invalid_request';
   if (name === 'AbortError' || /timeout|aborted/i.test(message)) return 'timeout';
   return 'network';
 };

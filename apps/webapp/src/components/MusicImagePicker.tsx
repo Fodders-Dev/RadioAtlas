@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useDialog } from '../lib/useDialog';
-import { MusicImageError, MUSIC_IMAGE_MAX_BYTES, recognizeMusicImage, type MusicImageCandidate } from '../lib/musicImage';
+import { getMusicImageCapability, MusicImageError, MUSIC_IMAGE_MAX_BYTES, recognizeMusicImage, type MusicImageCandidate, type MusicImageProvider } from '../lib/musicImage';
 import { useLocale } from '../state/LocaleContext';
 import './MusicImagePicker.css';
 
@@ -21,9 +21,21 @@ const MusicImageDialog = ({ onClose, onChoose }: { onClose: () => void; onChoose
   const [title, setTitle] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [imageProvider, setImageProvider] = useState<MusicImageProvider | null>(null);
+  const [capabilityLoading, setCapabilityLoading] = useState(true);
   const titleId = useId();
 
   useDialog(rootRef, { isOpen: true, onClose });
+  useEffect(() => {
+    const controller = new AbortController();
+    void getMusicImageCapability(controller.signal).then((capability) => {
+      if (!controller.signal.aborted) {
+        setImageProvider(capability?.provider ?? null);
+        setCapabilityLoading(false);
+      }
+    });
+    return () => controller.abort();
+  }, []);
   const previewUrlRef = useRef('');
   useEffect(() => () => {
     generation.current += 1;
@@ -137,7 +149,7 @@ const MusicImageDialog = ({ onClose, onChoose }: { onClose: () => void; onChoose
         <div className="music-image-body">
           <input ref={inputRef} className="music-image-input-native" type="file" accept="image/png,image/jpeg,image/webp" onChange={onFile} />
           {!file ? (
-            <button type="button" className="music-image-file-button" onClick={() => inputRef.current?.click()}>
+            <button type="button" className="music-image-file-button" disabled={capabilityLoading || !imageProvider} onClick={() => inputRef.current?.click()}>
               <span aria-hidden="true">＋</span>{t('chat.musicImageChooseFile')}
             </button>
           ) : (
@@ -146,6 +158,7 @@ const MusicImageDialog = ({ onClose, onChoose }: { onClose: () => void; onChoose
               <button type="button" className="music-image-remove" onClick={clearFile}>{t('chat.musicImageRemove')}</button>
             </div>
           )}
+          {!capabilityLoading && !imageProvider ? <p className="music-image-message" role="status">{t('chat.musicImageUnavailable')}</p> : null}
           {error ? <p className="music-image-message" role="status">{error}</p> : null}
           {candidates?.length ? (
             <div className="music-image-candidates" aria-label={t('chat.musicImageCandidates')}>
@@ -168,8 +181,8 @@ const MusicImageDialog = ({ onClose, onChoose }: { onClose: () => void; onChoose
           <button type="button" className="music-image-secondary" onClick={onClose}>{t('common.close')}</button>
           {candidates === null ? (
             <div className="music-image-footer-action">
-              {file ? <p className="music-image-disclosure">{t('chat.musicImageDisclosure')}</p> : null}
-              <button type="button" className="music-image-primary" disabled={!file || busy} onClick={() => void recognize()}>
+              {file && imageProvider ? <p className="music-image-disclosure">{t('chat.musicImageDisclosure', { provider: imageProvider === 'gpt-6-luna' ? 'GPT-6 Luna' : 'DeepSeek' })}</p> : null}
+              <button type="button" className="music-image-primary" disabled={!file || busy || !imageProvider} onClick={() => void recognize()}>
                 {busy ? t('chat.musicImageLoading') : t('chat.musicImageRecognize')}
               </button>
             </div>

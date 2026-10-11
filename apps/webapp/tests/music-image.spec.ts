@@ -16,7 +16,7 @@ test('music image is an explicit, local song subject; retries and questions send
   await page.route('**/ai/music-image', async route => {
     if (route.request().method() === 'GET') {
       capabilityReads += 1;
-      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true }) });
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true, provider: 'gpt-6-luna' }) });
       return;
     }
     const body = route.request().postDataBuffer();
@@ -44,7 +44,7 @@ test('music image is an explicit, local song subject; retries and questions send
   await chat.locator('[data-music-image-launch]').click();
   const modal = page.locator('[data-music-image-dialog]');
   await modal.locator('input[type="file"]').setInputFiles({ name: 'private screenshot.png', mimeType: 'image/png', buffer: Buffer.from('mock image bytes') });
-  await expect(modal.getByText('Изображение отправится DeepSeek.', { exact: false })).toBeVisible();
+  await expect(modal.getByText('Изображение будет отправлено в GPT-6 Luna.', { exact: false })).toBeVisible();
   await expect(modal.locator('img')).toBeVisible();
   expect(imagePosts).toHaveLength(0);
   expect(chatPosts).toHaveLength(0);
@@ -100,7 +100,7 @@ test('English song context keeps long titles bounded at tablet and desktop width
   await mockStations(page);
   const title = 'A very long song title that remains readable without being clipped from the recognized result';
   await page.route('**/ai/music-image', route => route.request().method() === 'GET'
-    ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true }) })
+    ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true, provider: 'gpt-6-luna' }) })
     : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ candidates: [{ artist: 'The Example Band', title, uncertain: false }] }) }));
   const posted: Array<{ message: string }> = [];
   await page.route('**/ai/chat**', route => {
@@ -136,7 +136,7 @@ test('removing an image aborts pending work and a late result cannot replace a n
   const seenFirstPost = new Promise<void>(resolve => { firstPostSeen = resolve; });
   await page.route('**/ai/music-image', async route => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true }) });
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true, provider: 'gpt-6-luna' }) });
       return;
     }
     postCount += 1;
@@ -173,7 +173,7 @@ test('invalid file selection makes no recognition or chat request', async ({ pag
   let imagePosts = 0;
   await page.route('**/ai/music-image', async route => {
     if (route.request().method() === 'GET') {
-      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true }) });
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ enabled: true, provider: 'gpt-6-luna' }) });
       return;
     }
     imagePosts += 1;

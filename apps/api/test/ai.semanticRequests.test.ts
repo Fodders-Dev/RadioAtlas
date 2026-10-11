@@ -435,9 +435,22 @@ test('a genre matching an excluded station name cannot restore arbitrary tags th
   input.userTaste={hiddenStationIds:['hidden']};
   const r=await chatWithAssistant(input,h.deps);
   assert.match(r.reply,/классическое направление/);
-  assert.match(r.reply,/Для части вариантов в каталоге мало данных/);
+  assert.doesNotMatch(r.reply,/мало данных|недостаточно музыкальных деталей/);
   assert.doesNotMatch(r.reply,/Piano Window|Unprofiled Window|classical/);
   assert.doesNotMatch(r.reply,/no ads/);
+});
+
+test('one unprofiled recommendation produces a single honest sentence with no catalog disclaimer',async()=>{
+  const h=harness({
+    planner:[recommendation],
+    rows:[station('unknown',{name:'Mystery Station',tags:['no ads']})],
+    reply:'Подходящие станции нашлись, но в каталоге недостаточно музыкальных деталей. Для части вариантов мало данных.'
+  });
+  const r=await chatWithAssistant(ask('Что посоветуешь послушать?'),h.deps);
+  assert.equal(r.stations.length,1);
+  assert.equal(r.reply,'Можно начать с этого эфира.');
+  assert.doesNotMatch(r.reply,/Mystery Station|новост|звучит|подходящ|каталог|мало данных|недостаточно|подберём/);
+  assert.ok(r.actions.every(a=>a.kind!=='play'));
 });
 
 test('positional genre descriptions are replaced with facts attached to their actual named cards',async()=>{
