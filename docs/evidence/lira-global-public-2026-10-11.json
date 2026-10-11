@@ -1,0 +1,202 @@
+{
+  "generatedAt": "2026-10-11T05:37:36.013Z",
+  "mode": "public-release-smoke",
+  "endpoint": "https://radioatlas.ru/api/ai/chat",
+  "qualityScored": false,
+  "syntheticCatalog": false,
+  "maxRequests": 4,
+  "completedResponses": 4,
+  "stopReason": null,
+  "turns": [
+    {
+      "id": "ordinary-nonmusic-chat",
+      "httpStatus": 200,
+      "provider": {
+        "name": "gpt-6-luna",
+        "fallback": false
+      },
+      "providerFallback": null,
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      },
+      "reply": "Я рядом. Тяжёлый день иногда умеет растянуться так, будто в нём было три вторника подряд. Не нужно сейчас бодриться или красиво формулировать — можешь просто выдохнуть. Что сегодня больше всего вымотало?",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none"
+        }
+      ]
+    },
+    {
+      "id": "car-nostalgia-initial",
+      "httpStatus": 200,
+      "provider": {
+        "name": "gpt-6-luna",
+        "fallback": false
+      },
+      "providerFallback": null,
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      },
+      "reply": "Для этого образа пробую жанровые направления; музыка в эфире может отличаться.\nПахучка «ёлочка», бодрый припев и уверенность, что поворотник — факультативный аксессуар: вот это уже кино. Я бы ставила на евродэнс. В подборке есть мелодичное поп-настроение, электронное направление.",
+      "cards": [
+        {
+          "id": "60ceaabd-4efd-4f47-b961-0dab6f475731",
+          "name": "EuroDance 90 radio",
+          "country": "France",
+          "tags": [
+            "dancefloor",
+            "electronic dance music",
+            "eurodance",
+            "pop dance",
+            "pop music"
+          ]
+        },
+        {
+          "id": "f2d01650-b84f-4d85-aa3f-4c085bf211ff",
+          "name": "Hits 1 Algérie",
+          "country": "Algeria",
+          "tags": [
+            "pop",
+            "top40"
+          ]
+        },
+        {
+          "id": "964207bc-0601-11e8-ae97-52543be04c81",
+          "name": "Radio Caprice - Eurodance",
+          "country": "The Russian Federation",
+          "tags": [
+            "eurodance"
+          ]
+        },
+        {
+          "id": "961949f3-0601-11e8-ae97-52543be04c81",
+          "name": "Hit FM (UKraine) - 128kb/s",
+          "country": "Ukraine",
+          "tags": [
+            "dance",
+            "pop",
+            "rock"
+          ]
+        },
+        {
+          "id": "0f902505-76c7-489b-8ddc-03b05b5867ae",
+          "name": "Generation Dance Radio",
+          "country": "Luxembourg",
+          "tags": [
+            "dance",
+            "edm",
+            "house",
+            "trance",
+            "dj",
+            "eurodance"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "60ceaabd-4efd-4f47-b961-0dab6f475731"
+        }
+      ]
+    },
+    {
+      "id": "car-nostalgia-era-correction",
+      "httpStatus": 200,
+      "provider": {
+        "name": "gpt-6-luna",
+        "fallback": false
+      },
+      "providerFallback": null,
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      },
+      "reply": "Поняла: именно 2000–2014 — не евродэнс девяностых, а эпоха «включай погромче, там припев знакомый». Сейчас проверенных радиостанций для этой подборки у меня нет; по звучанию ориентир — ранние 2000-е поп-хиты и танцевальная попса нулевых.",
+      "cards": [],
+      "actions": [
+        {
+          "kind": "none"
+        }
+      ]
+    },
+    {
+      "id": "fresh-amiga-recommendation",
+      "httpStatus": 200,
+      "provider": {
+        "name": "gpt-6-luna",
+        "fallback": false
+      },
+      "providerFallback": null,
+      "run": {
+        "status": "completed",
+        "route": "music_worker"
+      },
+      "reply": "Amiga и чиптюн — это прямо маленький пиксельный портал в эпоху, когда один бодрый звук мог заменить целый оркестр. В подборке есть мелодичное поп-настроение, классическое направление.",
+      "cards": [
+        {
+          "id": "9f9cc220-3462-11e8-bb9b-52543be04c81",
+          "name": "Retro PC GAME MUSIC Streaming Radio",
+          "country": "Japan",
+          "tags": [
+            "chiptune",
+            "retro games",
+            "soundtracks",
+            "video game"
+          ]
+        },
+        {
+          "id": "abd85401-d5ae-41d5-a9e7-a6eb83ea59b1",
+          "name": "CommodExplorer",
+          "country": "",
+          "tags": [
+            "amiga",
+            "c64",
+            "commodore 64"
+          ]
+        },
+        {
+          "id": "d59bbb09-d855-46b7-bf21-ddb203dfff71",
+          "name": "Radio Caprice - Chiptune",
+          "country": "The Russian Federation",
+          "tags": [
+            "chiptune"
+          ]
+        },
+        {
+          "id": "961447b9-0601-11e8-ae97-52543be04c81",
+          "name": "ModFM",
+          "country": "Poland",
+          "tags": [
+            "amiga",
+            "c64",
+            "chiptune",
+            "retro games",
+            "tracked"
+          ]
+        },
+        {
+          "id": "561300e3-86ba-489f-901d-426596141e8d",
+          "name": "Retro Plum Radio",
+          "country": "The United States Of America",
+          "tags": [
+            "amiga",
+            "atari",
+            "c64",
+            "chiptunes",
+            "compos",
+            "demos"
+          ]
+        }
+      ],
+      "actions": [
+        {
+          "kind": "open-station",
+          "stationuuid": "9f9cc220-3462-11e8-bb9b-52543be04c81"
+        }
+      ]
+    }
+  ]
+}

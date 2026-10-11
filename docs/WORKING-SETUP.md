@@ -1,14 +1,18 @@
 # RadioAtlas: текущая передача
 
-**11.10 — selective текстовый выпуск `522e0e0` отправлен в master, CI/deploy
-выполняются.** Checkout lira-brain-release/Radio++_tg. GPT-6 Luna основной,
+**11.10 — selective текстовый выпуск `522e0e0` опубликован, обязательные
+CI38114337642/deploy38114337640 success.** Checkout lira-brain-release/Radio++_tg. GPT-6 Luna основной,
 DeepSeek по предупреждению/нажатию, отдельный общий $5 lifetime ledger.
 Живой голос рядом с проверенными карточками; 12 реплик/22calls/0errors,
 reserved $0.050892. Синтетический каталог не доказывает production retrieval.
 Выпуск отдельно проверен: types, API933/bot101/web949/scripts102+1skip,
 offline24/0calls/build; full450+7skip, targeted provider9. Новые композиции
-Моего/Главной и screenshot UI не публикуются. После deploy — 4 public smoke
-с реальным каталогом (разговор, машина+уточнение эпохи, Amiga).
+Моего/Главной и screenshot UI не публикуются. Public4+bot-surface подтвердили
+GPT/без резерва; functional CI453+7skip, RU current/PM2/health подтверждены.
+Amiga дал 5 карточек, но ошибочное поп/классика-пояснение: bounded fix в
+selective `f4ef231` ожидает CI/deploy. Эпоха2000–2014 без карточек остаётся
+открытой, parser/history и наличие каталога проверены; следующий trace —
+первый поисковый план. [Отчёт](LIRA-GLOBAL-2026-10-11.md).
 Исходный checkpoint и release не путать. Ключ повторно из clipboard не читать.
 
 Обновлено 09.10.2026. Приоритет — PLAN.md; продукт — PRODUCT.md и
