@@ -17,8 +17,11 @@ this selective release; no NL relay update is required for existing text calls.
 
 Activated 11.10: release522e0e0, CI38114337642 required jobs success,
 deploy38114337640 success; current/API/bot/harvester/health verified.
-Global reserved after live checks 71,727 micro-USD of 5,000,000. Prior campaigns
-unchanged. Details/quality gaps: docs/LIRA-GLOBAL-2026-10-11.md.
+Follow-up evidence fix f4ef231: CI38115998084 required jobs and
+deploy38115997967 success; RU release/PM2/health and public Amiga5 verified.
+Global ledger reserved81,893 micro-USD of 5,000,000 after checks; never reset
+on deploy. Prior campaigns unchanged.
+Details/quality gaps: docs/LIRA-GLOBAL-2026-10-11.md.
 Deploy copies shared configuration to
 the release and recreates PM2 processes; ephemeral `pm2 set` is not durable.
 Back up configuration before changing only these nonsecret flags; never print

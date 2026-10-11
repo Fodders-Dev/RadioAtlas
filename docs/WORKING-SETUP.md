@@ -11,8 +11,12 @@ full browser450+7skip, targeted fallback9. Независимое Astra review �
 Опубликовано `522e0e0`: обязательные CI38114337642 и deploy38114337640 success;
 functional453+7skip, RU current/PM2/health подтверждены. Четыре public smoke
 и bot-surface подтвердили GPT; global reserved $0.071727 на момент проверки.
-Готовится bounded fix ложного поп/классика-пояснения для чиптюна; эпоха
-2000–2014 остаётся открытой и требует фактического поискового trace.
+Bounded fix ложного поп/классика-пояснения для чиптюна опубликован `f4ef231`,
+обязательные CI38115998084/deploy38115997967 success. Public Amiga5 без
+ложного объяснения/Play, RU current/PM2/health совпадают. Global reserved
+$0.081893/$5 на момент финального probe. Эпоха2000–2014 остаётся открытой:
+первый сохранённый план корректно recommend/continue+dance-pop+2000–2014;
+потеря карточек при внутреннем ranking/позднем фильтре пока не доказана.
 [Результат и ограничения](LIRA-GLOBAL-2026-10-11.md).
 
 **09.10 — текущий участок: owner-only GPT-6 Luna в Telegram.**
