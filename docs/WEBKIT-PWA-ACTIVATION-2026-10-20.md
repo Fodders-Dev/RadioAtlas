@@ -23,6 +23,9 @@ unrelated private applications automatically.
 5. Reinstalling RadioAtlas did not change this wrong target.
 6. Owner independently removed B. The same artwork subsequently opens another
    unrelated installed Home Screen web app (C), rather than RadioAtlas.
+7. Owner clarifies that radio sound works while C is foreground, but fails
+   again when returning to Home or locking the screen. Removing B did not
+   establish working background audio.
 
 Expected: activation returns to the web app that supplied the media session.
 Actual: another installed web app is activated. Application-switcher screenshots
@@ -35,11 +38,13 @@ about which installed-app ordering rule chooses B or C.
 Before B was removed, hidden Pause/Play could deliver the JS Play action, resolve
 audio.play(), and eventually advance media time for forty seconds without
 audible output. Reinstalling RadioAtlas changed seek controls to Next/Previous
-but did not repair sound. After removing B, the owner reports audible player
-operation restored, although artwork still opens C. This suggests environment
-state matters, but does not prove that incorrect activation causes silence or
-that B implemented any problematic audio behavior. No controlled rechallenge
-or long-term verification has been performed.
+but did not repair sound. After removing B, the owner initially reports audible
+operation restored, then qualifies it: sound works only while C is foreground;
+Home/screen lock reproduce failure. The initial recovery interpretation is
+withdrawn. This supports investigating a link between presenting/host-process
+attribution and background audio eligibility, but does not prove that native
+mechanism or that B implemented any problematic audio behavior. No native
+process/audit-token capture or controlled rechallenge has been performed.
 
 ## Web-app and native boundaries
 
@@ -49,6 +54,55 @@ application identifier or an artwork-activation URL. Metadata persists during
 Pause. Local opt-in diagnostics distinguish media commands, source attachment,
 native play settlement, progress and existing watchdog execution; they do not
 measure physical output, effective native route or the activated application.
+
+## Native mechanism worth inspecting, not a diagnosed device fault
+
+Current public WebKit has three related but distinct native paths:
+
+- MediaElementSession.computeNowPlayingInfo uses the page's presenting bundle
+  identifier on Cocoa; MediaSessionManagerCocoa passes the source identifier to
+  MRMediaRemoteSetParentApplication for Now Playing attribution.
+- RemoteAudioSessionProxyManager.updatePresentingProcesses collects active
+  presenters' native audit tokens plus the GPU process parent token.
+  AudioSessionIOS.setPresentingProcesses passes them to AVAudioSession's
+  setAuditTokensForProcessAssertion. This keeps the required presenting
+  applications from being suspended during playback.
+- Before activation, providePresentingApplicationPID obtains the presenting
+  PID from per-page native attribution. MediaSessionHelperIOS passes that PID
+  to AVSystemController_PIDToInheritApplicationStateFrom. This is a concrete
+  application-state inheritance mechanism, separate from the other two paths.
+
+The Now Playing parent string is NOT the process-assertion token. A bad artwork
+activation target does not, by itself, establish that the assertion token is
+wrong. The owner's stronger observation is audible output while foreign app C
+is foreground, followed by failure on Home/lock. It makes native attribution/
+background eligibility a concrete common hypothesis, not a proved causal chain.
+These sources are current public main, not the exact installed engine build.
+
+Relevant primary source:
+
+- https://raw.githubusercontent.com/WebKit/WebKit/main/Source/WebCore/html/MediaElementSession.cpp
+- https://raw.githubusercontent.com/WebKit/WebKit/main/Source/WebKit/GPUProcess/media/RemoteAudioSessionProxyManager.cpp
+- https://raw.githubusercontent.com/WebKit/WebKit/main/Source/WebCore/platform/audio/ios/AudioSessionIOS.mm
+- https://raw.githubusercontent.com/WebKit/WebKit/main/Source/WebCore/platform/audio/ios/MediaSessionHelperIOS.mm
+
+For native investigation, correlate the actual Home Screen host with the
+presenting-process attribution and audio interruption/assertion outcome around
+the transition from C to Home/lock. The page cannot read these private audit
+tokens or assertion results. Do not export raw audit tokens. A minimal same-
+origin audio/MediaSession page can isolate the full application, but cannot
+identify a wrong native token on its own.
+
+Sol and Astra prefer the minimal native-audio page as the next isolation before
+an AudioSession override. It must be reached inside the existing Home Screen
+app, confirm standalone, and terminate the main player before loading. One
+native element and the same live source, ordinary metadata/Play/Pause only; no
+recovery engine, graph, category override, keepalive or new periodic timers.
+Compare foreign app C foreground → Home → C foreground on one already-started
+stream, without intervening media commands. A repeated failure would establish
+that the full recovery engine is unnecessary for the defect; a passing result
+would not exonerate it because navigation may reset native state. This isolated
+page is not implemented or deployed by this documentation-only investigation.
 
 Potentially related primary records, not asserted duplicates:
 

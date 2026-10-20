@@ -2,10 +2,12 @@
 
 **Later outcome:** the owner confirmed iOS **26.6.1** (the UA version is not
 reliable), correct operation in ordinary Safari and Chrome tabs, and a persistent
-standalone failure after reinstall. Removing the retailer PWA then restored
-audible player operation, while system artwork began opening another installed
-PWA. This is an environment workaround, not a repair by a new release. Wrong
-activation remains open. See the chronological addendum below.
+standalone failure after reinstall. After removing the retailer PWA, artwork
+began opening another installed PWA («Родня»). The owner corrected the initial
+recovery report: sound worked ONLY while that other PWA was foreground; Home
+or screen lock reproduces failure. **No workaround or background recovery is
+established.** Wrong activation and silent playback both remain open. See the
+chronological addendum below.
 
 Owner's NoLife-Radio trial, 20 October 2026, export at 22:31 Moscow.
 Production: `7da63c4d7a416e6c715d92d1b8b22ff67eb7d3e7`.
@@ -146,23 +148,27 @@ These are the owner's direct chat observations, not a new diagnostic export:
 | Ordinary Chrome tab | Works normally | No Chrome-only failure established |
 | Existing installed PWA | Failure remains | Previously ±10 seconds; retailer activation |
 | Owner reinstalls RadioAtlas | Pause and station switching still silence playback | Next/Previous replace ±10; artwork still opens retailer PWA |
-| Owner removes retailer PWA, keeps RadioAtlas | Owner reports player now works correctly | Artwork opens a different installed PWA, «Родня» |
+| Owner removes retailer PWA, keeps RadioAtlas | Initially reports player works; see next row for immediate qualification | Artwork opens a different installed PWA, «Родня» |
+| Owner clarifies where playback worked | Audible ONLY while «Родня» is foreground; Home or lock fails | Wrong artwork destination persists |
 
 This supports an installed-PWA/native session or registry-state interaction.
 The retailer itself is not proven to have captured audio or caused the native
 defect. Removal changes several things, potentially including registration and
-shared process state; there is no reinstall/rechallenge counterfactual. Correct
-artwork destination is demonstrably not required for audible operation in the
-latest observed state. Do not label this a Chrome bug or an application-code fix.
+shared process state; there is no reinstall/rechallenge counterfactual. The
+qualified result suggests that foreign-PWA foreground state and audible output
+may be linked. It does NOT establish that the wrong activation is harmless or
+independent of background silence. The earlier conclusion separating recovered
+sound from activation failure was premature. Do not label this a Chrome bug or
+an application-code fix.
 
 Sol stopped Luna's proposed AudioSession experiment immediately after the sound
 recovery report. Luna confirmed zero runtime/test edits and no tests launched.
 No AudioSession override, recovery change or new release was made. The current
 runtime remains production 7da63c4; documentation commits are local only.
 
-Status: audible operation recovered after environment change, durability after
-relaunch/prolonged use not yet established; wrong-PWA activation unresolved.
+Status: background audible playback STILL FAILS; wrong-PWA activation unresolved.
 No further deletion, storage clearing or reinstall is requested. Preserve the
-current installation. If sound fails again, export diagnostics before changing
-the installation state. A native-activation field-report draft is kept in
+current installation. Sound is already known to fail outside the other PWA;
+any further diagnostic capture should preserve this installation state. A
+native-activation field-report draft is kept in
 [WEBKIT-PWA-ACTIVATION-2026-10-20](WEBKIT-PWA-ACTIVATION-2026-10-20.md).

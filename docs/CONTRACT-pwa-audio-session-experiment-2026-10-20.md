@@ -1,9 +1,11 @@
 # Opt-in PWA audio-session experiment
 
 **NOT AN ACTIVE IMPLEMENTATION CONTRACT.** Stopped before any runtime/test edits:
-the owner removed the retailer PWA and reported restored player operation.
-System artwork now opens a different installed PWA. Default AudioSession policy
-stays unchanged; this proposal is retained only as an unexecuted hypothesis.
+the owner removed the retailer PWA and initially reported restored operation.
+The owner then qualified it: sound works only while the next foreign PWA is
+foreground; Home or screen lock fails. Recovery was not established. System
+artwork still opens that foreign PWA. Default AudioSession policy stays
+unchanged; this proposal is retained only as an unexecuted hypothesis.
 Do not implement or deploy it from this document without a new evidence review.
 
 ## Evidence and hypothesis
@@ -13,8 +15,10 @@ in ordinary Safari AND Chrome tabs. Installed RadioAtlas fails. Reinstalling
 RadioAtlas changed ±10-second buttons into Next/Previous, but Pause and station
 switching still silence it. System artwork still opens the retailer «Лента»,
 also an installed PWA. The owner then removed it: artwork opened another PWA,
-and audible player operation returned. This environmental change superseded
-the proposed experiment before implementation. No AudioSession A/B was run.
+and audible operation initially appeared to return. The subsequent foreground-
+only qualification invalidates the recovery conclusion. The experiment remains
+unimplemented pending review of the new foreground/attribution evidence; no
+AudioSession A/B was run.
 
 The 7da63c4 trace already demonstrated advancing native time while inaudible.
 Transport/MediaSession commands alone cannot detect actual output. This slice

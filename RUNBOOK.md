@@ -1,13 +1,16 @@
 # RUNBOOK
-## 2026-10-20 — PWA environment change restores sound; activation still wrong
+## 2026-10-20 — correction: sound depends on another PWA being foreground
 
 Owner confirms iOS 26.6.1. Ordinary Safari and Chrome tabs work. Reinstalling
 RadioAtlas replaced ±10 with Next/Previous but did not repair silence. Owner
-then removed the unrelated retailer PWA: audible player operation returned;
-RadioAtlas system artwork now opens a different installed PWA («Родня»).
-This is an environment workaround, not a new-release fix or proof that the
-retailer captured audio. Wrong-target activation remains unresolved. Do not
-ask for further PWA deletions or claim stable recovery after only this report.
+then removed the unrelated retailer PWA: artwork now opens a different installed
+PWA («Родня»). The initial report of restored operation was qualified immediately
+afterward: sound worked ONLY while that other PWA was foreground. Returning to
+Home or locking the screen reproduces failure. **No working environment
+workaround or background recovery has been established.** The earlier recovery
+interpretation was premature. Sound and wrong-target activation both remain open.
+Investigate native presenting/host attribution and background eligibility as a
+common hypothesis, not a proven mechanism. Do not request more PWA deletions.
 
 The default-off AudioSession diagnostic proposal was stopped before Luna made
 any runtime/test edits. No source change or production release was performed.
