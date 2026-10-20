@@ -112,7 +112,9 @@ jobs:
   # a threshold to make one pass.
   browser:
     name: browser suite (functional, gates)
-    runs-on: ubuntu-latest
+    # Playwright 1.57 cannot install Chromium on Ubuntu 26.04. The moving
+    # ubuntu-latest label reached it on 2026-10-20, before tests could run.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
@@ -204,7 +206,7 @@ jobs:
   # then commit them.
   pixels:
     name: visual baselines (reports, does not gate)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     continue-on-error: true
 

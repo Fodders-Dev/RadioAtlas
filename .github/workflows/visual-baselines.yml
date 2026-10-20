@@ -19,7 +19,8 @@ on:
 jobs:
   draw:
     name: draw them, upload them, commit nothing
-    runs-on: ubuntu-latest
+    # Match CI's browser jobs and the locked Playwright's supported OS.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:

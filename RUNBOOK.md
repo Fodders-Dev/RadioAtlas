@@ -1,6 +1,12 @@
 # RUNBOOK
 ## 2026-10-20 — explicit Play after a healthy hidden pause
 
+First release attempt `5c2f9f8` was held before deployment: CI39454890161
+passed types/fast tests but both browser jobs failed installing Chromium.
+The GitHub runner had migrated to Ubuntu 26.04, unsupported by locked
+Playwright 1.57. Browser CI and manual baseline drawing now pin Ubuntu 24.04;
+test commands, expectations and same-SHA deploy gates remain intact.
+
 Owner's physical iPhone standalone trace on `f4ef231` delivered both system
 Pause and Play while hidden. After a 2.319-second pause, Play was followed by
 `audio_emptied` in 34 ms (`currentTime` 25.9 → 0, `readyState` 4 → 0).

@@ -6,6 +6,12 @@ paths:
 
 # Working on the Playwright suite
 
+Current CI note (2026-10-20): the functional browser job **gates** deployment;
+pixel baselines report separately. All browser-installing jobs pin Ubuntu 24.04
+because locked Playwright 1.57 rejects Ubuntu 26.04. Do not replace this pin
+with `ubuntu-latest` without checking browser/OS support. CLAUDE.md is the
+maintained definition of the gates; historical explanations below do not override it.
+
 240 specs, ~3 minutes in parallel. CI runs a **non-gating** job — a red run
 never blocks a merge — because flakes in a blocking gate get the gate switched
 off. That makes it your job to run it locally for UI work, to read the CI job

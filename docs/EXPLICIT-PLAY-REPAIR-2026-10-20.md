@@ -107,6 +107,13 @@ checked against the exact released SHA and public assets.
 
 ## Owner production retest
 
+Release note: `5c2f9f8` was pushed but not deployed. CI39454890161 failed
+before browser tests because the GitHub runner used unsupported Ubuntu 26.04;
+deploy39454890152 refused publication as intended. A follow-up operations
+commit pins the browser jobs to supported Ubuntu 24.04 and repeats the same
+gates. The player implementation hash is unchanged. Do not use the first push
+as evidence of publication.
+
 After the new build is verified on production, reopen the Home Screen app and
 check the commit in Diagnostics. Start a 20-minute recording, play a station,
 lock the screen, use the system Pause, wait 2–3 seconds, and press system Play.

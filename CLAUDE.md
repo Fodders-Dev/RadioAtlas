@@ -153,6 +153,11 @@ A task is done when:
 
 CI runs Playwright in **two** jobs, and only one of them gates:
 
+Browser jobs (including manual baseline drawing) pin `ubuntu-24.04`: the
+locked Playwright 1.57 cannot install Chromium on Ubuntu 26.04, which the moving
+`ubuntu-latest` label reached during the 2026-10-20 release. Keep the functional
+gate and same-SHA deployment checks; fix runner compatibility rather than skip tests.
+
 - **`browser suite (functional, gates)`** — everything except `visual.spec.ts`.
   Since 2026-09-04 it can fail the build. Run it locally with
   `PLAYWRIGHT_SKIP_PIXELS=1 npm --workspace apps/webapp run test:e2e:functional`.
