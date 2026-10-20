@@ -22,6 +22,7 @@ export const Settings = () => {
   const { favorites, recent, clearFavorites, clearRecent } = useLibrary();
   const { clearCatalogCache } = useCatalog();
   const {
+    player,
     sleepTimer,
     startSleepTimer,
     cancelSleepTimer,
@@ -352,6 +353,22 @@ export const Settings = () => {
 
       <details className="section settings-developer-section">
         <summary className="section-title">{t('settings.developerTitle')}</summary>
+        <div className="settings-card stack">
+          <div>
+            <div className="settings-label">{t('settings.audioLabTitle')}</div>
+            <div className="settings-desc">{t('settings.audioLabDescription')}</div>
+          </div>
+          <button
+            className="chip"
+            type="button"
+            onClick={() => {
+              player.stop();
+              window.location.assign('/audio-lab.html');
+            }}
+          >
+            {t('settings.audioLabOpen')}
+          </button>
+        </div>
         <div className="settings-card stack">
           <div>
             <label className="settings-label" htmlFor="settings-api-base">

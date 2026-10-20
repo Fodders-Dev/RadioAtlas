@@ -1,4 +1,20 @@
 # RUNBOOK
+## 2026-10-20 — minimal installed-PWA player isolation
+
+The owner authorized a minimal player and production release for iPhone testing.
+The implementation uses a separate same-origin `/audio-lab.html` Vite document,
+entered from Settings developer diagnostics after Stop of the main player.
+It uses one native element and fixed NoLife proxy source, standard MediaSession
+Play/Pause/Stop, no recovery engine/WebAudio/AudioSession override or new timer.
+The local bounded journal and manual heard/silent marks do not measure native
+process affiliation or audible output automatically. This is not a proven repair.
+[Contract and physical procedure](docs/CONTRACT-minimal-pwa-player-2026-10-20.md).
+System Stop releases the element and keeps the report available; Return exits
+the page. The entry is directly under Settings → For developers → Minimal PWA
+player. Do not install another PWA or clear the current one for this comparison.
+Local verification/publication evidence is kept in `output/minimal-pwa-player/`;
+the physical iPhone background incident remains open regardless of those checks.
+
 ## 2026-10-20 — correction: sound depends on another PWA being foreground
 
 Owner confirms iOS 26.6.1. Ordinary Safari and Chrome tabs work. Reinstalling

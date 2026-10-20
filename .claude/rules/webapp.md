@@ -74,6 +74,13 @@ that slot stays blank rather than falling back.
 
 ## Playback is the product
 
+`/audio-lab.html` is an opt-in diagnostic isolation document for the open iPhone
+PWA incident. Keep one native audio element and no app/bootstrap, recovery,
+AudioContext, keepalive, category override or periodic timer in its graph.
+Settings must Stop the main player and navigate the same window within scope.
+Its fixed source and local journal are test evidence, not a background repair.
+See `docs/CONTRACT-minimal-pwa-player-2026-10-20.md` for acceptance and limits.
+
 - Media Session `play` and `pause` are commands, never aliases for toggle.
   Headphone resume must work while still hidden; `visibilitychange` is not a
   prerequisite. Keep system metadata for `current ?? pending` during startup

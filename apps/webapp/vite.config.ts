@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import pkg from './package.json';
 import { execSync } from 'node:child_process';
 import { extname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 
@@ -98,6 +99,10 @@ export default defineConfig({
         deps.filter((dep) => !dep.includes('catalog-fallback'))
     },
     rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        audioLab: fileURLToPath(new URL('./audio-lab.html', import.meta.url))
+      },
       output: {
         // #180 stamped the build commit into CSS filenames because this
         // toolchain's CSS `[hash]` was NOT content-derived: a CSS-only edit
