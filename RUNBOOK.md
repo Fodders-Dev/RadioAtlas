@@ -1,4 +1,20 @@
 # RUNBOOK
+## 2026-10-20 — explicit Play after a healthy hidden pause
+
+Owner's physical iPhone standalone trace on `f4ef231` delivered both system
+Pause and Play while hidden. After a 2.319-second pause, Play was followed by
+`audio_emptied` in 34 ms (`currentTime` 25.9 → 0, `readyState` 4 → 0).
+Playback restarted only after foregrounding. Recovery debt from interruption
+bookkeeping was being spent as an unconditional source reload, although debt
+does not prove that an attached buffer is unusable.
+
+The repair separates a direct explicit Play/progress trial from same-station
+recovery after observed failure, preserving the frozen-unpaused case investigated
+in `01a233a`. No silent keepalive or MediaSession handler changes. Release,
+verification and remaining physical-device acceptance are recorded in
+[EXPLICIT-PLAY-REPAIR-2026-10-20](docs/EXPLICIT-PLAY-REPAIR-2026-10-20.md).
+Do not close the iPhone incident using unit/browser results alone.
+
 ## 2026-10-11 — global GPT-6 Luna text release
 
 Owner approved $5 total, including live checks. Separate campaign

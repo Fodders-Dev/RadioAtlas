@@ -85,12 +85,20 @@ const mediaIdentity = (page: Page) => page.evaluate(() => {
   return `${metadata?.title ?? ''}\n${metadata?.artist ?? ''}`;
 });
 
-test('headphone pause/play are idempotent and reopen the stream while still hidden', async ({ page }) => {
+test('headphone Play reopens the stream while hidden when media is absent', async ({ page }) => {
   await setup(page);
   await command(page, 'pause');
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'paused');
   await command(page, 'pause');
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'paused');
+  await page.evaluate(() => {
+    const media = document.querySelector('audio.audio-hidden') as HTMLAudioElement;
+    Object.defineProperty(media, 'readyState', { configurable: true, value: 0 });
+    Object.defineProperty(media, 'buffered', {
+      configurable: true,
+      value: { length: 0, start: () => 0, end: () => 0 }
+    });
+  });
   const before = await page.evaluate(() => (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe.loads.length);
   await command(page, 'play');
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
@@ -99,6 +107,49 @@ test('headphone pause/play are idempotent and reopen the stream while still hidd
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
   expect(await page.evaluate(() => document.visibilityState)).toBe('hidden');
   expect(await page.evaluate(() => navigator.mediaSession.playbackState)).toBe('playing');
+});
+
+test('headphone Play preserves a healthy buffered source without replacing its media or identity', async ({ page }) => {
+  await setup(page);
+  const before = await page.evaluate(() => {
+    const media = document.querySelector('audio.audio-hidden') as HTMLAudioElement;
+    const probe = (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe;
+    return {
+      loads: probe.loads.length,
+      plays: probe.plays.length,
+      src: media.src,
+      identity: `${navigator.mediaSession.metadata?.title ?? ''}\n${navigator.mediaSession.metadata?.artist ?? ''}`
+    };
+  });
+  await command(page, 'pause');
+  await page.evaluate(() => {
+    const media = document.querySelector('audio.audio-hidden') as HTMLAudioElement;
+    Object.defineProperty(media, 'readyState', { configurable: true, value: 4 });
+    Object.defineProperty(media, 'currentTime', { configurable: true, value: 25.9 });
+    Object.defineProperty(media, 'buffered', {
+      configurable: true,
+      value: { length: 1, start: () => 20, end: () => 60 }
+    });
+  });
+  const identityBeforePlay = await mediaIdentity(page);
+
+  await command(page, 'play');
+  await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
+  const after = await page.evaluate(() => {
+    const media = document.querySelector('audio.audio-hidden') as HTMLAudioElement;
+    const probe = (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe;
+    return {
+      loads: probe.loads.length,
+      plays: probe.plays.length,
+      src: media.src,
+      identity: `${navigator.mediaSession.metadata?.title ?? ''}\n${navigator.mediaSession.metadata?.artist ?? ''}`
+    };
+  });
+  expect(after.loads).toBe(before.loads);
+  expect(after.plays).toBe(before.plays + 1);
+  expect(after.src).toBe(before.src);
+  expect(after.identity).toBe(identityBeforePlay);
+  expect(await page.evaluate(() => document.visibilityState)).toBe('hidden');
 });
 
 test('headphone Next walks past an unavailable station and retains OS controls', async ({ page }) => {

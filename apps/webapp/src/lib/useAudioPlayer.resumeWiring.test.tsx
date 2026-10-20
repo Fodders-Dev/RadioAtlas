@@ -74,6 +74,7 @@ describe('returning to the app after the stream may have died', () => {
    * `attachSource` actually set.
    */
   let sourceAttachments: string[] = [];
+  let loadPausedStates: boolean[] = [];
   const attachedStations = () =>
     sourceAttachments.map((url) =>
       url.includes('paradise') ? 'uuid-paradise' : url.includes('berlin') ? 'uuid-berlin' : url
@@ -116,6 +117,7 @@ describe('returning to the app after the stream may have died', () => {
     position = 0;
     clockOffset = 0;
     sourceAttachments = [];
+    loadPausedStates = [];
     // ⚠ Installed BEFORE anything mounts. Fake timers only capture timers
     // created after installation, so enabling them inside a test left the stall
     // watchdog's `setInterval` real — it never fired in the fake window and the
@@ -133,6 +135,7 @@ describe('returning to the app after the stream may have died', () => {
         audio = el as HTMLAudioElement;
         el.load = () => {
           loadCalls += 1;
+          loadPausedStates.push(paused);
           // The observation, taken from the element rather than from the test.
           const src = el.getAttribute('src');
           if (src) sourceAttachments.push(src);
@@ -217,6 +220,19 @@ describe('returning to the app after the stream may have died', () => {
     });
   };
 
+  const markSourceHealthy = () => {
+    if (!audio) return;
+    Object.defineProperty(audio, 'readyState', { configurable: true, value: 4 });
+    Object.defineProperty(audio, 'buffered', {
+      configurable: true,
+      value: {
+        length: 1,
+        start: () => Math.max(0, position - 5),
+        end: () => position + 30
+      }
+    });
+  };
+
   it.each(['stalled', 'waiting'])('keeps a progressing background stream after %s without timeupdate', async (event) => {
     const get = mount();
     await startPlaying(get);
@@ -255,6 +271,145 @@ describe('returning to the app after the stream may have died', () => {
     expect(paused).toBe(false);
     expect(loadCalls).toBe(loadsBefore + 1);
     expect(playCalls).toBe(playsBefore + 1);
+  });
+
+  it('explicit Play resumes a healthy hidden source first and lets observed progress cancel recovery', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    clockOffset += 2300;
+    const before = { loads: loadCalls, plays: playCalls };
+
+    await act(async () => { await get().resume(); });
+
+    expect(loadCalls).toBe(before.loads);
+    expect(playCalls).toBe(before.plays + 1);
+    expect(paused).toBe(false);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+
+    for (let sample = 0; sample < 4; sample += 1) {
+      position += 1;
+      clockOffset += 3000;
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
+    }
+    expect(loadCalls).toBe(before.loads);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(get().status).toBe('playing');
+    expect(get().isPlaying).toBe(true);
+  });
+
+  it('reconnects the same station only after a healthy explicit attempt has no progress for the watchdog window', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    clockOffset += 60_000;
+    const before = { loads: loadCalls, plays: playCalls };
+
+    await act(async () => { await get().resume(); });
+    expect(loadCalls).toBe(before.loads);
+    await act(async () => { await get().resume(); });
+    expect(playCalls).toBe(before.plays + 1);
+    expect(loadCalls).toBe(before.loads);
+
+    clockOffset += 8000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
+    expect(loadCalls).toBe(before.loads);
+    clockOffset += 4000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(4000); });
+    expect(loadCalls).toBe(before.loads + 1);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it('keeps the frozen unpaused explicit Play repair when no visibility return created debt', async () => {
+    const get = mount();
+    await startPlaying(get);
+    clockOffset += 12_000;
+    const before = loadCalls;
+
+    await act(async () => { await get().resume(); });
+
+    expect(loadCalls).toBe(before + 1);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it('recovers the same station after a healthy-source native Play failure', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    let attempts = 0;
+    setPlay(() => {
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(new Error('network unavailable')) : Promise.resolve();
+    });
+    const before = loadCalls;
+
+    await act(async () => { await get().resume(); });
+
+    expect(loadCalls).toBe(before + 1);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it('confirms native position progress at the play deadline without replacing the source', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    let rejectPlay!: () => void;
+    setPlay(() => new Promise<void>((_, reject) => { rejectPlay = () => reject(new Error('late reject')); }));
+    const before = loadCalls;
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['resume']>;
+    act(() => { attempt = get().resume(); });
+    await act(async () => { await Promise.resolve(); });
+    paused = false;
+    clockOffset += 20_000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    position += 1;
+    clockOffset += 5000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    await act(async () => { await attempt; });
+    rejectPlay();
+
+    expect(loadCalls).toBe(before);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(get().status).toBe('playing');
+  });
+
+  it('does not tear down a healthy explicit native play while its promise is pending, and pause revokes it', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+
+    let rejectPlay!: (error: Error) => void;
+    setPlay(() => new Promise<void>((_, reject) => { rejectPlay = reject; }));
+    const loadsBefore = loadCalls;
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['resume']>;
+    act(() => { attempt = get().resume(); });
+    await act(async () => { await Promise.resolve(); });
+    paused = false;
+    expect(loadCalls).toBe(loadsBefore);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000); });
+    expect(loadCalls).toBe(loadsBefore);
+
+    act(() => get().pause());
+    await act(async () => {
+      rejectPlay(new DOMException('Playback superseded', 'AbortError'));
+      await attempt;
+    });
+    expect(get().status).toBe('paused');
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(loadCalls).toBe(loadsBefore);
   });
 
   it('a superseded play settling late cannot pause the newer station', async () => {
@@ -1281,5 +1436,87 @@ describe('returning to the app after the stream may have died', () => {
       'exactly one candidate was attached before the permission went away'
     ).toBe(1);
     expect(paused, 'and the element stays paused').toBe(true);
+  });
+
+  it('no-progress native play deadline pauses before same-station recovery and ignores the late rejection', async () => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    let rejectFirst!: (error: Error) => void;
+    let playAttempt = 0;
+    setPlay(() => {
+      playAttempt += 1;
+      if (playAttempt === 1) return new Promise<void>((_, reject) => { rejectFirst = reject; });
+      return Promise.resolve();
+    });
+    const before = loadCalls;
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['resume']>;
+    act(() => { attempt = get().resume(); });
+    await act(async () => { await Promise.resolve(); });
+    paused = false;
+    clockOffset += 25_000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(25_000); });
+    await act(async () => { await attempt; });
+    rejectFirst(new Error('late native rejection'));
+    await act(async () => { await Promise.resolve(); });
+
+    expect(loadCalls).toBe(before + 1);
+    expect(loadPausedStates.at(-1)).toBe(true);
+    expect(get().current?.stationuuid).toBe(station.stationuuid);
+    expect(get().status).not.toBe('error');
+    expect(new Set(attachedStations())).toEqual(new Set([station.stationuuid]));
+  });
+
+  it.each(['pause', 'station switch'] as const)('%s during timeout fallback prevents the stale recovery from taking ownership', async (interruption) => {
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    setVisibility('hidden');
+    act(() => get().pause());
+    let rejectFirst!: (error: Error) => void;
+    let playAttempt = 0;
+    setPlay(() => {
+      playAttempt += 1;
+      if (playAttempt === 1) return new Promise<void>((_, reject) => { rejectFirst = reject; });
+      return Promise.resolve();
+    });
+    let stationSwitch: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']> | null = null;
+    let interruptOnNextLoad = true;
+    if (audio) {
+      const originalLoad = audio.load.bind(audio);
+      audio.load = () => {
+        originalLoad();
+        if (!interruptOnNextLoad) return;
+        interruptOnNextLoad = false;
+        if (interruption === 'pause') get().pause();
+        else stationSwitch = get().playStation(stationB);
+      };
+    }
+    const before = loadCalls;
+    let attempt!: ReturnType<ReturnType<typeof useAudioPlayer>['resume']>;
+    act(() => { attempt = get().resume(); });
+    await act(async () => { await Promise.resolve(); });
+    paused = false;
+    clockOffset += 25_000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(25_000); });
+    await act(async () => { await attempt; });
+    rejectFirst(new Error('late native rejection'));
+    if (stationSwitch) {
+      await act(async () => { await stationSwitch; });
+      act(() => audio?.dispatchEvent(new Event('playing')));
+    }
+
+    expect(loadCalls).toBeGreaterThan(before);
+    expect(get().status).not.toBe('error');
+    if (interruption === 'pause') {
+      expect(get().status).toBe('paused');
+      expect(get().current?.stationuuid).toBe(station.stationuuid);
+      expect(playAttempt).toBe(1);
+    } else {
+      expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+      expect(playAttempt).toBeGreaterThan(1);
+    }
   });
 });

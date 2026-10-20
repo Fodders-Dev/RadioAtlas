@@ -100,6 +100,27 @@ const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
 const STALL_WATCHDOG_INTERVAL_MS = 3000;
 const STALL_WATCHDOG_THRESHOLD_MS = 9000;
 
+type ExplicitResumeObservation = {
+  stationId: string;
+  session: number;
+  candidateUrl: string;
+  startedAt: number;
+  position: number;
+};
+
+const hasBufferedCurrentPosition = (audio: HTMLAudioElement): boolean => {
+  if (!audio.src || audio.error || audio.ended || audio.readyState < 3) return false;
+  const position = audio.currentTime || 0;
+  try {
+    for (let index = 0; index < audio.buffered.length; index += 1) {
+      if (audio.buffered.start(index) <= position + 0.05 && audio.buffered.end(index) >= position) return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+};
+
 // Below this, a trip to the background tells us nothing: flicking to another app
 // and straight back can show no measurable position change even when playback was
 // perfectly healthy, and counting that as a death would manufacture a problem.
@@ -431,6 +452,7 @@ export const useAudioPlayer = ({
    * background cycle, because none of those match what it names.
    */
   const recoveryAuthorizedForRef = useRef<RecoveryDebt | null>(null);
+  const explicitResumeObservationRef = useRef<ExplicitResumeObservation | null>(null);
   const currentRef = useRef<StationLite | null>(null);
   const requestedStationRef = useRef<StationLite | null>(null);
   const getRequestedStation = useCallback(() => requestedStationRef.current, []);
@@ -618,6 +640,7 @@ export const useAudioPlayer = ({
 
   const beginPlaybackSession = () => {
     playbackSessionRef.current += 1;
+    explicitResumeObservationRef.current = null;
     cancelPendingPlayRef.current?.(new Error(PLAYBACK_SUPERSEDED));
     playAttemptRef.current += 1;
     playPendingRef.current = false;
@@ -1221,6 +1244,7 @@ export const useAudioPlayer = ({
       }
       // A queued pause from a command already followed by Play is obsolete.
       if (!audio.paused) return;
+      explicitResumeObservationRef.current = null;
       // Reaching the media's end also queues pause, followed by ended. That
       // path owns same-station stream recovery and is not an interruption.
       if (audio.ended) return;
@@ -1253,6 +1277,16 @@ export const useAudioPlayer = ({
     };
     const handleTimeUpdate = () => {
       const now = audio.currentTime || 0;
+      const observation = explicitResumeObservationRef.current;
+      if (observation && Math.abs(now - observation.position) > 0.05) {
+        explicitResumeObservationRef.current = null;
+        backgroundResumeEligibleRef.current = null;
+        recoveryAuthorizedForRef.current = null;
+        if (!audio.paused) {
+          setStatus('playing');
+          setIsPlaying(true);
+        }
+      }
       // Surrender: the stream is demonstrably producing audio, so nothing is
       // owed. Position movement, not a `playing` event — an event fires when
       // the element THINKS it started, which is the distinction that made two
@@ -1286,6 +1320,11 @@ export const useAudioPlayer = ({
       // paused even during startup buffering, so this only bails on a real pause.
       if (audio.paused) {
         pushEvent('audio: waiting (ignored, paused)');
+        return;
+      }
+      const explicitObservation = explicitResumeObservationRef.current;
+      if (explicitObservation && Date.now() - explicitObservation.startedAt < STALL_WATCHDOG_THRESHOLD_MS) {
+        setStatus('buffering');
         return;
       }
       const activeSession = playbackSessionRef.current;
@@ -1470,16 +1509,33 @@ export const useAudioPlayer = ({
       if (positionMoved) {
         lastProgressRef.current = { time: position, at: Date.now() };
       }
+      const observation = explicitResumeObservationRef.current;
+      if (observation && (observation.session !== playbackSessionRef.current ||
+          observation.stationId !== (requestedStationRef.current || currentRef.current)?.stationuuid ||
+          observation.candidateUrl !== activeUrlRef.current)) {
+        explicitResumeObservationRef.current = null;
+      } else if (observation && Math.abs(position - observation.position) > 0.05) {
+        explicitResumeObservationRef.current = null;
+        backgroundResumeEligibleRef.current = null;
+        recoveryAuthorizedForRef.current = null;
+        if (!audio.paused) {
+          setStatus('playing');
+          setIsPlaying(true);
+        }
+      }
+      const activeObservation = explicitResumeObservationRef.current;
+      if (activeObservation && Date.now() - activeObservation.startedAt < STALL_WATCHDOG_THRESHOLD_MS) return;
       const shouldRecover = shouldRecoverFromSilentStall({
         paused: audio.paused,
         hasPlayed: candidateHasPlayedRef.current,
         hasStation: Boolean(requestedStationRef.current || currentRef.current),
-        recovering: waitingTimeoutRef.current !== null || reconnectRef.current.timer !== null,
+        recovering: playPendingRef.current || waitingTimeoutRef.current !== null || reconnectRef.current.timer !== null,
         status: statusRef.current,
         positionMoved,
         msSinceProgress: Date.now() - lastProgressRef.current.at
       });
       if (!shouldRecover) return;
+      explicitResumeObservationRef.current = null;
       const activeSession = playbackSessionRef.current;
       // Re-arm so we don't re-fire every tick while recovery is in flight.
       lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
@@ -2012,12 +2068,34 @@ export const useAudioPlayer = ({
     const progress = lastProgressRef.current;
     const positionMoved = Math.abs(audio.currentTime - progress.time) > 0.05;
     if (positionMoved) lastProgressRef.current = { time: audio.currentTime, at: Date.now() };
+    const frozenForMs = Date.now() - Math.max(progress.at, candidateStartedAtRef.current);
+    let pendingResume = unresolvedRecoveryDebt();
+    // A hidden Play can arrive before visibility has recorded a recovery debt.
+    // Preserve the explicit frozen-stream repair for an already-playing source
+    // whose position has been flat for a full watchdog window, regardless of
+    // page visibility. This age is deliberately ignored for paused media.
+    if (!pendingResume && currentRef.current && candidateHasPlayedRef.current && !audio.paused &&
+        !audio.ended && !audio.error && statusRef.current !== 'error' && !positionMoved &&
+        frozenForMs >= STALL_WATCHDOG_THRESHOLD_MS) {
+      backgroundResumeEligibleRef.current = {
+        stationId: target.stationuuid,
+        session: playbackSessionRef.current,
+        cycleId: ++backgroundCycleRef.current
+      };
+      pendingResume = unresolvedRecoveryDebt();
+    }
     // An accepted play() is not proof of sound. Once the same position has
     // stayed frozen past the normal stall threshold, an explicit OS Play may
     // spend this debt without requiring a preceding Pause. A fresh attempt or
     // measured native progress still makes repeated Play idempotent.
-    const frozenRecovery = Boolean(unresolvedRecoveryDebt()) && !positionMoved &&
-      Date.now() - Math.max(progress.at, candidateStartedAtRef.current) >= STALL_WATCHDOG_THRESHOLD_MS;
+    const frozenRecovery = Boolean(pendingResume) && !positionMoved &&
+      frozenForMs >= STALL_WATCHDOG_THRESHOLD_MS;
+    if (pendingResume && !canSpendRecoveryToken(pendingResume, target.stationuuid, playbackSessionRef.current)) {
+      backgroundResumeEligibleRef.current = null;
+      pendingResume = null;
+    } else if (pendingResume) {
+      recoveryAuthorizedForRef.current = pendingResume;
+    }
     if (currentRef.current && statusRef.current !== 'error' && !audio.paused &&
         !audio.ended && !audio.error && !explicitlyPausedRef.current &&
         !frozenRecovery && !audioContextNeedsResume()) return true;
@@ -2031,6 +2109,8 @@ export const useAudioPlayer = ({
         session: playbackSessionRef.current,
         cycleId: ++backgroundCycleRef.current
       };
+      pendingResume = unresolvedRecoveryDebt();
+      if (pendingResume) recoveryAuthorizedForRef.current = pendingResume;
     }
 
     // Nothing is on air and nothing is attached — this is a retry of a station
@@ -2043,18 +2123,21 @@ export const useAudioPlayer = ({
       return retried.ok;
     }
 
+    const attemptSession = playbackSessionRef.current;
+    let directResumeSession: number | null = null;
     try {
-      // ⚠ A resume that this foreground return owes must RECONNECT, not
-      // `.play()`. The branch below only reattaches when `audio.src` is empty,
-      // and after a background death the src string is still set while the
-      // socket is gone — so a bare `.play()` resumes a corpse, which is the
-      // defect this lane was opened for.
-      //
-      // Same station, always: `playCandidateAtIndex` walks the CURRENT
-      // station's own stream candidates. It cannot reach the queue, the feed,
-      // or another station.
-      const pendingResume = backgroundResumeEligibleRef.current;
-      if (pendingResume) {
+      // A recovery debt records uncertainty, not proof that this media source
+      // is dead. Keep a healthy buffered source attached for the listener's
+      // first Play; reconnect only when the source is absent/bad, or when the
+      // post-attempt progress window proves that it stayed frozen.
+      if (pendingResume && frozenRecovery && !audio.paused) {
+        const resumed = await playCandidateAtIndex(
+          candidateIndexRef.current,
+          playbackSessionRef.current
+        );
+        return resumed.ok;
+      }
+      if (currentRef.current && !hasBufferedCurrentPosition(audio)) {
         // Both dimensions live in `canSpendRecoveryToken`, tested as a truth
         // table because the browser cannot tell them apart (see its comment).
         if (
@@ -2070,7 +2153,6 @@ export const useAudioPlayer = ({
           // background return raises a new debt with a new `cycleId`, which
           // this permission does not cover, so the next return has to be asked
           // for again rather than inheriting this tap.
-          recoveryAuthorizedForRef.current = pendingResume;
           const resumed = await playCandidateAtIndex(
             candidateIndexRef.current,
             playbackSessionRef.current
@@ -2094,6 +2176,8 @@ export const useAudioPlayer = ({
         return result.ok;
       }
       const resumeSession = playbackSessionRef.current;
+      directResumeSession = resumeSession;
+      playPendingRef.current = true;
       if (!shouldUseLeanPlaybackMode() || shouldForceAudioGraph()) {
         ensureAudioGraph();
         applyEqToGraph();
@@ -2102,14 +2186,75 @@ export const useAudioPlayer = ({
       }
       // A Pause or station change can arrive while the graph is resuming.
       if (!isSessionCurrent(resumeSession) || automaticPlaybackSuppressed()) return false;
-      await audio.play();
+      explicitResumeObservationRef.current = {
+        stationId: target.stationuuid,
+        session: resumeSession,
+        candidateUrl: activeUrlRef.current || audio.src,
+        startedAt: Date.now(),
+        position: audio.currentTime || 0
+      };
+      lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
+      setStatus('buffering');
+      const positionAtAttempt = audio.currentTime || 0;
+      await new Promise<void>((resolve, reject) => {
+        let settled = false;
+        const finish = (error?: Error) => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          audio.removeEventListener('error', onError);
+          if (cancelPendingPlayRef.current === cancel) cancelPendingPlayRef.current = null;
+          if (error) reject(error); else resolve();
+        };
+        const cancel = (error: Error) => finish(error);
+        const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'));
+        const timer = window.setTimeout(() => {
+          // A delayed native promise can outlive background JS scheduling. At
+          // its deadline, measured position movement is stronger evidence than
+          // the promise callback; otherwise the same-station recovery below
+          // first takes ownership and only then replaces this source.
+          if (!audio.paused && Math.abs((audio.currentTime || 0) - positionAtAttempt) > 0.05) {
+            lastProgressRef.current = { time: audio.currentTime || 0, at: Date.now() };
+            backgroundResumeEligibleRef.current = null;
+            recoveryAuthorizedForRef.current = null;
+            explicitResumeObservationRef.current = null;
+            setStatus('playing');
+            setIsPlaying(true);
+            finish();
+          }
+          else finish(new Error('Playback startup timed out'));
+        }, PLAY_REQUEST_TIMEOUT_MS);
+        cancelPendingPlayRef.current = cancel;
+        audio.addEventListener('error', onError);
+        try { audio.play().then(() => finish(), (error: Error) => finish(error)); }
+        catch (error) { finish(error instanceof Error ? error : new Error('Playback failed')); }
+      });
       return true;
     } catch (error) {
+      if (!isSessionCurrent(attemptSession)) return false;
+      const nativeAbort = error instanceof DOMException &&
+        (error.name === 'AbortError' || error.name === 'NotAllowedError');
+      const explicitNativeFailure = directResumeSession !== null && !nativeAbort;
+      if (explicitNativeFailure) {
+        if (automaticPlaybackSuppressed()) return false;
+        explicitResumeObservationRef.current = null;
+        pauseForSourceChange(audio);
+        const recovered = await playCandidateAtIndex(candidateIndexRef.current, attemptSession);
+        if (!isSessionCurrent(attemptSession) || recovered.superseded || recovered.held || automaticPlaybackSuppressed()) {
+          return false;
+        }
+        if (recovered.ok) return true;
+      }
+      if (!isSessionCurrent(attemptSession) || automaticPlaybackSuppressed()) return false;
       pushEvent(`audio: resume failed (${error instanceof Error ? error.message : 'unknown'})`);
       setStatus('error');
       setIsPlaying(false);
       setErrorMessage('no playable candidate');
       return false;
+    } finally {
+      if (directResumeSession !== null && isSessionCurrent(directResumeSession)) {
+        playPendingRef.current = false;
+      }
     }
   };
 
@@ -2120,6 +2265,7 @@ export const useAudioPlayer = ({
     const audio = audioRef.current;
     if (!audio) return;
     explicitlyPausedRef.current = true;
+    explicitResumeObservationRef.current = null;
     // A user command may cancel startup; automatic recovery may not. Rejecting
     // that play must stop its queue walk, never be counted as a dead station.
     if (playPendingRef.current) beginPlaybackSession();
@@ -2135,8 +2281,9 @@ export const useAudioPlayer = ({
     // again — after a sleep timer, or into the phone's speaker after the
     // headphones came out.
     //
-    // The DEBT is untouched, exactly as in `toggle`: pausing does not prove the
-    // socket is alive, so the listener's next Play still reconnects.
+    // The debt is untouched: a deliberate pause does not prove that the source
+    // is alive. The next Play checks its buffered position before choosing the
+    // native source or the same-station reconnect path.
     recoveryAuthorizedForRef.current = null;
     audio.pause();
   };
