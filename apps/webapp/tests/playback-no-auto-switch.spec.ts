@@ -9,8 +9,8 @@ import { installMediaMocks, mockStations, seedRadioState, stations } from './hel
 
 // Records every mediaSession.setActionHandler(action, handler) call so the test
 // can assert which transport actions are bound vs explicitly cleared (null).
-const installMediaSessionProbe = async (page: Page) => {
-  await page.addInitScript(() => {
+const installMediaSessionProbe = async (page: Page, throwForActions: string[] = []) => {
+  await page.addInitScript((actionsToThrow) => {
     const log: Array<{ action: string; bound: boolean }> = [];
     (window as unknown as { __msLog: typeof log }).__msLog = log;
     const ms = navigator.mediaSession as MediaSession | undefined;
@@ -18,6 +18,9 @@ const installMediaSessionProbe = async (page: Page) => {
       const orig = ms.setActionHandler.bind(ms);
       ms.setActionHandler = ((action: MediaSessionAction, handler: MediaSessionActionHandler | null) => {
         log.push({ action, bound: Boolean(handler) });
+        if (actionsToThrow.includes(action)) {
+          throw new TypeError(`Unsupported action: ${action}`);
+        }
         try {
           return orig(action, handler);
         } catch {
@@ -27,7 +30,7 @@ const installMediaSessionProbe = async (page: Page) => {
         }
       }) as MediaSession['setActionHandler'];
     }
-  });
+  }, throwForActions);
 };
 
 // Replaces the media mock's play() with one that ALSO records the src of every
@@ -144,6 +147,41 @@ test('FIX 2a: mediaSession next/prev are unbound for a single-item queue, bound 
   expect(await lastHandlerFor(page, 'previoustrack')).toBe(true);
   expect(await lastHandlerFor(page, 'play')).toBe(true);
   expect(await lastHandlerFor(page, 'stop')).toBe(true);
+});
+
+test('FIX 2c: live radio clears seek actions and an unsupported seek cannot block transport handlers', async ({
+  page
+}) => {
+  await installMediaSessionProbe(page, ['seekbackward']);
+  await seedRadioState(page, { queue: [stations[0]] });
+  await page.goto('/?api=/api');
+  await expect(page.locator('[data-home-feed-entry]')).toBeVisible();
+
+  for (const action of ['seekbackward', 'seekforward', 'seekto']) {
+    expect(await lastHandlerFor(page, action)).toBe(false);
+  }
+  expect(await lastHandlerFor(page, 'play')).toBe(true);
+  expect(await lastHandlerFor(page, 'pause')).toBe(true);
+  expect(await lastHandlerFor(page, 'stop')).toBe(true);
+
+  // The forced seekbackward exception must not skip the remaining null calls.
+  expect(await page.evaluate(() => {
+    const log = (window as unknown as { __msLog: Array<{ action: string; bound: boolean }> }).__msLog;
+    return ['seekbackward', 'seekforward', 'seekto'].map((action) =>
+      log.some((entry) => entry.action === action && !entry.bound)
+    );
+  })).toEqual([true, true, true]);
+
+  await startSearchResultsRadio(page);
+  await expect.poll(() => queueLength(page)).toBeGreaterThan(1);
+  await expect.poll(() => lastHandlerFor(page, 'nexttrack')).toBe(true);
+  expect(await lastHandlerFor(page, 'previoustrack')).toBe(true);
+  expect(await lastHandlerFor(page, 'play')).toBe(true);
+  expect(await lastHandlerFor(page, 'pause')).toBe(true);
+  expect(await lastHandlerFor(page, 'stop')).toBe(true);
+  for (const action of ['seekbackward', 'seekforward', 'seekto']) {
+    expect(await lastHandlerFor(page, action)).toBe(false);
+  }
 });
 
 test('FIX 2b: exhausting the queue with manual next never jumps to a random station', async ({

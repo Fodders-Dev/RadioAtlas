@@ -5,7 +5,13 @@ import { getApiBase } from './apiBase';
 import { checkApiAvailability, markApiUnavailable } from './apiAvailability';
 import { decideCandidateSwitch } from './candidateSwitchGuard';
 import { reportClientEvent } from './observability';
-import { recordAudioDiagnostic } from './playbackDiagnostics';
+import {
+  playbackDiagnosticsEnabled,
+  recordAudioDiagnostic,
+  recordPlaybackDiagnostic,
+  registerPlaybackControlProvider,
+  type PlaybackDiagnosticControl
+} from './playbackDiagnostics';
 import { buildStationStreamTargets } from './stationStreams';
 import {
   buildCandidates,
@@ -99,6 +105,18 @@ const AUDIO_CONTEXT_RESUME_TIMEOUT_MS = 250;
 // never switches to a different station.
 const STALL_WATCHDOG_INTERVAL_MS = 3000;
 const STALL_WATCHDOG_THRESHOLD_MS = 9000;
+
+type TransportAttachReason = Extract<NonNullable<PlaybackDiagnosticControl['actionReason']>,
+  'station-start' | 'resume-unbuffered' | 'explicit-frozen' | 'native-failure' | 'native-timeout' |
+  'candidate-fallback' | 'reconnect'>;
+
+const nativePlayRejectionReason = (error: unknown): NonNullable<PlaybackDiagnosticControl['actionReason']> => {
+  const candidate = error as { name?: unknown; message?: unknown } | null;
+  if (candidate?.message === PLAYBACK_SUPERSEDED) return 'superseded';
+  if (candidate?.name === 'NotAllowedError') return 'not-allowed';
+  if (candidate?.name === 'AbortError') return 'aborted';
+  return 'rejected';
+};
 
 type ExplicitResumeObservation = {
   stationId: string;
@@ -384,6 +402,9 @@ export const useAudioPlayer = ({
   // watchdog compares against this. Reset on each 'playing'; bumped on real
   // timeupdate progress.
   const lastProgressRef = useRef<{ time: number; at: number }>({ time: 0, at: 0 });
+  const watchdogTicksRef = useRef(0);
+  const watchdogLastTickAtRef = useRef<number | null>(null);
+  const watchdogDecisionRef = useRef<NonNullable<PlaybackDiagnosticControl['watchdogDecision']>>('not-run');
   // Set when the page is hidden while audio is playing, read when it comes back:
   // the only way to learn whether playback SURVIVED the background, rather than
   // just that we went there. See handleVisibility.
@@ -638,6 +659,56 @@ export const useAudioPlayer = ({
     return !recoveryAuthorizationCovers(recoveryAuthorizedForRef.current, debt);
   };
 
+  const playbackDiagnosticControl = (audio: HTMLMediaElement): PlaybackDiagnosticControl => {
+    let bufferAheadSeconds: number | null = null;
+    let durationKind: NonNullable<PlaybackDiagnosticControl['durationKind']> = 'unknown';
+    try {
+      const now = audio.currentTime;
+      const ranges = audio.buffered;
+      const count = ranges.length;
+      if (Number.isFinite(now) && Number.isInteger(count) && count >= 0) {
+        bufferAheadSeconds = 0;
+        for (let index = 0; index < count; index += 1) {
+          const start = ranges.start(index);
+          const end = ranges.end(index);
+          if (Number.isFinite(start) && Number.isFinite(end) && start <= now + 0.05 && end >= now) {
+            bufferAheadSeconds = Math.min(86_400, Math.round(Math.max(0, end - now) * 10) / 10);
+            break;
+          }
+        }
+      }
+    } catch {
+      bufferAheadSeconds = null;
+    }
+    try {
+      const duration = audio.duration;
+      durationKind = duration === Infinity ? 'live' : Number.isFinite(duration) && duration > 0 ? 'finite' : 'unknown';
+    } catch {
+      durationKind = 'unknown';
+    }
+    const debt = unresolvedRecoveryDebt();
+    const permission = explicitlyPausedRef.current
+      ? 'explicit-pause'
+      : debt
+        ? recoveryAuthorizationCovers(recoveryAuthorizedForRef.current, debt) ? 'authorized' : 'debt-held'
+        : 'none';
+    const candidate = candidatesRef.current[candidateIndexRef.current] || activeCandidateRef.current;
+    const age = watchdogLastTickAtRef.current === null
+      ? null
+      : Math.min(86_400_000, Math.max(0, Date.now() - watchdogLastTickAtRef.current));
+    return {
+      candidateMode: candidate?.mode ?? null,
+      playPending: playPendingRef.current,
+      permission,
+      watchdogTicks: Math.min(1_000_000, watchdogTicksRef.current),
+      watchdogAgeMs: age,
+      watchdogDecision: watchdogDecisionRef.current,
+      sessionSeq: Math.min(1_000_000_000, playbackSessionRef.current),
+      bufferAheadSeconds,
+      durationKind
+    };
+  };
+
   const beginPlaybackSession = () => {
     playbackSessionRef.current += 1;
     explicitResumeObservationRef.current = null;
@@ -804,7 +875,12 @@ export const useAudioPlayer = ({
     }
   };
 
-  const attachSource = async (url: string, sessionId = playbackSessionRef.current) => {
+  const attachSource = async (
+    url: string,
+    sessionId = playbackSessionRef.current,
+    reason: TransportAttachReason = 'candidate-fallback',
+    candidateMode: PlaybackDiagnosticControl['candidateMode'] = null
+  ) => {
     const audio = audioRef.current;
     if (!audio) return;
 
@@ -821,6 +897,10 @@ export const useAudioPlayer = ({
       // import must NOT let this (now-stale) call attach to the shared <audio>.
       if (!isSessionCurrent(sessionId)) return;
       queuedInternalPausesRef.current = 0;
+      recordAudioDiagnostic('transport_attach', audio, audioContextRef.current, {
+        actionReason: reason,
+        candidateMode
+      });
       const hls = attachHlsIfCurrent(
         mod.default as unknown as HlsConstructor,
         audio,
@@ -841,6 +921,10 @@ export const useAudioPlayer = ({
           // ignore browsers that do not allow resetting srcObject here
         }
       }
+      recordAudioDiagnostic('transport_attach', audio, audioContextRef.current, {
+        actionReason: reason,
+        candidateMode
+      });
       audio.src = url;
       audio.load();
       queuedInternalPausesRef.current = 0;
@@ -881,7 +965,8 @@ export const useAudioPlayer = ({
 
   const playCandidateAtIndex = async (
     startIndex: number,
-    sessionId = playbackSessionRef.current
+    sessionId = playbackSessionRef.current,
+    attachReason: TransportAttachReason = 'candidate-fallback'
   ): Promise<PlayCandidateResult> => {
     const audio = audioRef.current;
     if (!audio) {
@@ -912,6 +997,9 @@ export const useAudioPlayer = ({
       // to BEGIN, and the thing that must be true is that it is allowed to make
       // sound NOW.
       if (automaticPlaybackSuppressed()) {
+        recordAudioDiagnostic('transport_recovery_decision', audio, audioContextRef.current, {
+          actionReason: explicitlyPausedRef.current ? 'explicit-pause' : 'debt-held'
+        });
         pushEvent('audio: candidate start held for an unresolved background debt');
         return { ok: false, error: PLAYBACK_HELD, held: true };
       }
@@ -920,7 +1008,12 @@ export const useAudioPlayer = ({
       candidateIndexRef.current = index;
       try {
         try {
-          await attachSource(nextUrl, sessionId);
+          await attachSource(
+            nextUrl,
+            sessionId,
+            index > startIndex ? 'candidate-fallback' : attachReason,
+            nextCandidate.mode
+          );
         } catch (error) {
           const attachError =
             error instanceof Error ? error.message : formatMediaError(audio) || 'attach failed';
@@ -949,37 +1042,76 @@ export const useAudioPlayer = ({
         // AbortError cascade `candidateSwitchGuard.ts` exists to prevent. An
         // in-flight `play()` is still nobody's to interrupt.
         if (automaticPlaybackSuppressed()) {
+          recordAudioDiagnostic('transport_recovery_decision', audio, audioContextRef.current, {
+            actionReason: explicitlyPausedRef.current ? 'explicit-pause' : 'debt-held'
+          });
           pushEvent('audio: play held for an unresolved background debt');
           return { ok: false, error: PLAYBACK_HELD, held: true };
         }
         const attempt = ++playAttemptRef.current;
         playPendingRef.current = true;
+        // Settlement diagnostics describe the attempt that started this
+        // native promise. The playback state machine keeps its original
+        // settlement behavior; this flag only prevents late promise outcomes
+        // from being attributed to a later attempt in the same session.
+        let diagnosticSettlementRecorded = false;
+        const diagnosticSessionId = sessionId;
+        const diagnosticAttempt = attempt;
+        const diagnosticCandidateMode = nextCandidate.mode;
+        const recordSettlement = (actionReason: NonNullable<PlaybackDiagnosticControl['actionReason']>) => {
+          if (diagnosticSettlementRecorded) return;
+          diagnosticSettlementRecorded = true;
+          const superseded = actionReason === 'superseded' ||
+            diagnosticSessionId !== playbackSessionRef.current ||
+            diagnosticAttempt !== playAttemptRef.current;
+          if (superseded) {
+            recordPlaybackDiagnostic('transport_play_settled', undefined, undefined, {
+              actionReason: 'superseded',
+              sessionSeq: Math.min(1_000_000_000, diagnosticSessionId)
+            });
+          } else {
+            recordAudioDiagnostic('transport_play_settled', audio, audioContextRef.current, {
+              actionReason,
+              candidateMode: diagnosticCandidateMode
+            });
+          }
+        };
         try {
           // Native play can remain pending on a dead source without an error
           // event. Its owner must settle before walking to the next candidate.
           await new Promise<void>((resolve, reject) => {
             const position = audio.currentTime;
-            const finish = (error?: Error) => {
+            const finish = (
+              error?: Error,
+              actionReason: NonNullable<PlaybackDiagnosticControl['actionReason']> = 'resolved'
+            ) => {
               window.clearTimeout(timer);
               audio.removeEventListener('error', onError);
               if (cancelPendingPlayRef.current === cancel) cancelPendingPlayRef.current = null;
+              recordSettlement(actionReason);
               if (error) reject(error); else resolve();
             };
-            const cancel = (error: Error) => finish(error);
-            const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'));
+            const cancel = (error: Error) => finish(error, 'superseded');
+            const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'), 'media-error');
             const timer = window.setTimeout(() => {
               // Background JS can lag behind the native player. Progress is
               // proof of playback even if its promise callback was delayed.
-              if (!audio.paused && Math.abs(audio.currentTime - position) > 0.05) finish();
+              if (!audio.paused && Math.abs(audio.currentTime - position) > 0.05) finish(undefined, 'deadline-progress');
               else {
-                finish(new Error('Playback startup timed out'));
+                finish(new Error('Playback startup timed out'), 'timeout');
                 pauseForSourceChange(audio);
               }
             }, PLAY_REQUEST_TIMEOUT_MS);
             cancelPendingPlayRef.current = cancel;
             audio.addEventListener('error', onError);
-            try { audio.play().then(() => finish(), (error: Error) => finish(error)); }
-            catch (error) { finish(error instanceof Error ? error : new Error('Playback failed')); }
+            try {
+              audio.play().then(
+                () => finish(undefined, 'resolved'),
+                (error: Error) => finish(error, nativePlayRejectionReason(error))
+              );
+            } catch (error) {
+              finish(error instanceof Error ? error : new Error('Playback failed'), nativePlayRejectionReason(error));
+            }
           });
         } finally {
           if (attempt === playAttemptRef.current) {
@@ -1063,17 +1195,33 @@ export const useAudioPlayer = ({
     // check covers them all without touching the listener's own Play, which
     // goes through `playCandidateAtIndex` directly after authorising itself.
     if (automaticPlaybackSuppressed()) {
+      recordAudioDiagnostic('transport_recovery_decision', audioRef.current, audioContextRef.current, {
+        actionReason: explicitlyPausedRef.current ? 'explicit-pause' : 'debt-held'
+      });
       pushEvent('audio: automatic candidate walk held for an unresolved background debt');
       return 'suppressed';
     }
     const list = candidatesRef.current;
     if (candidateIndexRef.current >= list.length - 1) {
+      recordAudioDiagnostic('transport_recovery_decision', audioRef.current, audioContextRef.current, {
+        actionReason: 'exhausted'
+      });
       return 'exhausted';
     }
-    const result = await playCandidateAtIndex(candidateIndexRef.current + 1, sessionId);
+    const result = await playCandidateAtIndex(candidateIndexRef.current + 1, sessionId, 'candidate-fallback');
     // Permission can be withdrawn mid-walk; that is still not exhaustion.
     if (result.held) return 'suppressed';
-    return result.ok ? 'started' : 'exhausted';
+    if (!result.ok) {
+      // The awaited candidate walk may have been superseded by Pause or a
+      // station change. Do not attach that stale outcome to the new audio.
+      if (!result.superseded && isSessionCurrent(sessionId)) {
+        recordAudioDiagnostic('transport_recovery_decision', audioRef.current, audioContextRef.current, {
+          actionReason: 'exhausted'
+        });
+      }
+      return 'exhausted';
+    }
+    return 'started';
   };
 
   const scheduleReconnect = (sessionId = playbackSessionRef.current) => {
@@ -1088,6 +1236,9 @@ export const useAudioPlayer = ({
     }
 
     reconnectRef.current.attempts += 1;
+    recordAudioDiagnostic('transport_recovery_decision', audio, audioContextRef.current, {
+      actionReason: 'reconnect-scheduled'
+    });
     const delay = Math.min(15000, 2000 * reconnectRef.current.attempts);
     reportPlaybackEvent('audio_reconnect_scheduled', {
       detail: String(reconnectRef.current.attempts),
@@ -1111,7 +1262,7 @@ export const useAudioPlayer = ({
         return;
       }
       try {
-        const result = await playCandidateAtIndex(0, sessionId);
+        const result = await playCandidateAtIndex(0, sessionId, 'reconnect');
         if (!result.ok) {
           throw new Error(result.error || 'reconnect failed');
         }
@@ -1181,6 +1332,10 @@ export const useAudioPlayer = ({
       document.body.appendChild(audio);
     }
     audioRef.current = audio;
+    const unregisterPlaybackControl = registerPlaybackControlProvider(
+      audio,
+      () => playbackDiagnosticControl(audio)
+    );
     if (shouldForceAudioGraph()) {
       ensureAudioGraph();
     }
@@ -1219,18 +1374,9 @@ export const useAudioPlayer = ({
       });
       if ('mediaSession' in navigator && 'setPositionState' in navigator.mediaSession) {
         try {
-          // Live radio streams report Infinity/NaN duration — never advertise a
-          // finite length to the OS, or the lock screen renders a bogus seek bar
-          // (and the old hardcoded `duration: 0` did exactly that). Publish a
-          // position state ONLY for genuinely finite media; for live streams,
-          // leave it unset.
-          if (Number.isFinite(audio.duration) && audio.duration > 0) {
-            navigator.mediaSession.setPositionState({
-              duration: audio.duration,
-              playbackRate: audio.playbackRate || 1,
-              position: audio.currentTime || 0
-            });
-          }
+          // This player always represents live radio, even when the browser
+          // exposes a finite buffer duration. Clear any stale OS seek state.
+          (navigator.mediaSession.setPositionState as () => void)();
         } catch {
           // ignore
         }
@@ -1361,6 +1507,9 @@ export const useAudioPlayer = ({
           });
           if (decision.action === 'defer') {
             playPendingDeferralsRef.current = decision.deferrals;
+            recordAudioDiagnostic('transport_recovery_decision', audio, audioContextRef.current, {
+              actionReason: 'pending-deferred'
+            });
             pushEvent('audio: play still pending, holding the candidate switch');
             waitingTimeoutRef.current = window.setTimeout(
               () => audio.dispatchEvent(new Event('waiting')),
@@ -1500,6 +1649,15 @@ export const useAudioPlayer = ({
     // quiet WITHOUT firing waiting/stalled/error/ended, which the event-driven
     // recovery would otherwise miss entirely.
     const stallWatchdog = window.setInterval(() => {
+      const recordingWatchdog = playbackDiagnosticsEnabled();
+      if (recordingWatchdog) {
+        watchdogTicksRef.current = Math.min(1_000_000, watchdogTicksRef.current + 1);
+        watchdogLastTickAtRef.current = Date.now();
+        watchdogDecisionRef.current = 'not-run';
+      }
+      const noteWatchdogDecision = (decision: NonNullable<PlaybackDiagnosticControl['watchdogDecision']>) => {
+        if (recordingWatchdog) watchdogDecisionRef.current = decision;
+      };
       const position = audio.currentTime || 0;
       // Same epsilon and reasoning as handleTimeUpdate: real position MOVEMENT
       // means the stream is alive. Reading it here rather than trusting the
@@ -1524,17 +1682,40 @@ export const useAudioPlayer = ({
         }
       }
       const activeObservation = explicitResumeObservationRef.current;
-      if (activeObservation && Date.now() - activeObservation.startedAt < STALL_WATCHDOG_THRESHOLD_MS) return;
+      if (activeObservation && Date.now() - activeObservation.startedAt < STALL_WATCHDOG_THRESHOLD_MS) {
+        noteWatchdogDecision('observation-grace');
+        return;
+      }
+      const paused = audio.paused;
+      const hasPlayed = candidateHasPlayedRef.current;
+      const hasStation = Boolean(requestedStationRef.current || currentRef.current);
+      const playPending = playPendingRef.current;
+      const waitingTimer = waitingTimeoutRef.current !== null;
+      const reconnectTimer = reconnectRef.current.timer !== null;
+      const status = statusRef.current;
+      const msSinceProgress = Date.now() - lastProgressRef.current.at;
       const shouldRecover = shouldRecoverFromSilentStall({
-        paused: audio.paused,
-        hasPlayed: candidateHasPlayedRef.current,
-        hasStation: Boolean(requestedStationRef.current || currentRef.current),
-        recovering: playPendingRef.current || waitingTimeoutRef.current !== null || reconnectRef.current.timer !== null,
-        status: statusRef.current,
+        paused,
+        hasPlayed,
+        hasStation,
+        recovering: playPending || waitingTimer || reconnectTimer,
+        status,
         positionMoved,
-        msSinceProgress: Date.now() - lastProgressRef.current.at
+        msSinceProgress
       });
-      if (!shouldRecover) return;
+      if (!shouldRecover) {
+        if (positionMoved) noteWatchdogDecision('progress');
+        else if (paused) noteWatchdogDecision('paused');
+        else if (!hasStation) noteWatchdogDecision('no-station');
+        else if (!hasPlayed) noteWatchdogDecision('not-started');
+        else if (playPending) noteWatchdogDecision('play-pending');
+        else if (waitingTimer) noteWatchdogDecision('waiting-timer');
+        else if (reconnectTimer) noteWatchdogDecision('reconnect-timer');
+        else if (status === 'paused' || status === 'idle' || status === 'error') noteWatchdogDecision('inactive-status');
+        else if (msSinceProgress < STALL_WATCHDOG_THRESHOLD_MS) noteWatchdogDecision('below-threshold');
+        return;
+      }
+      noteWatchdogDecision('recover-requested');
       explicitResumeObservationRef.current = null;
       const activeSession = playbackSessionRef.current;
       // Re-arm so we don't re-fire every tick while recovery is in flight.
@@ -1676,6 +1857,7 @@ export const useAudioPlayer = ({
     document.addEventListener('keydown', resumeAudioContext);
 
     return () => {
+      unregisterPlaybackControl();
       beginPlaybackSession();
       window.clearInterval(stallWatchdog);
       pauseForSourceChange(audio);
@@ -2018,7 +2200,7 @@ export const useAudioPlayer = ({
       return { ok: false, error: failure.message };
     }
 
-    const result = await playCandidateAtIndex(0, playbackSession);
+    const result = await playCandidateAtIndex(0, playbackSession, 'station-start');
     if (result.held && isSessionCurrent(playbackSession) && explicitlyPausedRef.current) {
       setStatus('paused');
       setIsPlaying(false);
@@ -2125,6 +2307,7 @@ export const useAudioPlayer = ({
 
     const attemptSession = playbackSessionRef.current;
     let directResumeSession: number | null = null;
+    let directResumeFailureReason: Extract<TransportAttachReason, 'native-failure' | 'native-timeout'> = 'native-failure';
     try {
       // A recovery debt records uncertainty, not proof that this media source
       // is dead. Keep a healthy buffered source attached for the listener's
@@ -2133,11 +2316,13 @@ export const useAudioPlayer = ({
       if (pendingResume && frozenRecovery && !audio.paused) {
         const resumed = await playCandidateAtIndex(
           candidateIndexRef.current,
-          playbackSessionRef.current
+          playbackSessionRef.current,
+          'explicit-frozen'
         );
         return resumed.ok;
       }
-      if (currentRef.current && !hasBufferedCurrentPosition(audio)) {
+      const hasBufferedCurrent = currentRef.current ? hasBufferedCurrentPosition(audio) : false;
+      if (currentRef.current && !hasBufferedCurrent) {
         // Both dimensions live in `canSpendRecoveryToken`, tested as a truth
         // table because the browser cannot tell them apart (see its comment).
         if (
@@ -2155,7 +2340,8 @@ export const useAudioPlayer = ({
           // for again rather than inheriting this tap.
           const resumed = await playCandidateAtIndex(
             candidateIndexRef.current,
-            playbackSessionRef.current
+            playbackSessionRef.current,
+            'resume-unbuffered'
           );
           // ⚠ The debt is NOT closed here, and `resumed.ok` is exactly why it
           // must not be: `play()` resolving means the element accepted the
@@ -2171,7 +2357,8 @@ export const useAudioPlayer = ({
       if (!audio.src || audio.error || audio.ended) {
         const result = await playCandidateAtIndex(
           candidateIndexRef.current,
-          playbackSessionRef.current
+          playbackSessionRef.current,
+          'resume-unbuffered'
         );
         return result.ok;
       }
@@ -2198,16 +2385,27 @@ export const useAudioPlayer = ({
       const positionAtAttempt = audio.currentTime || 0;
       await new Promise<void>((resolve, reject) => {
         let settled = false;
-        const finish = (error?: Error) => {
+        const finish = (
+          error?: Error,
+          actionReason: NonNullable<PlaybackDiagnosticControl['actionReason']> = 'resolved'
+        ) => {
           if (settled) return;
           settled = true;
           window.clearTimeout(timer);
           audio.removeEventListener('error', onError);
           if (cancelPendingPlayRef.current === cancel) cancelPendingPlayRef.current = null;
+          if (actionReason === 'superseded' || resumeSession !== playbackSessionRef.current) {
+            recordPlaybackDiagnostic('transport_play_settled', undefined, undefined, {
+              actionReason: 'superseded',
+              sessionSeq: Math.min(1_000_000_000, resumeSession)
+            });
+          } else {
+            recordAudioDiagnostic('transport_play_settled', audio, audioContextRef.current, { actionReason });
+          }
           if (error) reject(error); else resolve();
         };
-        const cancel = (error: Error) => finish(error);
-        const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'));
+        const cancel = (error: Error) => finish(error, 'superseded');
+        const onError = () => finish(new Error(formatMediaError(audio) || 'Playback failed'), 'media-error');
         const timer = window.setTimeout(() => {
           // A delayed native promise can outlive background JS scheduling. At
           // its deadline, measured position movement is stronger evidence than
@@ -2220,14 +2418,27 @@ export const useAudioPlayer = ({
             explicitResumeObservationRef.current = null;
             setStatus('playing');
             setIsPlaying(true);
-            finish();
+            finish(undefined, 'deadline-progress');
           }
-          else finish(new Error('Playback startup timed out'));
+          else {
+            directResumeFailureReason = 'native-timeout';
+            finish(new Error('Playback startup timed out'), 'timeout');
+          }
         }, PLAY_REQUEST_TIMEOUT_MS);
         cancelPendingPlayRef.current = cancel;
         audio.addEventListener('error', onError);
-        try { audio.play().then(() => finish(), (error: Error) => finish(error)); }
-        catch (error) { finish(error instanceof Error ? error : new Error('Playback failed')); }
+        const resumeReason = hasBufferedCurrent ? 'buffered' : 'existing-unbuffered';
+        recordAudioDiagnostic('transport_resume_native', audio, audioContextRef.current, {
+          actionReason: resumeReason
+        });
+        try {
+          audio.play().then(
+            () => finish(undefined, 'resolved'),
+            (error: Error) => finish(error, nativePlayRejectionReason(error))
+          );
+        } catch (error) {
+          finish(error instanceof Error ? error : new Error('Playback failed'), nativePlayRejectionReason(error));
+        }
       });
       return true;
     } catch (error) {
@@ -2239,7 +2450,11 @@ export const useAudioPlayer = ({
         if (automaticPlaybackSuppressed()) return false;
         explicitResumeObservationRef.current = null;
         pauseForSourceChange(audio);
-        const recovered = await playCandidateAtIndex(candidateIndexRef.current, attemptSession);
+        const recovered = await playCandidateAtIndex(
+          candidateIndexRef.current,
+          attemptSession,
+          directResumeFailureReason
+        );
         if (!isSessionCurrent(attemptSession) || recovered.superseded || recovered.held || automaticPlaybackSuppressed()) {
           return false;
         }

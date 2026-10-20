@@ -1,5 +1,11 @@
 # Explicit Play: healthy buffer and frozen live stream
 
+**Physical acceptance failed on the deployed ce12fc0 build.** The immediate
+buffer reset was removed, but locked-screen resume still produced silence and
+frozen native time. See
+[the bounded follow-up](CONTRACT-ios-session-followup-2026-10-20.md). The
+automated results below describe this implementation, not an iPhone pass.
+
 Owner authorized implementation and immediate production publication on
 2026-10-20. A03 is a separate, accepted search change and is excluded here.
 Implementation base: `335fd26`; production before this repair: `f4ef231`.
@@ -106,6 +112,13 @@ success is claimed by this pre-publication record; deployment receipts will be
 checked against the exact released SHA and public assets.
 
 ## Owner production retest
+
+Publication completed at `ce12fc04a24adba44947a43b15ab17e51bb59d04`:
+[required CI39455492584](https://github.com/Fodders-Dev/RadioAtlas/actions/runs/39455492584)
+and [deploy39455492535](https://github.com/Fodders-Dev/RadioAtlas/actions/runs/39455492535)
+succeeded. Server release/process paths, public health and the referenced
+player asset stamp matched this SHA. The subsequent owner export identifies
+`ce12fc0`, so the failed retest cannot be dismissed as an old cached build.
 
 Release note: `5c2f9f8` was pushed but not deployed. CI39454890161 failed
 before browser tests because the GitHub runner used unsupported Ubuntu 26.04;

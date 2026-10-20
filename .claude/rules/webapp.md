@@ -79,6 +79,11 @@ that slot stays blank rather than falling back.
   prerequisite. Keep system metadata for `current ?? pending` during startup
   and failure. A repeated Next must account for the in-flight station, not
   only the last successful queue index.
+- This runtime plays live stations, not saved recordings. Clear Media Session
+  position state even if a stream reports finite native duration, and disable
+  seek actions independently of transport registration. Finite duration alone
+  is not a product permission to seek. Next/Previous still require the existing
+  multi-station queue; do not map seek buttons to station skipping.
 - For Next/Previous, read `player.getRequestedStation()` before the rendered
   pending/current snapshot. The audio source can change before the runtime's
   React effect publishes it; waiting for that render loses immediate commands.
@@ -102,8 +107,13 @@ that slot stays blank rather than falling back.
   same-origin `/api/stream` candidate immediately after it. Gamesboro measured
   at `readyState=0` for 25–30 seconds over the direct route while the RU proxy
   sustained the advertised stream, so `radio.gamesboro.org` is the deliberately
-  narrow exception and runs proxy-first. Do not broaden that host list without
-  measuring both routes: every entry spends our server bandwidth. Extensionless
+  narrow host exception and runs proxy-first. A 2026-10-20 native-media and
+  public-app probe also measured NamKoCom direct stalling while its proxy
+  progressed: only `spritelayerradio.com` with the exact case-sensitive pathname
+  `/listen/namkocom_radio/namkocom.mp3` prefers proxy; other mounts on that host
+  retain direct-first. This does not establish iPhone background recovery.
+  Do not broaden these exceptions without measuring both routes: every entry
+  spends our server bandwidth. Extensionless
   and HLS streams remain proxy-first, while constrained mobile and Telegram
   runtimes may still force proxy-only playback.
 - **A recovery path must never touch the element while `play()` is pending.**

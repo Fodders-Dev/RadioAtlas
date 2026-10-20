@@ -1,4 +1,30 @@
 # RUNBOOK
+## 2026-10-20 — iPhone acceptance failed on ce12fc0
+
+Release `ce12fc04a24adba44947a43b15ab17e51bb59d04` passed the required
+same-SHA CI and production publication, but the owner's physical standalone
+retest failed. System Play reached the app and no longer immediately emptied
+the buffered source; native media time nevertheless stayed at 7.9 seconds for
+52.791 seconds after the first hidden Play. Another hidden Play was followed
+by emptied after 15.722 seconds. A foreground attempt also produced native
+decode error 3. Neither timer suspension nor an upstream failure is established
+by the current trace: it lacks recovery decisions and watchdog execution data.
+
+The Home Screen icon opened Feed in a window **without an address bar**. Treat
+this as standalone navigation/restoration, not evidence of escape to Safari.
+The owner recalled NamKoCom Radio and NoLife-Radio; the trace cannot associate
+the two playback cycles with those stations. Disappearing Now Playing artwork
+and seek buttons remain physical observations, not measured system UI state.
+
+The bounded follow-up is documented in
+[CONTRACT-ios-session-followup-2026-10-20](docs/CONTRACT-ios-session-followup-2026-10-20.md):
+clear stale live position state, disable unsupported live seek actions and
+extend the existing opt-in local recorder. A separate measured route repair
+prefers the existing proxy for NamKoCom's exact MP3 mount, retaining direct
+fallback; other mounts and NoLife routing are unchanged. Do not call this a verified repair
+of silent locked-screen resume or add speculative recovery timers/AudioSession
+overrides. The iPhone incident remains open.
+
 ## 2026-10-20 — explicit Play after a healthy hidden pause
 
 First release attempt `5c2f9f8` was held before deployment: CI39454890161
@@ -609,9 +635,21 @@ recording replaces the previous one. If storage fails, the UI says the trace
 lasts only until the app closes. Do not interpret that case as durable evidence.
 Copy has a visible readonly-text fallback when the clipboard is unavailable.
 
+The 2026-10-20 follow-up adds optional `control` summaries to v1 entries and
+sparse `transport_resume_native`, `transport_attach`, `transport_play_settled`
+and recovery-decision events. `transport_attach` identifies an actual app
+attachment, unlike an unexplained native emptied event. Watchdog ticks/age and
+the last executed decision distinguish missing execution from pending/debt/pause
+guards; they do not explain why execution was delayed. Tick summaries do not
+create persisted per-tick events. `sessionSeq` is an anonymous lifecycle counter;
+`queueSkippable` describes the app queue, not the buttons actually drawn by iOS.
+Old v1 entries without control remain readable. The recorder remains local,
+opt-in, capped and unable to establish audible output or OS-card visibility.
+
 Device acceptance must distinguish these outcomes:
 
-- MediaSession play received, media time resumes: app transport works for this trial.
+- MediaSession play received, media time resumes: native progress is confirmed;
+  verify audible output separately before accepting the physical trial.
 - Play received, source stays present but time stalls/errors: inspect live-stream recovery.
 - No recorded Play until foregrounding: investigate delivery/suspension; absence alone
   is not proof if storage or recording failed.

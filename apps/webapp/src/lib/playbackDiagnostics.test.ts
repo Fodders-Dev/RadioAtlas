@@ -12,13 +12,49 @@ describe('playback diagnostics recorder', () => {
     const diagnostics = await load();
     diagnostics.startPlaybackDiagnostics();
     for (let index = 0; index < 230; index += 1) {
-      diagnostics.recordPlaybackDiagnostic('media_play_command');
+      diagnostics.recordPlaybackDiagnostic('media_play_command', undefined, undefined, {
+        sessionSeq: index,
+        watchdogTicks: index
+      });
     }
     const state = diagnostics.getPlaybackDiagnosticsState();
     expect(state.enabled).toBe(true);
     expect(state.entries).toHaveLength(200);
     expect(state.entries.every((entry) => entry.event === 'media_play_command')).toBe(true);
+    expect(state.entries[0].control?.sessionSeq).toBe(30);
     diagnostics.stopPlaybackDiagnostics();
+  });
+
+  it('loads v1 entries without the optional control object', async () => {
+    const diagnostics = await load();
+    localStorage.setItem(diagnostics.PLAYBACK_DIAGNOSTICS_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      enabled: false,
+      expiresAt: 0,
+      entries: [{ at: Date.now(), event: 'audio_pause' }]
+    }));
+    vi.resetModules();
+    const reloaded = await load();
+    expect(reloaded.getPlaybackDiagnosticsState().entries.map((entry) => entry.event)).toEqual(['audio_pause']);
+  });
+
+  it.each([
+    { watchdogTicks: -1 },
+    { watchdogDecision: 'guessing' },
+    { extraPrivateField: true },
+    []
+  ])('rejects malformed optional control values: %j', async (control) => {
+    const diagnostics = await load();
+    localStorage.setItem(diagnostics.PLAYBACK_DIAGNOSTICS_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      enabled: false,
+      expiresAt: 0,
+      entries: [{ at: Date.now(), event: 'audio_pause', control }]
+    }));
+    vi.resetModules();
+    const reloaded = await load();
+    expect(reloaded.getPlaybackDiagnosticsState().entries).toEqual([]);
+    expect(localStorage.getItem(reloaded.PLAYBACK_DIAGNOSTICS_STORAGE_KEY)).toBeNull();
   });
 
   it('retains an expired trace across reload and marks it expired', async () => {
@@ -98,8 +134,11 @@ describe('playback diagnostics recorder', () => {
     const diagnostics = await load();
     const paused = vi.fn(() => { throw new Error('must not read'); });
     const audio = { get paused() { return paused(); } } as unknown as HTMLMediaElement;
+    const provider = vi.fn(() => ({ bufferAheadSeconds: 5 }));
+    diagnostics.registerPlaybackControlProvider(audio, provider);
     expect(() => diagnostics.recordAudioDiagnostic('audio_pause', audio)).not.toThrow();
     expect(paused).not.toHaveBeenCalled();
+    expect(provider).not.toHaveBeenCalled();
   });
 
   it('contains a throwing media getter while recording', async () => {
@@ -109,6 +148,19 @@ describe('playback diagnostics recorder', () => {
     const audio = { get paused() { return paused(); } } as unknown as HTMLMediaElement;
     expect(() => diagnostics.recordAudioDiagnostic('audio_pause', audio)).not.toThrow();
     expect(paused).toHaveBeenCalled();
+    diagnostics.stopPlaybackDiagnostics();
+  });
+
+  it('contains a throwing control provider and keeps the media event', async () => {
+    const diagnostics = await load();
+    diagnostics.startPlaybackDiagnostics();
+    const audio = document.createElement('audio');
+    const provider = vi.fn(() => { throw new Error('provider failure'); });
+    diagnostics.registerPlaybackControlProvider(audio, provider);
+
+    expect(() => diagnostics.recordAudioDiagnostic('audio_pause', audio)).not.toThrow();
+    expect(provider).toHaveBeenCalledOnce();
+    expect(diagnostics.getPlaybackDiagnosticsState().entries.at(-1)?.event).toBe('audio_pause');
     diagnostics.stopPlaybackDiagnostics();
   });
 });

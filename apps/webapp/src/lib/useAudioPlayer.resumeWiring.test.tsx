@@ -3,6 +3,12 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { useAudioPlayer } from './useAudioPlayer';
+import {
+  getPlaybackDiagnosticsState,
+  PLAYBACK_DIAGNOSTICS_STORAGE_KEY,
+  startPlaybackDiagnostics,
+  stopPlaybackDiagnostics
+} from './playbackDiagnostics';
 import type { StationLite } from '../types';
 
 /**
@@ -169,6 +175,8 @@ describe('returning to the app after the stream may have died', () => {
   });
 
   afterEach(() => {
+    if (getPlaybackDiagnosticsState().enabled) stopPlaybackDiagnostics();
+    localStorage.removeItem(PLAYBACK_DIAGNOSTICS_STORAGE_KEY);
     if (root) {
       act(() => root?.unmount());
       root = null;
@@ -232,6 +240,108 @@ describe('returning to the app after the stream may have died', () => {
       }
     });
   };
+
+  it('records a native-first hidden resume and its later same-station watchdog recovery', async () => {
+    startPlaybackDiagnostics();
+    const get = mount();
+    await startPlaying(get);
+    markSourceHealthy();
+    const initialSource = audio!.getAttribute('src');
+    setVisibility('hidden');
+    act(() => get().pause());
+    // Intentional pause time is not counted against the fresh post-Play
+    // observation window.
+    clockOffset += 60_000;
+
+    let resumed = false;
+    await act(async () => { resumed = await get().resume(); });
+    expect(resumed).toBe(true);
+    expect(audio!.getAttribute('src')).toBe(initialSource);
+
+    const resumeEntry = getPlaybackDiagnosticsState().entries.find(
+      (entry) => entry.event === 'transport_resume_native'
+    );
+    expect(resumeEntry?.control?.actionReason).toBe('buffered');
+    expect(resumeEntry?.control?.bufferAheadSeconds).toBe(30);
+    expect(resumeEntry?.control?.sessionSeq).toEqual(expect.any(Number));
+
+    const nativeSettlement = getPlaybackDiagnosticsState().entries.find(
+      (entry) => entry.event === 'transport_play_settled' &&
+        entry.control?.actionReason === 'resolved' &&
+        entry.control?.sessionSeq === resumeEntry?.control?.sessionSeq &&
+        entry.at >= (resumeEntry?.at || 0)
+    );
+    expect(nativeSettlement).toBeDefined();
+
+    // No native position movement after Play is evidence for a same-station
+    // fallback only after the new observation interval expires.
+    clockOffset += 12_000;
+    await act(async () => { await vi.advanceTimersByTimeAsync(12_000); });
+    const entries = getPlaybackDiagnosticsState().entries;
+    const recovery = entries.find(
+      (entry) => entry.event === 'transport_attach' && entry.control?.actionReason === 'candidate-fallback'
+    );
+    expect(recovery?.control?.candidateMode).toBe('direct');
+    expect(recovery?.control?.watchdogTicks).toBeGreaterThan(0);
+    expect(recovery?.control?.watchdogDecision).toBe('recover-requested');
+    expect(entries.indexOf(nativeSettlement!)).toBeLessThan(entries.indexOf(recovery!));
+    expect(recovery?.control?.sessionSeq).toBe(nativeSettlement?.control?.sessionSeq);
+    expect(entries.some((entry) => (entry.event as string) === 'watchdog_tick')).toBe(false);
+    expect(sourceAttachments.every((source) => source.includes('paradise'))).toBe(true);
+  });
+
+  it('records a late candidate settlement against its original session after a station switch', async () => {
+    startPlaybackDiagnostics();
+    const get = mount();
+    let resolveOldPlay!: () => void;
+    let nativeAttempt = 0;
+    audio!.play = () => {
+      playCalls += 1;
+      nativeAttempt += 1;
+      paused = false;
+      if (nativeAttempt === 1) {
+        return new Promise<void>((resolve) => { resolveOldPlay = resolve; });
+      }
+      return Promise.resolve();
+    };
+
+    let oldAttempt!: ReturnType<ReturnType<typeof useAudioPlayer>['playStation']>;
+    act(() => { oldAttempt = get().playStation(station); });
+    await act(async () => { await Promise.resolve(); });
+    const originalAttach = getPlaybackDiagnosticsState().entries.find(
+      (entry) => entry.event === 'transport_attach' && entry.control?.actionReason === 'station-start'
+    );
+    expect(originalAttach).toBeDefined();
+
+    await act(async () => { await get().playStation(stationB); });
+    act(() => audio?.dispatchEvent(new Event('playing')));
+    await act(async () => { await oldAttempt; });
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+    expect(get().status).toBe('playing');
+
+    const oldSettlements = () => getPlaybackDiagnosticsState().entries.filter(
+      (entry) => entry.event === 'transport_play_settled' &&
+        entry.control?.sessionSeq === originalAttach?.control?.sessionSeq
+    );
+    expect(oldSettlements()).toHaveLength(1);
+    expect(oldSettlements()[0].control).toEqual({
+      actionReason: 'superseded',
+      sessionSeq: originalAttach?.control?.sessionSeq
+    });
+    expect(oldSettlements()[0].snapshot).toBeUndefined();
+
+    const totalSettlementsBeforeLateResolution = getPlaybackDiagnosticsState().entries.filter(
+      (entry) => entry.event === 'transport_play_settled'
+    ).length;
+    await act(async () => { resolveOldPlay(); await Promise.resolve(); });
+    expect(oldSettlements()).toHaveLength(1);
+    expect(getPlaybackDiagnosticsState().entries.filter(
+      (entry) => entry.event === 'transport_play_settled'
+    )).toHaveLength(totalSettlementsBeforeLateResolution);
+    expect(get().current?.stationuuid).toBe(stationB.stationuuid);
+    expect(get().status).toBe('playing');
+    expect(attachedStations().at(-1)).toBe(stationB.stationuuid);
+  });
 
   it.each(['stalled', 'waiting'])('keeps a progressing background stream after %s without timeupdate', async (event) => {
     const get = mount();

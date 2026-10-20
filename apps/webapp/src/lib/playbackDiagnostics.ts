@@ -12,14 +12,34 @@ const EVENTS = [
   'audio_emptied', 'audio_waiting', 'audio_stalled', 'audio_context_statechange',
   'audio_progress', 'visibilitychange', 'pagehide', 'pageshow', 'media_play_command',
   'media_pause_command', 'media_stop_command', 'media_next_command', 'media_session_updated',
-  'media_previous_command'
+  'media_previous_command', 'transport_resume_native', 'transport_attach', 'transport_play_settled',
+  'transport_recovery_decision'
 ] as const;
 export type PlaybackDiagnosticEvent = (typeof EVENTS)[number];
 type Visibility = 'visible' | 'hidden' | 'prerender' | 'unloaded';
 type MediaPlaybackState = 'none' | 'paused' | 'playing';
-type AudioSessionType = 'ambient' | 'auto' | 'playback' | 'transient' | 'transient-solo';
+type AudioSessionType = 'ambient' | 'auto' | 'play-and-record' | 'playback' | 'transient' | 'transient-solo';
 type AudioSessionState = 'active' | 'inactive' | 'interrupted';
 type AudioContextState = 'closed' | 'interrupted' | 'running' | 'suspended';
+export type PlaybackDiagnosticControl = {
+  candidateMode?: 'direct' | 'proxy' | 'hls' | 'extracted' | null;
+  playPending?: boolean;
+  permission?: 'none' | 'authorized' | 'debt-held' | 'explicit-pause';
+  watchdogTicks?: number;
+  watchdogAgeMs?: number | null;
+  watchdogDecision?: 'not-run' | 'progress' | 'observation-grace' | 'paused' | 'no-station' |
+    'not-started' | 'play-pending' | 'waiting-timer' | 'reconnect-timer' | 'inactive-status' |
+    'below-threshold' | 'recover-requested';
+  sessionSeq?: number;
+  bufferAheadSeconds?: number | null;
+  durationKind?: 'unknown' | 'finite' | 'live';
+  queueSkippable?: boolean;
+  actionReason?: 'buffered' | 'existing-unbuffered' | 'station-start' | 'resume-unbuffered' |
+    'explicit-frozen' | 'native-failure' | 'native-timeout' | 'candidate-fallback' | 'reconnect' |
+    'resolved' | 'deadline-progress' | 'timeout' | 'media-error' | 'rejected' | 'not-allowed' |
+    'aborted' | 'superseded' | 'explicit-pause' | 'debt-held' | 'pending-deferred' |
+    'reconnect-scheduled' | 'exhausted';
+};
 
 export type PlaybackDiagnosticSnapshot = {
   paused: boolean | null; ended: boolean | null; readyState: number | null; networkState: number | null;
@@ -31,6 +51,7 @@ export type PlaybackDiagnosticSnapshot = {
 export type PlaybackDiagnosticEntry = {
   at: number; event: PlaybackDiagnosticEvent; visibility?: Visibility;
   snapshot?: PlaybackDiagnosticSnapshot;
+  control?: PlaybackDiagnosticControl;
 };
 export type PlaybackDiagnosticState = {
   version: typeof VERSION; enabled: boolean; expiresAt: number;
@@ -41,16 +62,36 @@ type Listener = () => void;
 const eventSet = new Set<string>(EVENTS);
 const visibilitySet = new Set<Visibility>(['visible', 'hidden', 'prerender', 'unloaded']);
 const mediaStateSet = new Set<MediaPlaybackState>(['none', 'paused', 'playing']);
-const audioTypeSet = new Set<AudioSessionType>(['ambient', 'auto', 'playback', 'transient', 'transient-solo']);
+const audioTypeSet = new Set<AudioSessionType>(['ambient', 'auto', 'play-and-record', 'playback', 'transient', 'transient-solo']);
 const audioStateSet = new Set<AudioSessionState>(['active', 'inactive', 'interrupted']);
 const contextStateSet = new Set<AudioContextState>(['closed', 'interrupted', 'running', 'suspended']);
+const candidateModeSet = new Set(['direct', 'proxy', 'hls', 'extracted']);
+const permissionSet = new Set(['none', 'authorized', 'debt-held', 'explicit-pause']);
+const watchdogDecisionSet = new Set([
+  'not-run', 'progress', 'observation-grace', 'paused', 'no-station', 'not-started',
+  'play-pending', 'waiting-timer', 'reconnect-timer', 'inactive-status', 'below-threshold',
+  'recover-requested'
+]);
+const durationKindSet = new Set(['unknown', 'finite', 'live']);
+const actionReasonSet = new Set([
+  'buffered', 'existing-unbuffered', 'station-start', 'resume-unbuffered', 'explicit-frozen',
+  'native-failure', 'native-timeout', 'candidate-fallback', 'reconnect', 'resolved',
+  'deadline-progress', 'timeout', 'media-error', 'rejected', 'not-allowed', 'aborted',
+  'superseded', 'explicit-pause', 'debt-held', 'pending-deferred', 'reconnect-scheduled', 'exhausted'
+]);
 const snapshotKeys = new Set([
   'paused', 'ended', 'readyState', 'networkState', 'currentTime', 'errorCode', 'hasSrc',
   'hasMetadata', 'mediaPlaybackState', 'audioSessionType', 'audioSessionState', 'audioContextState'
 ]);
 const stateKeys = new Set(['version', 'enabled', 'expiresAt', 'entries']);
-const entryKeys = new Set(['at', 'event', 'visibility', 'snapshot']);
+const entryKeys = new Set(['at', 'event', 'visibility', 'snapshot', 'control']);
+const controlKeys = new Set([
+  'candidateMode', 'playPending', 'permission', 'watchdogTicks', 'watchdogAgeMs',
+  'watchdogDecision', 'sessionSeq', 'bufferAheadSeconds', 'durationKind', 'queueSkippable', 'actionReason'
+]);
 const listeners = new Set<Listener>();
+type PlaybackControlProvider = () => PlaybackDiagnosticControl | undefined;
+const controlProviders = new WeakMap<HTMLMediaElement, PlaybackControlProvider>();
 let state: PlaybackDiagnosticState | null = null;
 let expiryTimer: number | null = null;
 let lifecycleAttached = false;
@@ -79,13 +120,32 @@ const validSnapshot = (value: unknown): value is PlaybackDiagnosticSnapshot => {
     (v.audioSessionState === null || audioStateSet.has(v.audioSessionState as AudioSessionState)) &&
     (v.audioContextState === null || contextStateSet.has(v.audioContextState as AudioContextState));
 };
+const validControl = (value: unknown): value is PlaybackDiagnosticControl => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  return only(v, controlKeys) &&
+    (v.candidateMode === undefined || v.candidateMode === null || candidateModeSet.has(v.candidateMode as string)) &&
+    (v.playPending === undefined || typeof v.playPending === 'boolean') &&
+    (v.permission === undefined || permissionSet.has(v.permission as string)) &&
+    (v.watchdogTicks === undefined || validRange(v.watchdogTicks, 0, 1_000_000)) &&
+    (v.watchdogAgeMs === undefined || v.watchdogAgeMs === null || validRange(v.watchdogAgeMs, 0, 86_400_000)) &&
+    (v.watchdogDecision === undefined || watchdogDecisionSet.has(v.watchdogDecision as string)) &&
+    (v.sessionSeq === undefined || validRange(v.sessionSeq, 0, 1_000_000_000)) &&
+    (v.bufferAheadSeconds === undefined || v.bufferAheadSeconds === null ||
+      (typeof v.bufferAheadSeconds === 'number' && Number.isFinite(v.bufferAheadSeconds) &&
+        v.bufferAheadSeconds >= 0 && v.bufferAheadSeconds <= 86_400)) &&
+    (v.durationKind === undefined || durationKindSet.has(v.durationKind as string)) &&
+    (v.queueSkippable === undefined || typeof v.queueSkippable === 'boolean') &&
+    (v.actionReason === undefined || actionReasonSet.has(v.actionReason as string));
+};
 const validEntry = (value: unknown): value is PlaybackDiagnosticEntry => {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
   return only(v, entryKeys) && typeof v.at === 'number' && Number.isFinite(v.at) &&
     typeof v.event === 'string' && eventSet.has(v.event) &&
     (v.visibility === undefined || (typeof v.visibility === 'string' && visibilitySet.has(v.visibility as Visibility))) &&
-    (v.snapshot === undefined || validSnapshot(v.snapshot));
+    (v.snapshot === undefined || validSnapshot(v.snapshot)) &&
+    (v.control === undefined || validControl(v.control));
 };
 const validState = (value: unknown): value is PlaybackDiagnosticState => {
   if (!value || typeof value !== 'object') return false;
@@ -157,9 +217,9 @@ const schedule = () => {
   expiryTimer = null;
   if (state?.enabled && typeof window !== 'undefined') expiryTimer = window.setTimeout(() => expire(true), Math.max(0, state.expiresAt - Date.now()));
 };
-const onVisibility = () => recordPlaybackDiagnostic('visibilitychange', undefined, document.visibilityState);
-const onPageHide = () => recordPlaybackDiagnostic('pagehide');
-const onPageShow = () => recordPlaybackDiagnostic('pageshow');
+const onVisibility = () => recordMainAudioDiagnostic('visibilitychange', document.visibilityState);
+const onPageHide = () => recordMainAudioDiagnostic('pagehide');
+const onPageShow = () => recordMainAudioDiagnostic('pageshow');
 const attach = () => {
   if (lifecycleAttached || !read().enabled || typeof window === 'undefined') return;
   document.addEventListener('visibilitychange', onVisibility);
@@ -184,6 +244,9 @@ export const getPlaybackDiagnosticsState = () => {
   if (current.enabled && current.expiresAt <= Date.now()) expire(false);
   return state ?? current;
 };
+export const playbackDiagnosticsEnabled = () => {
+  try { return getPlaybackDiagnosticsState().enabled; } catch { return false; }
+};
 export const startPlaybackDiagnostics = () => {
   lastProgressAt = 0;
   state = { version: VERSION, enabled: true, expiresAt: Date.now() + PLAYBACK_DIAGNOSTICS_TTL_MS, entries: [] };
@@ -196,6 +259,30 @@ export const stopPlaybackDiagnostics = () => {
   persist(); detach();
   if (expiryTimer !== null && typeof window !== 'undefined') window.clearTimeout(expiryTimer);
   expiryTimer = null; notify();
+};
+
+export const registerPlaybackControlProvider = (
+  audio: HTMLMediaElement,
+  provider: PlaybackControlProvider
+) => {
+  controlProviders.set(audio, provider);
+  return () => {
+    if (controlProviders.get(audio) === provider) controlProviders.delete(audio);
+  };
+};
+
+const readPlaybackControl = (
+  audio: HTMLMediaElement | null | undefined,
+  overrides?: PlaybackDiagnosticControl
+): PlaybackDiagnosticControl | undefined => {
+  let supplied: PlaybackDiagnosticControl | undefined;
+  try {
+    if (audio) supplied = controlProviders.get(audio)?.();
+  } catch { /* diagnostics must not affect playback */ }
+  if (supplied && !validControl(supplied)) supplied = undefined;
+  if (!supplied && !overrides) return undefined;
+  const merged = { ...(supplied || {}), ...(overrides || {}) };
+  return validControl(merged) ? merged : undefined;
 };
 
 const environmentSnapshot = (): PlaybackDiagnosticSnapshot => {
@@ -228,36 +315,62 @@ export const snapshotPlaybackAudio = (audio: HTMLMediaElement | null | undefined
     } satisfies PlaybackDiagnosticSnapshot;
   } catch { return undefined; }
 };
-export const recordPlaybackDiagnostic = (event: PlaybackDiagnosticEvent, snapshot?: PlaybackDiagnosticSnapshot, visibility?: Visibility) => {
+export const recordPlaybackDiagnostic = (
+  event: PlaybackDiagnosticEvent,
+  snapshot?: PlaybackDiagnosticSnapshot,
+  visibility?: Visibility,
+  control?: PlaybackDiagnosticControl
+) => {
   try {
     const current = read();
     if (!current.enabled || current.expiresAt <= Date.now()) { if (current.enabled) expire(true); return; }
     if (snapshot && !validSnapshot(snapshot)) return;
+    if (control && !validControl(control)) return;
     if (event === 'audio_progress') { if (Date.now() - lastProgressAt < 10_000) return; lastProgressAt = Date.now(); }
-    state = { ...current, entries: [...current.entries, { at: Date.now(), event, ...(visibility ? { visibility } : {}), ...(snapshot ? { snapshot } : {}) }].slice(-PLAYBACK_DIAGNOSTICS_MAX_ENTRIES) };
+    state = { ...current, entries: [...current.entries, {
+      at: Date.now(), event,
+      ...(visibility ? { visibility } : {}),
+      ...(snapshot ? { snapshot } : {}),
+      ...(control ? { control } : {})
+    }].slice(-PLAYBACK_DIAGNOSTICS_MAX_ENTRIES) };
     persist(); notify();
   } catch { /* diagnostics must never affect media commands */ }
 };
-export const recordAudioDiagnostic = (event: PlaybackDiagnosticEvent, audio: HTMLMediaElement | null | undefined, audioContext?: BaseAudioContext | null) => {
+const recordMainAudioDiagnostic = (event: PlaybackDiagnosticEvent, visibility?: Visibility) => {
   try {
     if (!getPlaybackDiagnosticsState().enabled) return;
-    recordPlaybackDiagnostic(event, snapshotPlaybackAudio(audio, audioContext));
+    const audio = typeof document === 'undefined' ? null : document.querySelector<HTMLMediaElement>('audio.audio-hidden');
+    recordPlaybackDiagnostic(event, snapshotPlaybackAudio(audio), visibility, readPlaybackControl(audio));
+  } catch { /* diagnostics must never affect media commands */ }
+};
+export const recordAudioDiagnostic = (
+  event: PlaybackDiagnosticEvent,
+  audio: HTMLMediaElement | null | undefined,
+  audioContext?: BaseAudioContext | null,
+  control?: PlaybackDiagnosticControl
+) => {
+  try {
+    if (!getPlaybackDiagnosticsState().enabled) return;
+    recordPlaybackDiagnostic(event, snapshotPlaybackAudio(audio, audioContext), undefined, readPlaybackControl(audio, control));
   } catch { /* diagnostics must never affect audio */ }
 };
-export const recordMediaCommandDiagnostic = (event: Extract<PlaybackDiagnosticEvent, `media_${string}`>) => {
+export const recordMediaCommandDiagnostic = (
+  event: Extract<PlaybackDiagnosticEvent, `media_${string}`>,
+  control?: PlaybackDiagnosticControl
+) => {
   try {
     if (!getPlaybackDiagnosticsState().enabled) return;
     const audio = typeof document === 'undefined'
       ? null
       : document.querySelector<HTMLMediaElement>('audio.audio-hidden');
-    recordPlaybackDiagnostic(event, snapshotPlaybackAudio(audio), typeof document === 'undefined' ? undefined : document.visibilityState);
+    recordPlaybackDiagnostic(event, snapshotPlaybackAudio(audio), typeof document === 'undefined' ? undefined : document.visibilityState, readPlaybackControl(audio, control));
   } catch { /* diagnostics must never affect media commands */ }
 };
-export const recordMediaSessionUpdatedDiagnostic = () => {
+export const recordMediaSessionUpdatedDiagnostic = (control?: PlaybackDiagnosticControl) => {
   try {
     if (!getPlaybackDiagnosticsState().enabled) return;
     const audio = typeof document === 'undefined' ? null : document.querySelector<HTMLMediaElement>('audio.audio-hidden');
-    recordPlaybackDiagnostic('media_session_updated', snapshotPlaybackAudio(audio), typeof document === 'undefined' ? undefined : document.visibilityState);
+    recordPlaybackDiagnostic('media_session_updated', snapshotPlaybackAudio(audio), typeof document === 'undefined' ? undefined : document.visibilityState, readPlaybackControl(audio, control));
   } catch { /* diagnostics must never affect MediaSession */ }
 };
 export const playbackDiagnosticsIsPersisted = () => persistence === 'persistent';

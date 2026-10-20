@@ -2020,14 +2020,16 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     playPrevious,
     resume: player.resume,
     pause: player.pause,
-    stop: player.stop
+    stop: player.stop,
+    queueSkippable: storedQueue.items.length > 1
   });
   mediaSessionActionsRef.current = {
     playNext,
     playPrevious,
     resume: player.resume,
     pause: player.pause,
-    stop: player.stop
+    stop: player.stop,
+    queueSkippable: storedQueue.items.length > 1
   };
 
   // Metadata + playback state — cheap to re-run on every now-playing/isPlaying
@@ -2038,7 +2040,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
     if (!station) {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.playbackState = 'none';
-      recordMediaSessionUpdatedDiagnostic();
+      recordMediaSessionUpdatedDiagnostic({ queueSkippable: mediaSessionActionsRef.current.queueSkippable });
       return;
     }
 
@@ -2064,7 +2066,7 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
       artwork
     });
     navigator.mediaSession.playbackState = player.isPlaying ? 'playing' : 'paused';
-    recordMediaSessionUpdatedDiagnostic();
+    recordMediaSessionUpdatedDiagnostic({ queueSkippable: mediaSessionActionsRef.current.queueSkippable });
   }, [player.current, player.pending, player.isPlaying, nowPlaying]);
 
   // Transport action handlers. FIX 2a: expose next/prev ONLY for a multi-item
@@ -2074,25 +2076,43 @@ export const RadioProvider = ({ children }: { children: ReactNode }) => {
   // the single-item boundary, not on metadata ticks (FIX 4).
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
+    // Live radio has no meaningful seek position. Remove browser/OS seek
+    // controls explicitly; some engines throw when an action is unsupported,
+    // so isolate each registration to keep the remaining transport handlers.
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', null);
+    } catch {
+      // unsupported action
+    }
+    try {
+      navigator.mediaSession.setActionHandler('seekforward', null);
+    } catch {
+      // unsupported action
+    }
+    try {
+      navigator.mediaSession.setActionHandler('seekto', null);
+    } catch {
+      // unsupported action
+    }
     navigator.mediaSession.setActionHandler('play', () => {
-      recordMediaCommandDiagnostic('media_play_command');
+      recordMediaCommandDiagnostic('media_play_command', { queueSkippable: storedQueue.items.length > 1 });
       return mediaSessionActionsRef.current.resume();
     });
     navigator.mediaSession.setActionHandler('pause', () => {
-      recordMediaCommandDiagnostic('media_pause_command');
+      recordMediaCommandDiagnostic('media_pause_command', { queueSkippable: storedQueue.items.length > 1 });
       return mediaSessionActionsRef.current.pause();
     });
     navigator.mediaSession.setActionHandler('stop', () => {
-      recordMediaCommandDiagnostic('media_stop_command');
+      recordMediaCommandDiagnostic('media_stop_command', { queueSkippable: storedQueue.items.length > 1 });
       return mediaSessionActionsRef.current.stop();
     });
     if (storedQueue.items.length > 1) {
       navigator.mediaSession.setActionHandler('nexttrack', () => {
-        recordMediaCommandDiagnostic('media_next_command');
+        recordMediaCommandDiagnostic('media_next_command', { queueSkippable: storedQueue.items.length > 1 });
         return mediaSessionActionsRef.current.playNext();
       });
       navigator.mediaSession.setActionHandler('previoustrack', () => {
-        recordMediaCommandDiagnostic('media_previous_command');
+        recordMediaCommandDiagnostic('media_previous_command', { queueSkippable: storedQueue.items.length > 1 });
         return mediaSessionActionsRef.current.playPrevious();
       });
     } else {

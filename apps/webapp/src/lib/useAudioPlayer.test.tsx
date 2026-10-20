@@ -199,17 +199,16 @@ describe('useAudioPlayer visualizer pump (T2.1)', () => {
   });
 });
 
-// FIX 3: a live radio stream reports Infinity/NaN duration. handlePlaying must
-// NOT call mediaSession.setPositionState for such streams (the old code passed
-// a hardcoded `duration: 0`, which still made the OS render a bogus 0-length
-// seek bar). It may only publish a position state for genuinely finite media.
-describe('useAudioPlayer mediaSession position state (FIX 3)', () => {
+// This player is always live radio: clear stale OS seek state even when the
+// browser reports a finite duration for its current source.
+describe('useAudioPlayer MediaSession position state for live stations', () => {
   let container: HTMLDivElement;
   let root: Root | null = null;
   let createdAudio: HTMLAudioElement | null = null;
   const origCreateElement = document.createElement.bind(document);
   let mediaSessionDescriptor: PropertyDescriptor | undefined;
   let setPositionState: ReturnType<typeof vi.fn>;
+  let osPositionState: Record<string, number> | null;
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -224,7 +223,10 @@ describe('useAudioPlayer mediaSession position state (FIX 3)', () => {
       return el;
     }) as typeof document.createElement);
 
-    setPositionState = vi.fn();
+    osPositionState = null;
+    setPositionState = vi.fn((...args: unknown[]) => {
+      osPositionState = (args[0] as Record<string, number> | undefined) ?? null;
+    });
     mediaSessionDescriptor = Object.getOwnPropertyDescriptor(navigator, 'mediaSession');
     Object.defineProperty(navigator, 'mediaSession', {
       configurable: true,
@@ -270,27 +272,60 @@ describe('useAudioPlayer mediaSession position state (FIX 3)', () => {
     });
   };
 
-  it('does NOT publish a position state for an infinite live stream', () => {
+  it('clears position state for an infinite live stream', () => {
     mount();
     setNumber('duration', Infinity);
     firePlaying();
-    expect(setPositionState).not.toHaveBeenCalled();
+    expect(setPositionState).toHaveBeenCalledOnce();
+    expect(setPositionState).toHaveBeenCalledWith();
   });
 
-  it('does NOT publish a position state while the duration is still unknown (NaN)', () => {
+  it.each([NaN, 0, -1])('clears position state when live duration is %s', (duration) => {
     mount();
-    setNumber('duration', NaN);
+    setNumber('duration', duration);
     firePlaying();
-    expect(setPositionState).not.toHaveBeenCalled();
+    expect(setPositionState).toHaveBeenCalledOnce();
+    expect(setPositionState).toHaveBeenCalledWith();
   });
 
-  it('publishes the real duration for genuinely finite media', () => {
+  it('clears OS position even when a live station exposes finite browser duration', () => {
     mount();
     setNumber('duration', 180);
     setNumber('currentTime', 0);
     setNumber('playbackRate', 1);
     firePlaying();
     expect(setPositionState).toHaveBeenCalledTimes(1);
-    expect(setPositionState).toHaveBeenCalledWith(expect.objectContaining({ duration: 180 }));
+    expect(setPositionState).toHaveBeenCalledWith();
+    expect(osPositionState).toBeNull();
+  });
+
+  it('removes a stale finite OS position when a station starts with finite browser duration', () => {
+    mount();
+    osPositionState = { duration: 180, playbackRate: 1, position: 42 };
+    setNumber('duration', 180);
+    firePlaying();
+
+    expect(setPositionState).toHaveBeenCalledTimes(1);
+    expect(setPositionState).toHaveBeenLastCalledWith();
+    expect(osPositionState).toBeNull();
+  });
+
+  it('contains a failure while clearing live position state', () => {
+    mount();
+    setNumber('duration', Infinity);
+    setPositionState.mockImplementation(() => {
+      throw new TypeError('position state unsupported');
+    });
+
+    expect(() => firePlaying()).not.toThrow();
+  });
+
+  it('does not require the optional setPositionState API', () => {
+    Object.defineProperty(navigator, 'mediaSession', {
+      configurable: true,
+      value: { setActionHandler: vi.fn(), metadata: null, playbackState: 'none' }
+    });
+    mount();
+    expect(() => firePlaying()).not.toThrow();
   });
 });

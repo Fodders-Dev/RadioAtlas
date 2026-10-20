@@ -35,7 +35,12 @@ const PROXY_FIRST_UPSTREAM_HOSTS = new Set(['radio.gamesboro.org']);
 
 const shouldPreferProxyForUpstream = (url: string) => {
   try {
-    return PROXY_FIRST_UPSTREAM_HOSTS.has(new URL(url).hostname.toLowerCase());
+    const parsed = new URL(url);
+    return (
+      PROXY_FIRST_UPSTREAM_HOSTS.has(parsed.hostname.toLowerCase()) ||
+      (parsed.hostname === 'spritelayerradio.com' &&
+        parsed.pathname === '/listen/namkocom_radio/namkocom.mp3')
+    );
   } catch {
     return false;
   }
@@ -161,9 +166,10 @@ export const buildCandidates = ({
   // route can actually deliver it. Keep ordinary healthy MP3/AAC streams on the
   // direct path with the same-origin proxy as fallback. A tiny set of measured
   // bad routes is proxy-first instead: Gamesboro sat at readyState=0 for 25-30s
-  // on direct while the RU proxy started immediately. Extensionless streams and
-  // HLS keep their existing proxy-first order; constrained runtimes still force
-  // the proxy.
+  // on direct while the RU proxy started immediately. The exact NamKoCom MP3
+  // mount also stalled in HTMLAudioElement playback while its same-origin proxy played.
+  // Extensionless streams/HLS keep their proxy-first order; constrained runtimes
+  // still force the proxy.
   const measuredProxyFirst = canUseProxy && shouldPreferProxyForUpstream(url);
   const directAudioProxyFallback =
     url.startsWith('https://') &&

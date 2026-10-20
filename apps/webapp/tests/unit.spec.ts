@@ -171,6 +171,47 @@ test('playback candidate planning handles direct, mixed-content, proxy-first, an
   expect(unavailableApi.apiUnavailable).toBe(true);
 });
 
+test('only the measured NamKoCom MP3 mount is proxy-first when the API is available', () => {
+  installWindowStorage('https://radioatlas.test/');
+
+  const sourceUrl =
+    'https://spritelayerradio.com/listen/namkocom_radio/namkocom.mp3?mount=main#live';
+  const exactMount = buildCandidates({
+    url: sourceUrl,
+    apiBase: '/api',
+    apiAvailable: true
+  });
+  expect(exactMount.candidates.map((candidate) => candidate.mode)).toEqual(['proxy', 'direct']);
+  expect(exactMount.candidates[0]?.url).toBe(
+    `/api/stream?url=${encodeURIComponent(sourceUrl)}`
+  );
+  expect(exactMount.candidates[1]?.url).toBe(sourceUrl);
+
+  const unmeasuredUrls = [
+    'https://spritelayerradio.com/listen/other.mp3',
+    'https://spritelayerradio.com/listen/NamKoCom_radio/namkocom.mp3',
+    'https://spritelayerradio.com.attacker.example/listen/namkocom_radio/namkocom.mp3'
+  ];
+  for (const url of unmeasuredUrls) {
+    const plan = buildCandidates({ url, apiBase: '/api', apiAvailable: true });
+    expect(plan.candidates.map((candidate) => candidate.mode), url).toEqual(['direct', 'proxy']);
+  }
+
+  const apiUnavailable = buildCandidates({
+    url: 'https://spritelayerradio.com/listen/namkocom_radio/namkocom.mp3',
+    apiBase: '/api',
+    apiAvailable: false
+  });
+  expect(apiUnavailable.candidates.map((candidate) => candidate.mode)).toEqual(['direct']);
+
+  const noApiBase = buildCandidates({
+    url: 'https://spritelayerradio.com/listen/namkocom_radio/namkocom.mp3',
+    apiBase: '',
+    apiAvailable: true
+  });
+  expect(noApiBase.candidates.map((candidate) => candidate.mode)).toEqual(['direct']);
+});
+
 test('a measured stalled upstream starts through the same-origin proxy without waiting', () => {
   installWindowStorage('https://radioatlas.ru/');
 
