@@ -1,5 +1,9 @@
 # iPhone standalone: failed acceptance and bounded follow-up
 
+**Post-release acceptance:** published `7da63c4` failed the owner's physical
+retest. The seek layout also remains wrong. See the
+[new trace analysis and correction of the retailer-PWA explanation](IOS-ACCEPTANCE-7da63c4-2026-10-20.md).
+
 The owner authorized repair and production publication. Production build
 `ce12fc04a24adba44947a43b15ab17e51bb59d04` failed physical acceptance on
 2026-10-20. The native-first repair remains useful but does not close the
@@ -10,8 +14,11 @@ A03 and the broader UX map remain separate work.
 
 The owner reported a disappearing system card on one trial, an inert Play on
 another, and ten-second seek controls instead of station skipping. Launching
-the Home Screen icon opened Feed **without an address bar**: this remained a
-standalone window. The stations were probably NamKoCom Radio and NoLife-Radio;
+«Лента» appeared **without an address bar**. Later screenshots and the owner's
+clarification identify a separate retailer PWA activated from system-player
+artwork, not our Feed; the earlier interpretation as internal navigation was
+incorrect. This does not establish a Home Screen launcher-icon failure.
+The stations were probably NamKoCom Radio and NoLife-Radio;
 the trace does not associate each event with a station, so do not assign cycles
 to one of them as fact.
 

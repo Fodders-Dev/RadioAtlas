@@ -1,4 +1,21 @@
 # RUNBOOK
+## 2026-10-20 — 7da63c4 failed physical acceptance; wrong PWA activation
+
+The owner retested NoLife-Radio on published `7da63c4`: after system Pause,
+sound never returned. The new recorder distinguishes accepted buffered Play
+without progress from a later reconnect whose native clock advances for forty
+seconds while hidden, still inaudibly according to the owner. A no-progress
+watchdog cannot detect that latter failure. Do not label media-time progress
+as audible recovery or close the incident using automated release gates.
+
+The retailer «Лента» is another installed PWA and is shown separately from
+RadioAtlas in the app switcher. The owner reports that system-player artwork
+opens it. The earlier internal-Feed restoration explanation below was wrong;
+absence of an address bar does not identify the foreground web app. ±10-second
+controls remain visible despite a skippable queue. Native Now Playing ownership
+is a supported investigation direction, not a proven common root cause.
+See [trace reconstruction, source evidence and next controlled comparison](docs/IOS-ACCEPTANCE-7da63c4-2026-10-20.md).
+
 ## 2026-10-20 — iPhone acceptance failed on ce12fc0
 
 Release `ce12fc04a24adba44947a43b15ab17e51bb59d04` passed the required
@@ -10,8 +27,9 @@ by emptied after 15.722 seconds. A foreground attempt also produced native
 decode error 3. Neither timer suspension nor an upstream failure is established
 by the current trace: it lacks recovery decisions and watchdog execution data.
 
-The Home Screen icon opened Feed in a window **without an address bar**. Treat
-this as standalone navigation/restoration, not evidence of escape to Safari.
+The owner originally described «Лента» in a window **without an address bar**.
+The later screenshots establish that this was the separate retailer PWA, not
+RadioAtlas Feed; the initial restoration explanation was incorrect.
 The owner recalled NamKoCom Radio and NoLife-Radio; the trace cannot associate
 the two playback cycles with those stations. Disappearing Now Playing artwork
 and seek buttons remain physical observations, not measured system UI state.
