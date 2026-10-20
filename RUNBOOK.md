@@ -1,4 +1,28 @@
 # RUNBOOK
+## 2026-10-21 — isolated PWA fails before hidden Play callback
+
+Physical standalone f70f66e acceptance failed. Owner's23:57 export contains42
+events across two visits: hidden Pause reached the lab both times, kept the
+source buffered (readyState4,t9.6/10.8), and was followed by no hidden Play
+callback. Owner confirms pressing Play on the named Minimal PWA player card,
+then seeing Not Playing; they did not press the empty widget's Play, which can
+launch Apple Music. Do not request that action. The journal continues after
+return, including a paused manual_silence marker. There is no hidden resolved
+Play/growing-clock silence in this export; do not substitute the older7da trace.
+The first visible resume resolves50ms and progresses9.6->15.7. A visible Stop
+followed97ms later by pagehide is compatible with Return, not proof of OS Stop.
+The cover is our icon192; null AudioSession state is unknown, not inactive.
+
+This reproduces the failure without application recovery logic. Handler
+registration, native routing and process wake eligibility remain alternatives.
+The next bounded experiment adds an explicit opt-in AudioSession playback type
+before initial Play, retaining it through Pause with conditional owned restore
+on release. Default stays automatic; no rebind, timer, source replacement or main
+player change. The report identifies trial/application result and command source.
+[Contract](docs/CONTRACT-audio-session-trial-2026-10-21.md).
+Neither this trial nor desktop media progress closes physical acceptance or the
+wrong-PWA activation incident. Keep installations intact and export evidence.
+
 ## 2026-10-20 — minimal installed-PWA player isolation
 
 The owner authorized a minimal player and production release for iPhone testing.

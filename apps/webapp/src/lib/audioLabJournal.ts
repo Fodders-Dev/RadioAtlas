@@ -7,7 +7,15 @@ export type AudioLabEventName =
   | 'recording_started' | 'recording_expired' | 'lab_opened' | 'play_requested' | 'play_resolved'
   | 'play_rejected' | 'pause_requested' | 'stop_requested' | 'audio_play' | 'audio_pause' | 'audio_emptied'
   | 'playing' | 'waiting' | 'stalled' | 'ended' | 'error' | 'time_progress' | 'visibilitychange' | 'pagehide' | 'pageshow'
-  | 'audio_session_statechange' | 'manual_heard' | 'manual_silence';
+  | 'audio_session_statechange' | 'audio_session_trial_selected' | 'audio_session_trial_attempt'
+  | 'audio_session_trial_applied' | 'audio_session_trial_release' | 'manual_heard' | 'manual_silence';
+
+export type AudioLabSessionType = 'ambient' | 'auto' | 'play-and-record' | 'playback' | 'transient' | 'transient-solo';
+export type AudioLabTrialMode = 'automatic' | 'playback';
+export type AudioLabTrialStatus = 'automatic' | 'selected' | 'applied' | 'already-playback' | 'unavailable' |
+  'original-unknown' | 'write-failed' | 'write-ignored' | 'readback-unknown' | 'restored' |
+  'restore-skipped-changed' | 'restore-unknown' | 'restore-failed';
+export type AudioLabCommandSource = 'ui' | 'media-session' | 'return' | 'pagehide';
 
 export type AudioLabEntry = {
   at: number;
@@ -18,8 +26,11 @@ export type AudioLabEntry = {
   readyState: number | null;
   currentTime: number | null;
   errorCode: number | null;
-  sessionType: 'ambient' | 'auto' | 'play-and-record' | 'playback' | 'transient' | 'transient-solo' | null;
+  sessionType: AudioLabSessionType | null;
   sessionState: 'active' | 'inactive' | 'interrupted' | null;
+  sessionTrialMode?: AudioLabTrialMode;
+  sessionTrialStatus?: AudioLabTrialStatus;
+  commandSource?: AudioLabCommandSource;
 };
 
 export type AudioLabJournal = { version: 1; startedAt: number; active: boolean; entries: AudioLabEntry[] };
@@ -27,24 +38,34 @@ export type AudioLabJournal = { version: 1; startedAt: number; active: boolean; 
 const events = new Set<AudioLabEventName>([
   'recording_started', 'recording_expired', 'lab_opened', 'play_requested', 'play_resolved', 'play_rejected',
   'pause_requested', 'stop_requested', 'audio_play', 'audio_pause', 'audio_emptied', 'playing', 'waiting', 'stalled', 'ended', 'error', 'time_progress',
-  'visibilitychange', 'pagehide', 'pageshow', 'audio_session_statechange', 'manual_heard', 'manual_silence'
+  'visibilitychange', 'pagehide', 'pageshow', 'audio_session_statechange', 'audio_session_trial_selected',
+  'audio_session_trial_attempt', 'audio_session_trial_applied', 'audio_session_trial_release', 'manual_heard', 'manual_silence'
 ]);
 const types = new Set(['ambient', 'auto', 'play-and-record', 'playback', 'transient', 'transient-solo']);
 const states = new Set(['active', 'inactive', 'interrupted']);
+const trialModes = new Set<AudioLabTrialMode>(['automatic', 'playback']);
+const trialStatuses = new Set<AudioLabTrialStatus>([
+  'automatic', 'selected', 'applied', 'already-playback', 'unavailable', 'original-unknown', 'write-failed',
+  'write-ignored', 'readback-unknown', 'restored', 'restore-skipped-changed', 'restore-unknown', 'restore-failed'
+]);
+const commandSources = new Set<AudioLabCommandSource>(['ui', 'media-session', 'return', 'pagehide']);
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
 const empty = (now: number): AudioLabJournal => ({ version: 1, startedAt: now, active: true, entries: [] });
 
 const isEntry = (value: unknown): value is AudioLabEntry => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
-  return Object.keys(v).every((key) => ['at', 'event', 'standalone', 'visibility', 'paused', 'readyState', 'currentTime', 'errorCode', 'sessionType', 'sessionState'].includes(key)) &&
+  return Object.keys(v).every((key) => ['at', 'event', 'standalone', 'visibility', 'paused', 'readyState', 'currentTime', 'errorCode', 'sessionType', 'sessionState', 'sessionTrialMode', 'sessionTrialStatus', 'commandSource'].includes(key)) &&
     Number.isSafeInteger(v.at) && (v.at as number) >= 0 && events.has(v.event as AudioLabEventName) &&
     typeof v.standalone === 'boolean' && ['visible', 'hidden', 'prerender', 'unloaded'].includes(String(v.visibility)) &&
     (v.paused === null || typeof v.paused === 'boolean') &&
     (v.readyState === null || (Number.isInteger(v.readyState) && Number(v.readyState) >= 0 && Number(v.readyState) <= 4)) &&
     (v.currentTime === null || (typeof v.currentTime === 'number' && Number.isFinite(v.currentTime) && v.currentTime >= 0)) &&
     (v.errorCode === null || (Number.isInteger(v.errorCode) && Number(v.errorCode) >= 1 && Number(v.errorCode) <= 4)) &&
-    (v.sessionType === null || types.has(String(v.sessionType))) && (v.sessionState === null || states.has(String(v.sessionState)));
+    (v.sessionType === null || types.has(String(v.sessionType))) && (v.sessionState === null || states.has(String(v.sessionState))) &&
+    (v.sessionTrialMode === undefined || trialModes.has(v.sessionTrialMode as AudioLabTrialMode)) &&
+    (v.sessionTrialStatus === undefined || trialStatuses.has(v.sessionTrialStatus as AudioLabTrialStatus)) &&
+    (v.commandSource === undefined || commandSources.has(v.commandSource as AudioLabCommandSource));
 };
 
 const sanitize = (value: unknown, now: number): AudioLabJournal | null => {

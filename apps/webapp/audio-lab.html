@@ -22,6 +22,8 @@
       button:disabled { opacity: .55; }
       textarea { width: 100%; min-height: 180px; resize: vertical; color: inherit; background: #101418; border: 1px solid #71818b; border-radius: 8px; padding: 10px; }
       .warning { color: #ffe1a6; }
+      .trial-toggle { min-height: 48px; display: flex; align-items: center; gap: 12px; font-weight: 650; cursor: pointer; }
+      .trial-toggle input { width: 24px; height: 24px; accent-color: #9cddff; flex: 0 0 24px; }
       [hidden] { display: none !important; }
       @media (max-width: 350px) { body { padding-left: 12px; padding-right: 12px; } .card { padding: 12px; } }
     </style>
@@ -34,6 +36,14 @@
         <h2 id="station-title">NoLife-Radio</h2>
         <p id="pwa-warning" class="warning" hidden>Открыто во вкладке. Для проверки установленного PWA откройте этот экран из приложения.</p>
         <div id="status" class="status" aria-live="polite"></div>
+      </section>
+      <section class="card trial-card">
+        <label class="trial-toggle" for="audio-session-playback">
+          <input id="audio-session-playback" type="checkbox" />
+          <span id="trial-label">AudioSession playback (эксперимент)</span>
+        </label>
+        <p id="trial-description">Включите до Play. Категория сохранится на Pause; это эксперимент, а не доказанное исправление.</p>
+        <p id="trial-status" class="status" aria-live="polite"></p>
       </section>
       <section id="controls" class="card controls" aria-label="Управление">
         <button id="play" class="primary" type="button">Play</button>

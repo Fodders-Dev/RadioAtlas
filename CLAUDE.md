@@ -139,6 +139,11 @@ the iPhone PWA audio incident. Enter it through Settings developer diagnostics
 inside the existing installation; the main player stops before navigation.
 Keep its dependency graph free of the app/bootstrap/recovery runtime. It must
 remain an explicit diagnostic, never a replacement player or automatic fallback.
+Its default leaves AudioSession.type untouched. The explicit nonpersistent
+playback-category trial is confined to this document, retained across Pause and
+conditionally restored on release; no category override belongs in the main
+player until physical evidence supports a separate accepted change. See
+`docs/CONTRACT-audio-session-trial-2026-10-21.md`.
 After deployment verify its unique HTML marker and emitted JS, not HTTP 200
 alone: the server's SPA fallback can return the normal shell for a missing page.
 Native progress and desktop contract tests do not certify audible iPhone output.

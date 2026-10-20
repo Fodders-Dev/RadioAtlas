@@ -1,6 +1,7 @@
 # Field-report draft: Now Playing opens another installed Home Screen app
 
-Draft only; not submitted to Apple/WebKit. This is not a minimal reproducer.
+Draft only; not submitted to Apple/WebKit. A minimal audio page now reproduces
+the resume failure; wrong-app activation has not been re-established on that page.
 Do not publish owner exports, screenshots, account information or names of
 unrelated private applications automatically.
 
@@ -101,8 +102,26 @@ recovery engine, graph, category override, keepalive or new periodic timers.
 Compare foreign app C foreground → Home → C foreground on one already-started
 stream, without intervening media commands. A repeated failure would establish
 that the full recovery engine is unnecessary for the defect; a passing result
-would not exonerate it because navigation may reset native state. This isolated
-page is not implemented or deployed by this documentation-only investigation.
+would not exonerate it because navigation may reset native state. The page was
+subsequently implemented and published as f70f66e; physical acceptance failed.
+
+## Follow-up: minimal standalone page, 20 October23:57
+
+The separate /audio-lab.html runs one native audio element and NoLife source,
+standard MediaSession callbacks, no app recovery/AudioContext/category override
+or periodic timers. It was opened inside the existing installation; standalone
+and f70f66e are recorded. Across two visits (42 events), system Pause callbacks
+arrived hidden; paused elements retained readyState4 and time9.6/10.8. Owner
+pressed system Play while the named card remained, then saw Not Playing. No
+hidden Play callback appears, including after foreground return; owner did not
+press the empty widget's Play. There is no hidden resolved-Play/silent-clock
+sequence in this particular export. A later foreground resume progresses.
+
+Registration exceptions were not exposed by the first recorder, so registration
+loss, native routing and process wake eligibility remain alternatives. New
+opt-in category trial and precise registration/source observations are specified
+in CONTRACT-audio-session-trial-2026-10-21.md. No claim that automatic category
+selection is wrong; no main-runtime override or further installation changes.
 
 Potentially related primary records, not asserted duplicates:
 

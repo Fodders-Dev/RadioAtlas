@@ -61,4 +61,19 @@ describe('minimal audio lab journal', () => {
     expect(restored.entries).toEqual([entry(now - AUDIO_LAB_TTL_MS, 'manual_heard')]);
     expect(restored.entries).toHaveLength(1);
   });
+
+  it('preserves legacy v1 entries and rejects arbitrary trial or command fields', () => {
+    const now = 90_000;
+    const legacy = entry(now - 10);
+    const trial = { ...entry(now - 9, 'audio_session_trial_attempt'), sessionTrialMode: 'playback', sessionTrialStatus: 'applied', commandSource: 'media-session' };
+    const invalidStatus = { ...entry(now - 8), sessionTrialStatus: 'successfully-applied' };
+    const invalidSource = { ...entry(now - 7), commandSource: 'user-says-play' };
+    const extra = { ...entry(now - 6), nativeMessage: 'not allowlisted' };
+    localStorage.setItem(AUDIO_LAB_JOURNAL_KEY, JSON.stringify({ version: 1, startedAt: now - 100, active: true, entries: [legacy, trial, invalidStatus, invalidSource, extra] }));
+    const restored = loadAudioLabJournal(localStorage, now);
+    expect(restored.active).toBe(true);
+    expect(restored.entries).toEqual([legacy, trial]);
+    expect(restored.entries[0]).not.toHaveProperty('sessionTrialMode');
+    expect(restored.entries[1]).toMatchObject({ sessionTrialMode: 'playback', sessionTrialStatus: 'applied', commandSource: 'media-session' });
+  });
 });

@@ -6,8 +6,12 @@ import {
   persistAudioLabJournal,
   startAudioLabJournal,
   type AudioLabEntry,
+  type AudioLabCommandSource,
+  type AudioLabSessionType,
   type AudioLabEventName,
-  type AudioLabJournal
+  type AudioLabJournal,
+  type AudioLabTrialMode,
+  type AudioLabTrialStatus
 } from './lib/audioLabJournal';
 
 declare const __APP_VERSION__: string;
@@ -35,6 +39,8 @@ if (!isRu) {
   $('intro').textContent = 'One station, one native audio element. This is a diagnostic screen, not a background-audio fix.';
   $('controls').setAttribute('aria-label', 'Controls');
   $('station-title').textContent = 'NoLife-Radio';
+  $('trial-label').textContent = 'AudioSession playback (experiment)';
+  $('trial-description').textContent = 'Enable before Play. The category remains set through Pause; this is an experiment, not a proven fix.';
   $('pwa-warning').textContent = 'Opened in a browser tab. Open this screen from the installed app to test its PWA context.';
   $('heard').textContent = 'I hear sound'; $('silent').textContent = 'I hear no sound';
   $('copy').textContent = 'Copy journal'; $('return').textContent = 'Return to RadioAtlas';
@@ -60,8 +66,9 @@ const session = (() => {
   try { return (navigator as Navigator & { audioSession?: { type?: string; state?: string; addEventListener?: (name: string, cb: EventListener) => void; removeEventListener?: (name: string, cb: EventListener) => void } }).audioSession ?? null; }
   catch { return null; }
 })();
+const sessionTypes = new Set<AudioLabSessionType>(['ambient', 'auto', 'play-and-record', 'playback', 'transient', 'transient-solo']);
 const safeType = () => {
-  try { const v = session?.type; return ['ambient', 'auto', 'play-and-record', 'playback', 'transient', 'transient-solo'].includes(String(v)) ? v as AudioLabEntry['sessionType'] : null; }
+  try { const v = session?.type; return sessionTypes.has(v as AudioLabSessionType) ? v as AudioLabSessionType : null; }
   catch { return null; }
 };
 const safeState = () => {
@@ -70,11 +77,20 @@ const safeState = () => {
 };
 const mediaSession = (() => { try { return navigator.mediaSession ?? null; } catch { return null; } })();
 const storage = (() => { try { return window.localStorage; } catch { return null; } })();
+const trialCheckbox = $('audio-session-playback') as HTMLInputElement;
+let trialMode: AudioLabTrialMode = 'automatic';
+let trialStatus: AudioLabTrialStatus = 'automatic';
+let trialChoiceLocked = false;
+let trialOriginalType: AudioLabSessionType | null = null;
+let ownsTrialOverride = false;
+type HandlerStatus = 'success' | 'failure' | 'unavailable';
+const mediaActionNames = ['play', 'pause', 'stop', 'nexttrack', 'previoustrack', 'seekbackward', 'seekforward', 'seekto'] as const;
+type MediaActionName = (typeof mediaActionNames)[number];
+const mediaActionStatus: Record<MediaActionName, HandlerStatus> = Object.fromEntries(mediaActionNames.map((name) => [name, 'unavailable'])) as Record<MediaActionName, HandlerStatus>;
 
 let journal: AudioLabJournal = loadAudioLabJournal(storage);
 let lastProgressAt = 0;
 let sourceReleased = false;
-let handlersAttached = false;
 let lastEvent = '';
 let commandGeneration = 0;
 const hasSavedJournal = (() => { try { return Boolean(storage?.getItem(AUDIO_LAB_JOURNAL_KEY)); } catch { return false; } })();
@@ -84,7 +100,7 @@ if (!hasSavedJournal) {
 }
 if (journal.active) journal = appendAudioLabEntry(journal, snapshot('lab_opened'), storage);
 
-function snapshot(event: AudioLabEventName): AudioLabEntry {
+function snapshot(event: AudioLabEventName, commandSource?: AudioLabCommandSource): AudioLabEntry {
   const visibility = document.visibilityState;
   const error = (() => { try { return audio.error?.code ?? null; } catch { return null; } })();
   return {
@@ -94,11 +110,14 @@ function snapshot(event: AudioLabEventName): AudioLabEntry {
     readyState: (() => { try { return Number.isInteger(audio.readyState) ? audio.readyState : null; } catch { return null; } })(),
     currentTime: (() => { try { const n = audio.currentTime; return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : null; } catch { return null; } })(),
     errorCode: typeof error === 'number' && Number.isInteger(error) && error >= 1 && error <= 4 ? error : null,
-    sessionType: safeType(), sessionState: safeState()
+    sessionType: safeType(), sessionState: safeState(),
+    sessionTrialMode: trialMode,
+    sessionTrialStatus: trialStatus,
+    ...(commandSource ? { commandSource } : {})
   };
 }
 
-function record(event: AudioLabEventName) {
+function record(event: AudioLabEventName, commandSource?: AudioLabCommandSource) {
   if (!journal.active) { render(); return; }
   if (Date.now() - journal.startedAt >= AUDIO_LAB_TTL_MS || Date.now() < journal.startedAt) {
     const terminal = { ...journal, active: false, entries: [...journal.entries, snapshot('recording_expired')].slice(-200) };
@@ -108,7 +127,7 @@ function record(event: AudioLabEventName) {
     render();
     return;
   }
-  journal = appendAudioLabEntry(journal, snapshot(event), storage);
+  journal = appendAudioLabEntry(journal, snapshot(event, commandSource), storage);
   lastEvent = event;
   render();
 }
@@ -124,6 +143,19 @@ function render() {
     sourceReleased ? (isRu ? 'Плеер остановлен. Вернитесь в RadioAtlas, чтобы открыть новый сеанс.' : 'Player stopped. Return to RadioAtlas to open a fresh session.') : '',
     'Progress does not prove audible sound.'
   ].join('\n');
+  trialCheckbox.disabled = trialChoiceLocked;
+  const trialStatusCopy: Record<AudioLabTrialStatus, string> = isRu ? {
+    automatic: 'Авто: тип не переопределяется', selected: 'Выбрано: будет проверена категория playback', applied: 'Категория playback прочитана после записи',
+    'already-playback': 'Тип уже playback; запись не выполнялась', unavailable: 'AudioSession недоступна', 'original-unknown': 'Исходный тип неизвестен; запись пропущена',
+    'write-failed': 'Запись типа завершилась ошибкой', 'write-ignored': 'Запись проигнорирована: тип не изменился', 'readback-unknown': 'Не удалось проверить тип после записи',
+    restored: 'Исходный тип восстановлен', 'restore-skipped-changed': 'Тип изменён извне; восстановление пропущено', 'restore-unknown': 'Не удалось прочитать тип перед восстановлением', 'restore-failed': 'Восстановление типа завершилось ошибкой'
+  } : {
+    automatic: 'Automatic: no category override', selected: 'Selected: playback category will be checked', applied: 'Playback category confirmed by readback',
+    'already-playback': 'Type was already playback; no write made', unavailable: 'AudioSession unavailable', 'original-unknown': 'Original type unknown; write skipped',
+    'write-failed': 'Category write failed', 'write-ignored': 'Write was ignored: type did not change', 'readback-unknown': 'Could not verify category after write',
+    restored: 'Original category restored', 'restore-skipped-changed': 'Type changed elsewhere; restore skipped', 'restore-unknown': 'Could not read type before restore', 'restore-failed': 'Restore failed'
+  };
+  $('trial-status').textContent = `${trialStatusCopy[trialStatus]} · ${String(safeType() ?? copy.unknown)}`;
   recording.textContent = journal.active ? copy.recording : copy.expired;
   freshButton.hidden = journal.active;
   playButton.disabled = sourceReleased;
@@ -136,6 +168,8 @@ function makeReport() {
     version: 1,
     build: { version: typeof __APP_VERSION__ === 'string' ? __APP_VERSION__ : 'unknown', commit: typeof __APP_COMMIT__ === 'string' ? __APP_COMMIT__ : 'unknown', builtAt: typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : 'unknown' },
     userAgent: (() => { try { return navigator.userAgent.slice(0, 300); } catch { return 'unknown'; } })(),
+    sessionTrial: { mode: trialMode, status: trialStatus, choiceLocked: trialChoiceLocked, originalType: trialOriginalType },
+    mediaSessionHandlerRegistration: { ...mediaActionStatus },
     journal: journal.entries,
     lastEvent
   }, null, 2);
@@ -148,54 +182,118 @@ function stopNative() {
   try { audio.pause(); } catch { /* partial media element */ }
   safePlaybackState('paused');
 }
-function onSystemStop() { record('stop_requested'); release(); render(); }
+function onSystemStop() { record('stop_requested', 'media-session'); release('media-session'); render(); }
+function applyTrialBeforePlay(source: AudioLabCommandSource) {
+  if (trialChoiceLocked) return;
+  trialChoiceLocked = true;
+  trialMode = trialCheckbox.checked ? 'playback' : 'automatic';
+  trialStatus = trialMode === 'playback' ? 'selected' : 'automatic';
+  if (trialMode === 'playback') {
+    if (!session) {
+      trialStatus = 'unavailable';
+    } else {
+      let original: string | undefined;
+      try { original = session.type; } catch { trialStatus = 'original-unknown'; }
+      if (trialStatus === 'selected') {
+        if (!original || !sessionTypes.has(original as AudioLabSessionType)) {
+          trialStatus = 'original-unknown';
+        } else {
+          trialOriginalType = original as AudioLabSessionType;
+          if (trialOriginalType === 'playback') {
+            trialStatus = 'already-playback';
+          } else {
+            try { session.type = 'playback'; } catch { trialStatus = 'write-failed'; }
+            if (trialStatus === 'selected') {
+              let actual: AudioLabSessionType | null;
+              try {
+                const value = session.type;
+                actual = sessionTypes.has(value as AudioLabSessionType) ? value as AudioLabSessionType : null;
+              } catch { actual = null; }
+              if (actual === 'playback') {
+                ownsTrialOverride = true;
+                trialStatus = 'applied';
+              } else {
+                trialStatus = actual === null ? 'readback-unknown' : 'write-ignored';
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  record('audio_session_trial_attempt', source);
+  if (trialStatus === 'applied') record('audio_session_trial_applied', source);
+  render();
+}
 function registerMediaHandlers() {
-  if (!mediaSession || handlersAttached || sourceReleased) return;
+  if (!mediaSession || sourceReleased) return;
   const actions: Array<[MediaSessionAction, MediaSessionActionHandler | null]> = [
-    ['play', () => { void play(); }], ['pause', () => pause()], ['stop', () => onSystemStop()],
+    ['play', () => { void play('media-session'); }], ['pause', () => pause('media-session')], ['stop', () => onSystemStop()],
     ['nexttrack', null], ['previoustrack', null], ['seekbackward', null], ['seekforward', null], ['seekto', null]
   ];
   for (const [action, handler] of actions) {
-    try { mediaSession.setActionHandler(action, handler); } catch { /* individual actions may be unsupported */ }
+    try { mediaSession.setActionHandler(action, handler); mediaActionStatus[action as MediaActionName] = 'success'; }
+    catch { mediaActionStatus[action as MediaActionName] = 'failure'; }
   }
   try { mediaSession.metadata = new MediaMetadata({ title: 'Minimal PWA player', artist: 'NoLife-Radio', artwork: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }] }); } catch { /* optional API */ }
   try { mediaSession.setPositionState(); } catch { /* live radio has no seek position */ }
-  handlersAttached = true;
 }
 function removeMediaHandlers() {
-  if (!mediaSession || !handlersAttached) return;
-  for (const action of ['play', 'pause', 'stop', 'nexttrack', 'previoustrack', 'seekbackward', 'seekforward', 'seekto'] as MediaSessionAction[]) {
+  if (!mediaSession) return;
+  for (const action of mediaActionNames) {
+    if (mediaActionStatus[action] !== 'success') continue;
     try { mediaSession.setActionHandler(action, null); } catch { /* cleanup is best effort */ }
   }
   try { mediaSession.metadata = null; } catch { /* cleanup is best effort */ }
   try { mediaSession.setPositionState(); } catch { /* cleanup is best effort */ }
   safePlaybackState('none');
-  handlersAttached = false;
 }
 
-async function play() {
+async function play(source: 'ui' | 'media-session' = 'ui') {
   if (sourceReleased) return;
+  applyTrialBeforePlay(source);
   const generation = ++commandGeneration;
-  record('play_requested');
+  record('play_requested', source);
   try {
     await audio.play();
     if (generation !== commandGeneration || sourceReleased) return;
-    record('play_resolved');
+    record('play_resolved', source);
     safePlaybackState('playing');
   } catch {
     if (generation !== commandGeneration || sourceReleased) return;
-    record('play_rejected');
+    record('play_rejected', source);
   }
 }
-function pause() {
+function pause(source: 'ui' | 'media-session' = 'ui') {
   commandGeneration += 1;
-  record('pause_requested');
+  record('pause_requested', source);
   stopNative();
 }
-function release() {
+function restoreTrial(source: AudioLabCommandSource) {
+  if (!ownsTrialOverride || !trialOriginalType || !session) return;
+  let current: AudioLabSessionType | null;
+  try {
+    const value = session.type;
+    current = sessionTypes.has(value as AudioLabSessionType) ? value as AudioLabSessionType : null;
+  } catch { current = null; }
+  if (current === null) trialStatus = 'restore-unknown';
+  else if (current !== 'playback') trialStatus = 'restore-skipped-changed';
+  else {
+    try { session.type = trialOriginalType; } catch { trialStatus = 'restore-failed'; }
+    if (trialStatus === 'applied' || trialStatus === 'restored') {
+      let readback: string | undefined;
+      try { readback = session.type; } catch { readback = undefined; }
+      trialStatus = readback === trialOriginalType ? 'restored' : 'restore-failed';
+    }
+  }
+  ownsTrialOverride = false;
+  record('audio_session_trial_release', source);
+}
+function release(source: AudioLabCommandSource = 'pagehide') {
   if (sourceReleased) return;
   commandGeneration += 1;
   sourceReleased = true;
+  restoreTrial(source);
   try { audio.pause(); } catch { /* best effort */ }
   removeMediaHandlers();
   for (const [event, listener] of audioEventListeners) audio.removeEventListener(event, listener);
@@ -228,14 +326,21 @@ document.addEventListener('visibilitychange', onVisibilityChange);
 window.addEventListener('pagehide', () => {
   record('pagehide');
   try { audio.pause(); } catch { /* best effort */ }
-  release();
+  release('pagehide');
 });
 window.addEventListener('pageshow', () => { record('pageshow'); render(); });
 const onSessionChange = () => record('audio_session_statechange');
 try { session?.addEventListener?.('statechange', onSessionChange); } catch { /* optional API */ }
 
-$('play').addEventListener('click', () => { void play(); });
-$('pause').addEventListener('click', pause);
+$('play').addEventListener('click', () => { void play('ui'); });
+$('pause').addEventListener('click', () => pause('ui'));
+$('audio-session-playback').addEventListener('change', () => {
+  if (trialChoiceLocked) return;
+  trialMode = trialCheckbox.checked ? 'playback' : 'automatic';
+  trialStatus = trialMode === 'playback' ? 'selected' : 'automatic';
+  record('audio_session_trial_selected', 'ui');
+  render();
+});
 $('heard').addEventListener('click', () => record('manual_heard'));
 $('silent').addEventListener('click', () => record('manual_silence'));
 $('fresh').addEventListener('click', () => {
@@ -253,8 +358,8 @@ $('copy').addEventListener('click', async () => {
   if (!copied) { report.focus(); report.select(); }
 });
 $('return').addEventListener('click', () => {
-  record('stop_requested');
-  release();
+  record('stop_requested', 'return');
+  release('return');
   window.location.assign('/');
 });
 registerMediaHandlers();
