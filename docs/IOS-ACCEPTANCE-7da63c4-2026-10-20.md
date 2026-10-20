@@ -1,5 +1,12 @@
 # iPhone: 7da63c4 physical acceptance failed
 
+**Later outcome:** the owner confirmed iOS **26.6.1** (the UA version is not
+reliable), correct operation in ordinary Safari and Chrome tabs, and a persistent
+standalone failure after reinstall. Removing the retailer PWA then restored
+audible player operation, while system artwork began opening another installed
+PWA. This is an environment workaround, not a repair by a new release. Wrong
+activation remains open. See the chronological addendum below.
+
 Owner's NoLife-Radio trial, 20 October 2026, export at 22:31 Moscow.
 Production: `7da63c4d7a416e6c715d92d1b8b22ff67eb7d3e7`.
 Sol independently read the trace and transport/MediaSession code; Astra reviewed
@@ -107,6 +114,9 @@ separate experiment, not an established fix.
 
 ## Next discriminating check
 
+The comparison requested here has since been performed by the owner. It is
+historical guidance, not a request to repeat the same tests or delete more apps.
+
 Keep the existing installations and data. Compare the same NoLife source in
 the installed RadioAtlas and an ordinary Safari tab, stopping the prior player
 before each trial. Start audibly, background, Pause for three seconds, then
@@ -125,3 +135,34 @@ This investigation changed documentation only. Existing 7da63c4 automated
 results were not rerun and do not override physical failure. No new production
 release was made. Raw owner exports remain ignored under
 `output/ios-acceptance-20261020-2231/`; they are not added to Git.
+
+## Later physical observations: tabs, reinstall and removal of another PWA
+
+These are the owner's direct chat observations, not a new diagnostic export:
+
+| Step | Audible result | System UI / activation |
+| --- | --- | --- |
+| Ordinary Safari tab | Pause/Play and station skipping work | Correct arrows reported |
+| Ordinary Chrome tab | Works normally | No Chrome-only failure established |
+| Existing installed PWA | Failure remains | Previously ±10 seconds; retailer activation |
+| Owner reinstalls RadioAtlas | Pause and station switching still silence playback | Next/Previous replace ±10; artwork still opens retailer PWA |
+| Owner removes retailer PWA, keeps RadioAtlas | Owner reports player now works correctly | Artwork opens a different installed PWA, «Родня» |
+
+This supports an installed-PWA/native session or registry-state interaction.
+The retailer itself is not proven to have captured audio or caused the native
+defect. Removal changes several things, potentially including registration and
+shared process state; there is no reinstall/rechallenge counterfactual. Correct
+artwork destination is demonstrably not required for audible operation in the
+latest observed state. Do not label this a Chrome bug or an application-code fix.
+
+Sol stopped Luna's proposed AudioSession experiment immediately after the sound
+recovery report. Luna confirmed zero runtime/test edits and no tests launched.
+No AudioSession override, recovery change or new release was made. The current
+runtime remains production 7da63c4; documentation commits are local only.
+
+Status: audible operation recovered after environment change, durability after
+relaunch/prolonged use not yet established; wrong-PWA activation unresolved.
+No further deletion, storage clearing or reinstall is requested. Preserve the
+current installation. If sound fails again, export diagnostics before changing
+the installation state. A native-activation field-report draft is kept in
+[WEBKIT-PWA-ACTIVATION-2026-10-20](WEBKIT-PWA-ACTIVATION-2026-10-20.md).

@@ -1,4 +1,19 @@
 # RUNBOOK
+## 2026-10-20 — PWA environment change restores sound; activation still wrong
+
+Owner confirms iOS 26.6.1. Ordinary Safari and Chrome tabs work. Reinstalling
+RadioAtlas replaced ±10 with Next/Previous but did not repair silence. Owner
+then removed the unrelated retailer PWA: audible player operation returned;
+RadioAtlas system artwork now opens a different installed PWA («Родня»).
+This is an environment workaround, not a new-release fix or proof that the
+retailer captured audio. Wrong-target activation remains unresolved. Do not
+ask for further PWA deletions or claim stable recovery after only this report.
+
+The default-off AudioSession diagnostic proposal was stopped before Luna made
+any runtime/test edits. No source change or production release was performed.
+[Chronology and limits](docs/IOS-ACCEPTANCE-7da63c4-2026-10-20.md);
+[unsubmitted native-activation field-report draft](docs/WEBKIT-PWA-ACTIVATION-2026-10-20.md).
+
 ## 2026-10-20 — 7da63c4 failed physical acceptance; wrong PWA activation
 
 The owner retested NoLife-Radio on published `7da63c4`: after system Pause,
