@@ -1,4 +1,16 @@
 # RUNBOOK
+## 2026-10-23 — positive physical playback-category trial; control pending
+
+Owner confirms audible resume in standalone lab04577b9, playback/applied,
+originalTypeauto. Four hidden system Pause/Play pairs (1.301–5.068s pauses)
+resolve16–21ms with retained position/readyState4. All60entries reviewed by Sol
+and Astra. Final manual_heard is retrospective after a concluding Pause.
+Short-cycle physical result accepted; no same-build automatic control, full20s
+post-resume observation, long-pause/call/Next or wrong-app activation acceptance.
+Do not extend this to the main runtime yet. Next: fresh same-build automatic
+document, same source/PWA, then playback rechallenge if automatic fails.
+[Evidence and procedure](docs/IOS-PLAYBACK-TRIAL-04577b9-2026-10-23.md).
+
 ## 2026-10-21 — isolated PWA fails before hidden Play callback
 
 Physical standalone f70f66e acceptance failed. Owner's23:57 export contains42
