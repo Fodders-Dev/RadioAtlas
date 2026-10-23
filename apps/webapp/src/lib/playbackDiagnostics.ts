@@ -13,7 +13,7 @@ const EVENTS = [
   'audio_progress', 'visibilitychange', 'pagehide', 'pageshow', 'media_play_command',
   'media_pause_command', 'media_stop_command', 'media_next_command', 'media_session_updated',
   'media_previous_command', 'transport_resume_native', 'transport_attach', 'transport_play_settled',
-  'transport_recovery_decision'
+  'transport_recovery_decision', 'pwa_playback_category_acquire', 'pwa_playback_category_release'
 ] as const;
 export type PlaybackDiagnosticEvent = (typeof EVENTS)[number];
 type Visibility = 'visible' | 'hidden' | 'prerender' | 'unloaded';
@@ -39,6 +39,9 @@ export type PlaybackDiagnosticControl = {
     'resolved' | 'deadline-progress' | 'timeout' | 'media-error' | 'rejected' | 'not-allowed' |
     'aborted' | 'superseded' | 'explicit-pause' | 'debt-held' | 'pending-deferred' |
     'reconnect-scheduled' | 'exhausted';
+  pwaPlaybackCategory?: 'not-requested' | 'ineligible' | 'unavailable' | 'original-unknown' | 'skipped-type' |
+    'already-playback' | 'write-failed' | 'write-ignored' | 'readback-unknown' | 'acquired' | 'restored' |
+    'external-change' | 'restore-unknown' | 'restore-failed';
 };
 
 export type PlaybackDiagnosticSnapshot = {
@@ -79,6 +82,11 @@ const actionReasonSet = new Set([
   'deadline-progress', 'timeout', 'media-error', 'rejected', 'not-allowed', 'aborted',
   'superseded', 'explicit-pause', 'debt-held', 'pending-deferred', 'reconnect-scheduled', 'exhausted'
 ]);
+const pwaPlaybackCategorySet = new Set([
+  'not-requested', 'ineligible', 'unavailable', 'original-unknown', 'skipped-type', 'already-playback',
+  'write-failed', 'write-ignored', 'readback-unknown', 'acquired', 'restored', 'external-change',
+  'restore-unknown', 'restore-failed'
+]);
 const snapshotKeys = new Set([
   'paused', 'ended', 'readyState', 'networkState', 'currentTime', 'errorCode', 'hasSrc',
   'hasMetadata', 'mediaPlaybackState', 'audioSessionType', 'audioSessionState', 'audioContextState'
@@ -87,7 +95,8 @@ const stateKeys = new Set(['version', 'enabled', 'expiresAt', 'entries']);
 const entryKeys = new Set(['at', 'event', 'visibility', 'snapshot', 'control']);
 const controlKeys = new Set([
   'candidateMode', 'playPending', 'permission', 'watchdogTicks', 'watchdogAgeMs',
-  'watchdogDecision', 'sessionSeq', 'bufferAheadSeconds', 'durationKind', 'queueSkippable', 'actionReason'
+  'watchdogDecision', 'sessionSeq', 'bufferAheadSeconds', 'durationKind', 'queueSkippable', 'actionReason',
+  'pwaPlaybackCategory'
 ]);
 const listeners = new Set<Listener>();
 type PlaybackControlProvider = () => PlaybackDiagnosticControl | undefined;
@@ -136,7 +145,8 @@ const validControl = (value: unknown): value is PlaybackDiagnosticControl => {
         v.bufferAheadSeconds >= 0 && v.bufferAheadSeconds <= 86_400)) &&
     (v.durationKind === undefined || durationKindSet.has(v.durationKind as string)) &&
     (v.queueSkippable === undefined || typeof v.queueSkippable === 'boolean') &&
-    (v.actionReason === undefined || actionReasonSet.has(v.actionReason as string));
+    (v.actionReason === undefined || actionReasonSet.has(v.actionReason as string)) &&
+    (v.pwaPlaybackCategory === undefined || pwaPlaybackCategorySet.has(v.pwaPlaybackCategory as string));
 };
 const validEntry = (value: unknown): value is PlaybackDiagnosticEntry => {
   if (!value || typeof value !== 'object') return false;
@@ -286,22 +296,39 @@ const readPlaybackControl = (
 };
 
 const environmentSnapshot = (): PlaybackDiagnosticSnapshot => {
-  const mediaSession = typeof navigator !== 'undefined' && 'mediaSession' in navigator ? navigator.mediaSession : null;
-  const nav = typeof navigator === 'undefined' ? null : (navigator as Navigator & {
+  let mediaSession: MediaSession | null = null;
+  let audioSession: { type?: unknown; state?: unknown } | null = null;
+  try { mediaSession = typeof navigator !== 'undefined' ? navigator.mediaSession ?? null : null; } catch { /* optional */ }
+  try { audioSession = typeof navigator !== 'undefined' ? (navigator as Navigator & {
     audioSession?: { type?: unknown; state?: unknown };
-  });
+  }).audioSession ?? null : null; } catch { /* optional */ }
+  let mediaPlaybackState: MediaPlaybackState | null = null;
+  let hasMetadata: boolean | null = null;
+  let audioSessionType: AudioSessionType | null = null;
+  let audioSessionState: AudioSessionState | null = null;
+  try { hasMetadata = mediaSession ? Boolean(mediaSession.metadata) : null; } catch { /* optional */ }
+  try {
+    const value = mediaSession?.playbackState;
+    mediaPlaybackState = value && mediaStateSet.has(value as MediaPlaybackState) ? value as MediaPlaybackState : null;
+  } catch { /* optional */ }
+  try {
+    const value = audioSession?.type;
+    audioSessionType = typeof value === 'string' && audioTypeSet.has(value as AudioSessionType) ? value as AudioSessionType : null;
+  } catch { /* optional */ }
+  try {
+    const value = audioSession?.state;
+    audioSessionState = typeof value === 'string' && audioStateSet.has(value as AudioSessionState) ? value as AudioSessionState : null;
+  } catch { /* optional */ }
   return {
     paused: null, ended: null, readyState: null, networkState: null, currentTime: null, errorCode: null,
-    hasSrc: null, hasMetadata: mediaSession ? Boolean(mediaSession.metadata) : null,
-    mediaPlaybackState: mediaSession?.playbackState && mediaStateSet.has(mediaSession.playbackState as MediaPlaybackState)
-      ? mediaSession.playbackState as MediaPlaybackState : null,
-    audioSessionType: typeof nav?.audioSession?.type === 'string' && audioTypeSet.has(nav.audioSession.type as AudioSessionType)
-      ? nav.audioSession.type as AudioSessionType : null,
-    audioSessionState: typeof nav?.audioSession?.state === 'string' && audioStateSet.has(nav.audioSession.state as AudioSessionState)
-      ? nav.audioSession.state as AudioSessionState : null,
+    hasSrc: null, hasMetadata, mediaPlaybackState, audioSessionType, audioSessionState,
     audioContextState: null
   };
 };
+export const recordPwaPlaybackCategoryDiagnostic = (
+  event: 'pwa_playback_category_acquire' | 'pwa_playback_category_release',
+  status: NonNullable<PlaybackDiagnosticControl['pwaPlaybackCategory']>
+) => recordPlaybackDiagnostic(event, undefined, undefined, { pwaPlaybackCategory: status });
 export const snapshotPlaybackAudio = (audio: HTMLMediaElement | null | undefined, audioContext?: BaseAudioContext | null) => {
   if (!audio) return environmentSnapshot();
   const base = environmentSnapshot();

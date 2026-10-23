@@ -38,9 +38,57 @@ describe('playback diagnostics recorder', () => {
     expect(reloaded.getPlaybackDiagnosticsState().entries.map((entry) => entry.event)).toEqual(['audio_pause']);
   });
 
+  it('accepts bounded category status fields and fixed events while retaining legacy entries', async () => {
+    const diagnostics = await load();
+    localStorage.setItem(diagnostics.PLAYBACK_DIAGNOSTICS_STORAGE_KEY, JSON.stringify({
+      version: 1, enabled: false, expiresAt: 0,
+      entries: [{ at: Date.now(), event: 'audio_pause' }]
+    }));
+    vi.resetModules();
+    const reloaded = await load();
+    expect(reloaded.getPlaybackDiagnosticsState().entries).toHaveLength(1);
+    reloaded.startPlaybackDiagnostics();
+    reloaded.recordPwaPlaybackCategoryDiagnostic('pwa_playback_category_acquire', 'acquired');
+    const entry = reloaded.getPlaybackDiagnosticsState().entries.at(-1);
+    expect(entry?.event).toBe('pwa_playback_category_acquire');
+    expect(entry?.control?.pwaPlaybackCategory).toBe('acquired');
+    reloaded.stopPlaybackDiagnostics();
+  });
+
+  it('contains throwing optional audioSession getters while keeping snapshots usable', async () => {
+    const diagnostics = await load();
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'audioSession');
+    Object.defineProperty(navigator, 'audioSession', {
+      configurable: true,
+      get: () => { throw new Error('partial implementation'); }
+    });
+    expect(() => diagnostics.snapshotPlaybackAudio(null)).not.toThrow();
+    const snapshot = diagnostics.snapshotPlaybackAudio(null);
+    expect(snapshot?.audioSessionType).toBeNull();
+    expect(snapshot?.audioSessionState).toBeNull();
+    Object.defineProperty(navigator, 'audioSession', descriptor || { configurable: true, value: undefined });
+  });
+
+  it('isolates throwing audioSession type and state getters individually', async () => {
+    const diagnostics = await load();
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, 'audioSession');
+    Object.defineProperty(navigator, 'audioSession', {
+      configurable: true,
+      value: {
+        get type() { throw new Error('type unavailable'); },
+        get state() { throw new Error('state unavailable'); }
+      }
+    });
+    const snapshot = diagnostics.snapshotPlaybackAudio(null);
+    expect(snapshot?.audioSessionType).toBeNull();
+    expect(snapshot?.audioSessionState).toBeNull();
+    Object.defineProperty(navigator, 'audioSession', descriptor || { configurable: true, value: undefined });
+  });
+
   it.each([
     { watchdogTicks: -1 },
     { watchdogDecision: 'guessing' },
+    { pwaPlaybackCategory: 'made-up' },
     { extraPrivateField: true },
     []
   ])('rejects malformed optional control values: %j', async (control) => {

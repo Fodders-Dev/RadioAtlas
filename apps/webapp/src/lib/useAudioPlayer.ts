@@ -7,11 +7,13 @@ import { decideCandidateSwitch } from './candidateSwitchGuard';
 import { reportClientEvent } from './observability';
 import {
   playbackDiagnosticsEnabled,
+  recordPwaPlaybackCategoryDiagnostic,
   recordAudioDiagnostic,
   recordPlaybackDiagnostic,
   registerPlaybackControlProvider,
   type PlaybackDiagnosticControl
 } from './playbackDiagnostics';
+import { createPwaPlaybackSession, isInstalledStandalone } from './pwaPlaybackSession';
 import { buildStationStreamTargets } from './stationStreams';
 import {
   buildCandidates,
@@ -395,6 +397,15 @@ export const useAudioPlayer = ({
   initialStation?: StationLite | null;
 } = {}) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pwaPlaybackSessionRef = useRef<ReturnType<typeof createPwaPlaybackSession> | null>(null);
+  if (!pwaPlaybackSessionRef.current) {
+    pwaPlaybackSessionRef.current = createPwaPlaybackSession({
+      isEligible: () => isConstrainedApplePlayback() && isInstalledStandalone(),
+      getAudioSession: () => typeof navigator === 'undefined' ? null :
+        (navigator as Navigator & { audioSession?: { type?: unknown } }).audioSession ?? null,
+      record: recordPwaPlaybackCategoryDiagnostic
+    });
+  }
   const hlsRef = useRef<{ destroy: () => void } | null>(null);
   const reconnectRef = useRef<ReconnectState>({ timer: null, attempts: 0 });
   const waitingTimeoutRef = useRef<number | null>(null);
@@ -705,7 +716,8 @@ export const useAudioPlayer = ({
       watchdogDecision: watchdogDecisionRef.current,
       sessionSeq: Math.min(1_000_000_000, playbackSessionRef.current),
       bufferAheadSeconds,
-      durationKind
+      durationKind,
+      pwaPlaybackCategory: pwaPlaybackSessionRef.current?.getStatus()
     };
   };
 
@@ -1861,6 +1873,7 @@ export const useAudioPlayer = ({
       beginPlaybackSession();
       window.clearInterval(stallWatchdog);
       pauseForSourceChange(audio);
+      pwaPlaybackSessionRef.current?.release();
       if ('srcObject' in audio) {
         try {
           (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;
@@ -2229,6 +2242,8 @@ export const useAudioPlayer = ({
   };
 
   const playStation = async (station: StationLite): Promise<PlayStationResult> => {
+    if (!audioRef.current) return { ok: false, error: 'Audio engine unavailable' };
+    pwaPlaybackSessionRef.current?.acquire();
     const start = ++stationStartRef.current;
     stationStartingRef.current = true;
     try {
@@ -2247,6 +2262,7 @@ export const useAudioPlayer = ({
     // OS play is an idempotent command, including duplicate headphone events
     // while the live stream is connecting. Never turn it into a pause.
     if (stationStartingRef.current || playPendingRef.current) return true;
+    pwaPlaybackSessionRef.current?.acquire();
     const progress = lastProgressRef.current;
     const positionMoved = Math.abs(audio.currentTime - progress.time) > 0.05;
     if (positionMoved) lastProgressRef.current = { time: audio.currentTime, at: Date.now() };
@@ -2524,6 +2540,7 @@ export const useAudioPlayer = ({
     // from being gone.
     recoveryAuthorizedForRef.current = null;
     pauseForSourceChange(audio);
+    pwaPlaybackSessionRef.current?.release();
     if ('srcObject' in audio) {
       try {
         (audio as HTMLAudioElement & { srcObject?: MediaStream | null }).srcObject = null;

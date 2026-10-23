@@ -1,5 +1,10 @@
 # Explicit playback category in the isolated PWA lab
 
+This remains the lab's isolation/default contract. A later, separately accepted
+main-player mitigation is specified in
+[the23October contract](CONTRACT-main-pwa-playback-category-2026-10-23.md);
+the original main-runtime hold below records the21October experiment scope.
+
 ## Evidence and scope
 
 The owner tested standalone f70f66e on iOS 26.6.1. The 23:57 export contains

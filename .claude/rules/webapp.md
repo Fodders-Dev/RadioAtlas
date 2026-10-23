@@ -79,12 +79,19 @@ PWA incident. Keep one native audio element and no app/bootstrap, recovery,
 AudioContext, keepalive or periodic timer in its graph. The default lab must not
 write an AudioSession category. Only the explicit nonpersistent playback trial
 may set it before first Play and conditionally restore its owned previous value
-on release; never reapply on Pause/visibility or propagate it into the app player.
+on release; never reapply on Pause/visibility or import lab code into the player.
 Settings must Stop the main player and navigate the same window within scope.
 Its fixed source and local journal are test evidence, not a background repair.
 See `docs/CONTRACT-minimal-pwa-player-2026-10-20.md` for acceptance and limits.
 The bounded category experiment is specified separately in
 `docs/CONTRACT-audio-session-trial-2026-10-21.md` and is not a proven repair.
+The separately authorized23October main mitigation is restricted to installed
+Apple WebKit PWA: explicit Play may acquire readable auto->playback once per
+listening interval, retain through Pause/switch/recovery, restore only owned
+still-playback value at Stop/unmount. Do not bind it to candidate/session bumps,
+pagehide, playing handlers or visibility. Ordinary tabs perform zero writes.
+See `docs/CONTRACT-main-pwa-playback-category-2026-10-23.md`; main iPhone sound,
+OS queue buttons and foreign-PWA activation remain physical acceptance criteria.
 
 - Media Session `play` and `pause` are commands, never aliases for toggle.
   Headphone resume must work while still hidden; `visibilitychange` is not a

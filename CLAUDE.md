@@ -141,9 +141,13 @@ Keep its dependency graph free of the app/bootstrap/recovery runtime. It must
 remain an explicit diagnostic, never a replacement player or automatic fallback.
 Its default leaves AudioSession.type untouched. The explicit nonpersistent
 playback-category trial is confined to this document, retained across Pause and
-conditionally restored on release; no category override belongs in the main
-player until physical evidence supports a separate accepted change. See
-`docs/CONTRACT-audio-session-trial-2026-10-21.md`.
+conditionally restored on release. The23October physical trials support a
+separate bounded main-player mitigation: only installed Apple WebKit PWA, only
+readable auto->playback on explicit Play, retained across Pause/switches and
+conditionally restored at Stop/unmount. No category writes on mount, timers or
+visibility; tabs remain unchanged. Physical main-player acceptance remains open.
+See `docs/CONTRACT-audio-session-trial-2026-10-21.md` and
+`docs/CONTRACT-main-pwa-playback-category-2026-10-23.md`.
 After deployment verify its unique HTML marker and emitted JS, not HTTP 200
 alone: the server's SPA fallback can return the normal shell for a missing page.
 Native progress and desktop contract tests do not certify audible iPhone output.

@@ -1,4 +1,4 @@
-# Physical playback-category trial: positive result, control pending
+# Physical playback-category trial and main-player mitigation decision
 
 Owner reported on23October that system Play after Pause became available and
 audible music resumed. Export:build04577b9,built2026-10-20T21:40:50.938Z,
@@ -55,3 +55,31 @@ document to form playback->automatic->playback before claiming category causalit
 Main-runtime integration requires a separate bounded contract, Luna
 implementation, Astra review and existing release gates. Longer pause/call and
 station-switching acceptance and wrong-PWA activation remain OPEN.
+
+## Follow-up on23October
+
+Owner supplied export472237c3-51e3-42ed-acd5-37acf3a065c8, preserved locally as
+output/main-pwa-category/owner-followup-trace.json.42entries include three more
+hidden media-session resumes: pauses1.420/1.560/0.820s, play resolved16/14/20ms,
+positions7.8/16.4/19.5 retained at readyState4, playback/applied. Return at26.717s
+is followed5ms later by audio_session_trial_release with auto/restored; pagehide
+then has zero position/readyState0 as expected for release. A fresh lab visit
+34.496s after Return reads automatic/auto but contains NO Play. Top-level mode
+automatic describes that final document, not the earlier successful events.
+
+Owner separately reports the MAIN player also works after the selected trial,
+but refreshing/reopening RadioAtlas loses resume. They explicitly clarified
+this is app refresh/reopen, NOT a phone reboot. No failed automatic/main playback
+is recorded in this lab export. These are separate observed and recorded facts.
+Since Return restores JS typeauto, carryover cannot be attributed simply to an
+unreleased JS override; native session carryover/navigation remains possible.
+
+Repeated positive trials and the owner's repeatable fresh-launch contrast now
+support a narrow main installed-Apple-PWA mitigation, with physical acceptance
+OPEN. Sol and Astra approved the separate
+[implementation contract](CONTRACT-main-pwa-playback-category-2026-10-23.md).
+The earlier instruction to wait for a control is superseded by this bounded
+decision, not by a claim that the category cause is proven. Luna implements;
+Sol reviews/tests/releases. Owner also reports PWA seek +/-10 instead of queue
+Next/Previous while browser tabs have correct controls. Preserve that as a
+separate physical criterion; no speculative handler changes enter this release.

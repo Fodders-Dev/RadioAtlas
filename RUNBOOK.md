@@ -1,5 +1,27 @@
 # RUNBOOK
-## 2026-10-23 — positive physical playback-category trial; control pending
+## 2026-10-23 — main PWA category mitigation; physical acceptance open
+
+Second04577b9 export has42entries, three hidden system resumes in playback,
+resolved16/14/20ms with retained position/readyState4. Return restores JSauto;
+the last fresh automatic lab visit contains no Play. Owner separately reports
+main Pause/Play works after lab but fails after app refresh/reopen (NOT phone
+reboot). Carryover/navigation effects remain alternatives to category causality.
+Owner also reports installed PWA has +/-10 while browser tabs have Next/Previous.
+Sol/Astra accepted a narrow main installed-Apple-PWA category mitigation for
+implementation/release; Luna implemented code/tests. Explicit Play may acquire auto to
+playback once, retain through Pause/switch/retry, conditionally restore on
+Stop/unmount. No new pagehide/handler/recovery policy. Tabs unchanged, lab still
+default-auto. Main audible iPhone, OS buttons, call and wrong-app activation
+acceptance remain OPEN. Sol verified both typechecks,994units/119files,
+full functional463passed/7skips(13.1min),build and four expected-red ownership
+mutations. Astra independently reviewed final code without blockers. Publication
+requires exact-SHA CI/deploy and server/public smoke; the local receipt is
+output/main-pwa-category/RELEASE-RECEIPT.md. This entry alone claims no deploy.
+[Contract](docs/CONTRACT-main-pwa-playback-category-2026-10-23.md),
+[implementation and checks](docs/MAIN-PWA-PLAYBACK-2026-10-23.md),
+[trace chronology](docs/IOS-PLAYBACK-TRIAL-04577b9-2026-10-23.md).
+
+## 2026-10-23 — first positive trial (historical, before the follow-up above)
 
 Owner confirms audible resume in standalone lab04577b9, playback/applied,
 originalTypeauto. Four hidden system Pause/Play pairs (1.301–5.068s pauses)
@@ -7,8 +29,9 @@ resolve16–21ms with retained position/readyState4. All60entries reviewed by So
 and Astra. Final manual_heard is retrospective after a concluding Pause.
 Short-cycle physical result accepted; no same-build automatic control, full20s
 post-resume observation, long-pause/call/Next or wrong-app activation acceptance.
-Do not extend this to the main runtime yet. Next: fresh same-build automatic
-document, same source/PWA, then playback rechallenge if automatic fails.
+At this point main integration was held for a same-build automatic control.
+The later follow-up above supports a separate bounded mitigation; it does not
+turn this first trial into causal proof.
 [Evidence and procedure](docs/IOS-PLAYBACK-TRIAL-04577b9-2026-10-23.md).
 
 ## 2026-10-21 — isolated PWA fails before hidden Play callback
