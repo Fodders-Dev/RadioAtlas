@@ -94,3 +94,25 @@ No frontend source was changed. Required CI still exercises full web units and
 serial functional browser coverage for the exact release SHA. Publication,
 public sustained bytes and native browser progress are separate gates; local
 fixture bytes do not establish audible output from the actual station.
+
+## First CI gate and deterministic test settlement
+
+CI41301345501 for a2f8e43 completed with462passed/7skipped/1failed. Deploy
+41301345424 correctly refused publication and skipped its deploy job. The
+failure is headphone-transport.spec.ts:151: expected Mock Song/Tokyo FM,
+received Tokyo FM/Japan. The station did not change; the test captured metadata
+before Pause's React effects had cleared the track and settled station-only
+metadata. Hidden resume suppresses metadata polling, making the later snapshot
+correctly station-only.
+
+Luna reproduced this once in156cases (12repeats,6workers, repeat11), then added
+only four settling assertions in that test. It awaits paused audio, paused OS
+state and exact Tokyo FM/Japan metadata before taking identityBeforePlay; it
+also waits for OS playing before the final snapshot. All original complete
+identity/source/load/play/visibility assertions remain intact. The identical
+repeat command then passes156/156. Sol/Astra independently reviewed the change;
+no product, player, fixture payload, retry count or tolerance was changed.
+
+Final local full-serial and required new-SHA CI must pass before publication.
+The first blocked run and the subsequent successful evidence must remain
+separate in the receipt; do not call a targeted repeat the full browser gate.

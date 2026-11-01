@@ -68,3 +68,21 @@ away/back successfully; NoLife remains healthy. Record bytes/MIME/durations and
 browser observations separately from audible physical output. No model/Tavily
 paid calls, no keys/env reads, no neighbor services, no claim that NL was globally
 dead or that FI migration restored playback.
+
+## CI fixture settlement follow-up
+
+First publication candidate a2f8e43 is blocked by functional CI41301345501:
+462passed/7skipped/1failed, headphone-transport.spec.ts:151. The captured identity
+is Mock Song/Tokyo FM before Play and Tokyo FM/Japan afterward. Source review
+by Sol/Astra identifies native mocked pause as synchronous while React clears
+nowPlaying and republishes station-only metadata later. Hidden resume does not
+poll new metadata; the capture raced the preceding Pause. Local12repeats at
+6workers reproduce the same failure once among156cases of that spec file.
+
+Luna may change ONLY that healthy-buffered test: await paused native state,
+Media Session paused state and exact station-name/country identity before
+identityBeforePlay is captured; await resumed OS playing state before the after
+snapshot if needed. Keep every existing source/load/play/full-identity/hidden
+assertion. No subset comparisons, sleeps, retries, fixture bypass, production
+player changes or disabled gate. Root runs final typechecks, web units and full
+serial functional suite, then releases only through new-SHA required CI/deploy.

@@ -131,10 +131,14 @@ test('headphone Play preserves a healthy buffered source without replacing its m
       value: { length: 1, start: () => 20, end: () => 60 }
     });
   });
+  await expect(audio(page)).toHaveAttribute('data-ra-state', 'paused');
+  await expect.poll(() => page.evaluate(() => navigator.mediaSession.playbackState)).toBe('paused');
+  await expect.poll(() => mediaIdentity(page)).toBe(`${stations[0].name}\n${stations[0].country}`);
   const identityBeforePlay = await mediaIdentity(page);
 
   await command(page, 'play');
   await expect(audio(page)).toHaveAttribute('data-ra-state', 'playing');
+  await expect.poll(() => page.evaluate(() => navigator.mediaSession.playbackState)).toBe('playing');
   const after = await page.evaluate(() => {
     const media = document.querySelector('audio.audio-hidden') as HTMLAudioElement;
     const probe = (window as unknown as { headphoneProbe: HeadphoneProbe }).headphoneProbe;

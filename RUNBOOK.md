@@ -14,6 +14,13 @@ accepted-but-stalled direct media. New branch excludes unpublished d69d691.
 [Evidence and release criteria](docs/BROKENBEATS-ROUTING-2026-11-01.md),
 [contract](docs/CONTRACT-brokenbeats-egress-2026-11-01.md).
 
+First candidate a2f8e43 was correctly blocked: CI462pass/7skip/1failure in a
+headphone fixture identity snapshot. It raced the prior Pause's React metadata
+settlement (Mock Song/Tokyo FM -> Tokyo FM/Japan), reproduced1/156cases locally.
+Luna added concrete paused/playing/exact-identity waits without removing any
+assertion; identical repeats pass156/156. Root/Astra reviewed. No player source
+change; local full serial and new-SHA CI are still required for publication.
+
 ## 2026-10-23 — main PWA category mitigation; physical acceptance open
 
 Second04577b9 export has42entries, three hidden system resumes in playback,
