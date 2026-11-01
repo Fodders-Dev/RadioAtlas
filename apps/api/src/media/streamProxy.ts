@@ -5,6 +5,7 @@ import type { MediaRouteOptions } from './types.js';
 import {
   fetchViaForeignEgress,
   isEgressHop,
+  prefersForeignEgress,
   readForeignEgressConfig
 } from './foreignEgress.js';
 import {
@@ -269,8 +270,13 @@ const createImageGuard = (options: MediaRouteOptions) =>
     rateLimitWindowMs: options.rateLimitWindowMs || 60_000
   });
 
-export const createStreamHandler = (options: MediaRouteOptions) => {
+type StreamProxyDependencies = {
+  fetchCandidate?: typeof fetchCandidate;
+};
+
+export const createStreamHandler = (options: MediaRouteOptions, dependencies: StreamProxyDependencies = {}) => {
   const guard = createStreamGuard(options);
+  const fetchCandidateImpl = dependencies.fetchCandidate ?? fetchCandidate;
   // Read once: this is configuration, not per-request state, and a stream
   // handler that re-parsed env on every request would be measuring the wrong
   // thing under load.
@@ -321,40 +327,12 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
 
         let upstream: Response | null = null;
         let lastError: Error | null = null;
-        for (const candidate of fetchUrlCandidates(parsed.target)) {
-          try {
-            const response = await fetchCandidate(
-              candidate,
-              { headers, signal: clientAbort.signal },
-              // The speculative https:// upgrade carries a SHORT deadline of its
-              // own; only the real target is worth the full upstream timeout.
-              proxyTimeoutMs(options)
-            );
-            if (!response.ok) {
-              // Drain the abandoned body so its agent-disposal wrapper closes
-              // the pinned socket; dead/redirecting stream URLs are common, and
-              // a bare `continue` here leaks an Agent per failed candidate.
-              await drainResponseBody(response);
-              lastError = new Error(`Upstream ${response.status}`);
-              continue;
-            }
-            upstream = response;
-            break;
-          } catch (error) {
-            if (clientAbort.signal.aborted) throw error;
-            // A failed upgrade is remembered per host, so the next station on
-            // that server starts at plain-HTTP speed instead of paying the probe
-            // again.
-            if (candidate.speculative) noteHttpsUpgradeFailure(candidate.url);
-            lastError = error instanceof Error ? error : new Error('Upstream failed');
-          }
-        }
+        const alreadyRelayed = isEgressHop(req.headers as Record<string, unknown>);
+        const preferRelay = Boolean(foreignEgress && !alreadyRelayed && prefersForeignEgress(parsed.target));
 
-        if (!upstream && foreignEgress && !isEgressHop(req.headers as Record<string, unknown>)) {
-          // Every direct candidate failed. Before calling the station dead, ask
-          // the host that is not behind this one's routing. Only a failure gets
-          // here, so the common path never pays the second hop.
-          const relayed = await fetchViaForeignEgress(
+        const fetchForeign = () => {
+          if (!foreignEgress) return Promise.resolve(null);
+          return fetchViaForeignEgress(
             foreignEgress,
             parsed.target,
             { headers },
@@ -381,6 +359,54 @@ export const createStreamHandler = (options: MediaRouteOptions) => {
               }
             }
           );
+        };
+
+        // These two HTTPS mounts returned a 200 AAC prefix of 24,007 bytes and
+        // then stalled from RU, while the configured foreign path continued.
+        // Keep this measured exception exact; it is not a general outage route.
+        if (preferRelay) {
+          upstream = await fetchForeign();
+          if (clientAbort.signal.aborted) {
+            await upstream?.body?.cancel().catch(() => {});
+            throw new Error('stream client disconnected');
+          }
+        }
+
+        for (const candidate of fetchUrlCandidates(parsed.target)) {
+          if (upstream) break;
+          try {
+            const response = await fetchCandidateImpl(
+              candidate,
+              { headers, signal: clientAbort.signal },
+              // The speculative https:// upgrade carries a SHORT deadline of its
+              // own; only the real target is worth the full upstream timeout.
+              proxyTimeoutMs(options)
+            );
+            if (!response.ok) {
+              // Drain the abandoned body so its agent-disposal wrapper closes
+              // the pinned socket; dead/redirecting stream URLs are common, and
+              // a bare `continue` here leaks an Agent per failed candidate.
+              await drainResponseBody(response);
+              lastError = new Error(`Upstream ${response.status}`);
+              continue;
+            }
+            upstream = response;
+            break;
+          } catch (error) {
+            if (clientAbort.signal.aborted) throw error;
+            // A failed upgrade is remembered per host, so the next station on
+            // that server starts at plain-HTTP speed instead of paying the probe
+            // again.
+            if (candidate.speculative) noteHttpsUpgradeFailure(candidate.url);
+            lastError = error instanceof Error ? error : new Error('Upstream failed');
+          }
+        }
+
+        if (!upstream && foreignEgress && !alreadyRelayed && !preferRelay) {
+          // Every direct candidate failed. Before calling the station dead, ask
+          // the host that is not behind this one's routing. Only a failure gets
+          // here, so the common path never pays the second hop.
+          const relayed = await fetchForeign();
           if (relayed) {
             upstream = relayed;
           }

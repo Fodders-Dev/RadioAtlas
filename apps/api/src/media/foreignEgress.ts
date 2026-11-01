@@ -40,6 +40,15 @@ export type ForeignEgressConfig = {
  */
 export const EGRESS_HOP_HEADER = 'x-radioatlas-egress-hop';
 
+const BROKENBEATS_STREAM_MOUNTS = new Set([
+  'https://stream.brokenbeats.net/tune',
+  'https://brokenbeats.net/stream/aac'
+]);
+
+/** Only the two measured mounts get preferred foreign egress. */
+export const prefersForeignEgress = (target: URL): boolean =>
+  BROKENBEATS_STREAM_MOUNTS.has(target.href);
+
 export const readForeignEgressConfig = (
   env: NodeJS.ProcessEnv,
   defaultTimeoutMs: number

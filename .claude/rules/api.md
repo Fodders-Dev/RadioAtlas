@@ -188,6 +188,12 @@ pass would have reported 13 and been wrong by two.
   failed pays the second hop. Sending everything abroad would double the
   bandwidth on both boxes, add a round trip for every listener, and defeat the
   point of being on a Russian host.
+  The measured exception is exactly the two HTTPS Brokenbeats mounts documented
+  in `docs/CONTRACT-brokenbeats-egress-2026-11-01.md`: RU returns200 and a short
+  AAC prefix then stalls, while the configured foreign route continues. Prefer
+  that route only for those exact normalized URLs and non-hop requests. A failed
+  preference may try direct but must not attempt the relay twice. Do not widen
+  it to a domain-wide rule or splice a new stream into an already-sent body.
 - **The far end is this same API on the other host.** `/stream?url=…` already is
   "fetch this and stream it back", with the same SSRF protection and rate
   limits, so there is no second implementation to keep in sync and no new

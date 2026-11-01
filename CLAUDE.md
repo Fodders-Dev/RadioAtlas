@@ -89,6 +89,13 @@ or logs provider keys. The unaccepted screenshot UI is outside this release.
 The browser gets an
 explicit allow-list of fields, never a provider key or raw provider data.
 
+Media foreign egress normally follows direct failure. The two exact HTTPS
+Brokenbeats mounts have a measured egress-first exception: RU sends a200 AAC
+prefix and stalls, so successful headers do not reach fallback. Preserve target
+validation, hop/cancellation ownership and ordinary station ordering; do not
+turn this into global foreign routing. See
+`docs/CONTRACT-brokenbeats-egress-2026-11-01.md`.
+
 ## Commands
 
 Shared Codex/Claude workflow: read `.claude/rules/collaboration.md`.

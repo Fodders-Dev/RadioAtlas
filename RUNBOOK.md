@@ -1,4 +1,19 @@
 # RUNBOOK
+## 2026-11-01 — Brokenbeats stalls on RU despite a working foreign route
+
+Owner proposes FI193.8.114.209 after NL desktop SSH fails. Application tunnel
+still answers:8399relay and3399 foreign API. Actual Brokenbeats audio via3399 is
+healthy (>100KB/2.77s), while RU direct/main/public paths return200 audio/aac,
+then stop at exactly24007bytes through8/12/18s. NoLife control works. Actual
+browser Retry starts with our proxy; do not infer initial order from the final
+failed direct currentSrc. Sol/Astra contract prefers configured foreign egress
+only for the two exact measured Brokenbeats mounts. Luna implemented API only;
+no generic body splice, frontend change or global foreign reroute. FI has no
+RadioAtlas runtime and was not modified; switching fallback alone cannot fix
+accepted-but-stalled direct media. New branch excludes unpublished d69d691.
+[Evidence and release criteria](docs/BROKENBEATS-ROUTING-2026-11-01.md),
+[contract](docs/CONTRACT-brokenbeats-egress-2026-11-01.md).
+
 ## 2026-10-23 — main PWA category mitigation; physical acceptance open
 
 Second04577b9 export has42entries, three hidden system resumes in playback,
